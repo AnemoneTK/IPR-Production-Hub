@@ -15,7 +15,7 @@ import {
   AlertTriangle,
   Pencil,
   Check,
-  X, // <--- เพิ่มไอคอนใหม่
+  X,
 } from "lucide-react";
 
 export default function AssetsTab({ projectId }: { projectId: number }) {
@@ -37,7 +37,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Rename States (ใหม่ 🔥)
+  // Rename States
   const [editingItem, setEditingItem] = useState<{
     type: "folder" | "file";
     id: number;
@@ -190,7 +190,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
     }
   };
 
-  // --- 4. Rename Logic (ใหม่! 🔥) ---
+  // --- 4. Rename Logic ---
   const handleRename = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!editingItem || !editingItem.name.trim()) return;
@@ -198,7 +198,6 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
     try {
       const table = editingItem.type === "folder" ? "folders" : "files";
 
-      // อัปเดตใน Database
       const { error } = await supabase
         .from(table)
         .update({ name: editingItem.name })
@@ -206,7 +205,6 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
 
       if (error) throw error;
 
-      // อัปเดตข้อมูลใน State ทันที (Optimistic)
       if (editingItem.type === "folder") {
         setFolders((prev) =>
           prev.map((f) =>
@@ -231,7 +229,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
         );
       }
 
-      setEditingItem(null); // ปิดโหมดแก้ไข
+      setEditingItem(null);
     } catch (error: any) {
       alert("เปลี่ยนชื่อไม่สำเร็จ: " + error.message);
     }
@@ -417,9 +415,9 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                       fillOpacity={0.2}
                     />
 
-                    {/* ส่วนชื่อโฟลเดอร์: แสดง Input เมื่อแก้ไข */}
+                    {/* 🔥 แก้ไขจุดที่ 1: เพิ่ม ?.type */}
                     {editingItem?.id === folder.id &&
-                    editingItem.type === "folder" ? (
+                    editingItem?.type === "folder" ? (
                       <form
                         onSubmit={handleRename}
                         onClick={(e) => e.stopPropagation()}
@@ -436,7 +434,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                               name: e.target.value,
                             })
                           }
-                          onBlur={() => handleRename()} // กดออกก็เซฟเลย
+                          onBlur={() => handleRename()}
                         />
                       </form>
                     ) : (
@@ -446,7 +444,6 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                     )}
                   </div>
 
-                  {/* ปุ่ม Action (ลอยมุมขวาบน) */}
                   <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
                     <button
                       onClick={(e) => {
@@ -525,10 +522,10 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                         )}
                       </td>
 
-                      {/* ชื่อไฟล์ (แก้ไขได้) */}
                       <td className="px-4 py-3 font-medium text-gray-700 max-w-[300px]">
+                        {/* 🔥 แก้ไขจุดที่ 2: เพิ่ม ?.type */}
                         {editingItem?.id === file.id &&
-                        editingItem.type === "file" ? (
+                        editingItem?.type === "file" ? (
                           <form
                             onSubmit={handleRename}
                             className="flex items-center gap-2"
@@ -577,7 +574,6 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                       </td>
 
                       <td className="px-4 py-3 text-right flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {/* ปุ่ม Rename (เพิ่มใหม่) */}
                         <button
                           onClick={() =>
                             setEditingItem({
@@ -624,7 +620,6 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
         </>
       )}
 
-      {/* --- Delete Modal (เหมือนเดิม) --- */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-red-100 scale-100 animate-in zoom-in-95 duration-200">

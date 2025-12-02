@@ -11,22 +11,26 @@ import {
   Loader2,
   Download,
   UploadCloud,
+  Trash2, // <--- เพิ่ม Trash2
 } from "lucide-react";
 
 export default function AssetsTab({ projectId }: { projectId: number }) {
-  // State เดิม
+  // --- States ---
   const [currentFolderId, setCurrentFolderId] = useState<number | null>(null);
   const [folderPath, setFolderPath] = useState<any[]>([]);
   const [folders, setFolders] = useState<any[]>([]);
   const [files, setFiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Create Folder State
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
 
-  // State ใหม่สำหรับการอัปโหลด
+  // Upload State
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
 
+  // --- 1. Fetch Data ---
   const fetchData = async () => {
     setLoading(true);
     let folderQuery = supabase
@@ -58,7 +62,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
     fetchData();
   }, [projectId, currentFolderId]);
 
-  // 2. Create Folder (เหมือนเดิม)
+  // --- 2. Create Folder ---
   const handleCreateFolder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFolderName.trim()) return;
@@ -74,87 +78,100 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
     }
   };
 
-  // 3. ฟังก์ชันอัปโหลดไฟล์ (ของใหม่! 🔥)
+  // --- 3. Upload File ---
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setIsUploading(true);
-
     try {
-      // Step A: ขอ User ID
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
 
-      // Step B: ขอ Presigned URL จาก API Route ของเรา
+      // A. ขอ Presigned URL
       const response = await fetch("/api/upload", {
         method: "POST",
         body: JSON.stringify({ name: file.name, type: file.type }),
       });
       const { url, fileName } = await response.json();
 
-      // Step C: อัปโหลดไฟล์ขึ้น R2 ตรงๆ (PUT)
+      // B. Upload to R2
       await fetch(url, {
         method: "PUT",
         body: file,
         headers: { "Content-Type": file.type },
       });
 
-      const publicUrl = `${
-        process.env.NEXT_PUBLIC_R2_PUBLIC_DOMAIN || ""
-      }/${fileName}`;
-
+      // C. Save to DB
       const { error: dbError } = await supabase.from("files").insert({
         project_id: projectId,
         folder_id: currentFolderId,
-        name: file.name, // ชื่อเดิมที่ User เห็น
-        file_url: fileName, // เก็บชื่อไฟล์ใน R2 (Key) เอาไว้ไปเจนลิงก์โหลดทีหลัง
+        name: file.name,
+        file_url: fileName,
         file_type: file.type,
         size: file.size,
         uploaded_by: user.id,
       });
-
       if (dbError) throw dbError;
-
-      // สำเร็จ!
       fetchData();
     } catch (error: any) {
-      console.error(error);
       alert("อัปโหลดล้มเหลว: " + error.message);
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = ""; // ล้างค่า input
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
+  // --- 4. Download File ---
   const handleDownload = async (fileKey: string, originalName: string) => {
     try {
-      // 1. ขอลิงก์จาก API
       const response = await fetch("/api/download", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fileKey, originalName }),
       });
       const { url } = await response.json();
-
       if (url) {
-        // 2. สั่ง Browser ให้เปิดลิงก์นั้น (มันจะเด้งโหลดอัตโนมัติ)
         const link = document.createElement("a");
         link.href = url;
-        link.setAttribute("download", originalName); // เสริมความชัวร์
+        link.setAttribute("download", originalName);
         document.body.appendChild(link);
         link.click();
         link.remove();
       }
-    } catch (error) {
+    } catch {
       alert("ดาวน์โหลดไม่สำเร็จ");
-      console.error(error);
     }
   };
 
-  // Navigation Helpers (เหมือนเดิม)
+  // --- 5. Delete File (ใหม่! 🔥) ---
+  const handleDeleteFile = async (fileId: number, fileKey: string) => {
+    if (!confirm("ยืนยันที่จะลบไฟล์นี้ถาวร?")) return;
+
+    try {
+      // A. ลบไฟล์บน R2 (เรียก API ที่เราทำไว้ตอนทำปุ่มลบโปรเจกต์)
+      const res = await fetch("/api/delete-files", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileKeys: [fileKey] }), // ส่งไปเป็น Array
+      });
+
+      if (!res.ok) throw new Error("ลบไฟล์บน Cloud ไม่สำเร็จ");
+
+      // B. ลบข้อมูลใน Database
+      const { error } = await supabase.from("files").delete().eq("id", fileId);
+      if (error) throw error;
+
+      // C. โหลดข้อมูลใหม่
+      fetchData();
+    } catch (error: any) {
+      console.error(error);
+      alert("เกิดข้อผิดพลาด: " + error.message);
+    }
+  };
+
+  // --- Navigation ---
   const enterFolder = (folder: any) => {
     setFolderPath([...folderPath, folder]);
     setCurrentFolderId(folder.id);
@@ -170,7 +187,6 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
 
   return (
     <div className="p-6 min-h-[500px]">
-      {/* Input ไฟล์ซ่อนอยู่ตรงนี้ */}
       <input
         type="file"
         ref={fileInputRef}
@@ -215,7 +231,6 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
             ))}
           </div>
         </div>
-
         <div className="flex gap-2">
           <button
             onClick={() => setIsCreatingFolder(true)}
@@ -223,8 +238,6 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
           >
             <Folder className="w-4 h-4" /> สร้างโฟลเดอร์
           </button>
-
-          {/* ปุ่มอัปโหลด (กดแล้วไปเรียก input ที่ซ่อนอยู่) */}
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
@@ -234,13 +247,12 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <UploadCloud className="w-4 h-4" />
-            )}
+            )}{" "}
             {isUploading ? "กำลังอัป..." : "อัปโหลดไฟล์"}
           </button>
         </div>
       </div>
 
-      {/* Create Folder Form (เหมือนเดิม) */}
       {isCreatingFolder && (
         <form
           onSubmit={handleCreateFolder}
@@ -270,14 +282,13 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
         </form>
       )}
 
-      {/* Content Area */}
       {loading ? (
         <div className="text-center py-10 text-gray-400">
           <Loader2 className="w-8 h-8 animate-spin mx-auto" />
         </div>
       ) : (
         <>
-          {/* Folder Grid */}
+          {/* Folders */}
           {folders.length > 0 && (
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
               {folders.map((folder) => (
@@ -299,7 +310,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
             </div>
           )}
 
-          {/* File List */}
+          {/* Files Table */}
           <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
             <table className="w-full text-sm text-left">
               <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-100">
@@ -346,15 +357,26 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                       <td className="px-4 py-3 text-gray-400">
                         {new Date(file.created_at).toLocaleDateString()}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right flex justify-end gap-1">
+                        {/* ปุ่ม Download */}
                         <button
                           onClick={() =>
                             handleDownload(file.file_url, file.name)
-                          } // <--- แก้ตรงนี้
+                          }
                           className="p-1.5 text-gray-400 hover:text-accent rounded-lg hover:bg-blue-50 transition-colors"
-                          title="ดาวน์โหลดต้นฉบับ"
+                          title="ดาวน์โหลด"
                         >
                           <Download className="w-4 h-4" />
+                        </button>
+                        {/* ปุ่ม Delete (เพิ่มใหม่) */}
+                        <button
+                          onClick={() =>
+                            handleDeleteFile(file.id, file.file_url)
+                          }
+                          className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                          title="ลบไฟล์"
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </td>
                     </tr>

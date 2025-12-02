@@ -12,7 +12,9 @@ import {
   X,
   Bell,
   Loader2,
-  User, // เพิ่มไอคอน User มาสำรอง
+  User,
+  Bug,
+  Shield,
 } from "lucide-react";
 
 export default function DashboardLayout({
@@ -23,7 +25,7 @@ export default function DashboardLayout({
   const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
-
+  const [isAdmin, setIsAdmin] = useState(false);
   // State สำหรับเก็บตัวย่อชื่อ (Initials)
   const [userInitials, setUserInitials] = useState("");
 
@@ -61,6 +63,15 @@ export default function DashboardLayout({
           setUserInitials(user.email.substring(0, 2).toUpperCase());
         }
 
+        if (user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("is_admin") // ขอ is_admin มาด้วย
+            .eq("id", user.id)
+            .single();
+
+          if (profile?.is_admin) setIsAdmin(true);
+        }
         setIsChecking(false);
       } catch (err) {
         console.error("Auth check error:", err);
@@ -89,6 +100,7 @@ export default function DashboardLayout({
       href: "/dashboard/assets",
     },
     { name: "เนื้อเพลง & บท", icon: Music, href: "/dashboard/lyrics" },
+    { name: "แจ้งปัญหา / แนะนำ", icon: Bug, href: "/dashboard/feedback" },
   ];
 
   if (isChecking) {
@@ -138,6 +150,20 @@ export default function DashboardLayout({
               <span>{item.name}</span>
             </Link>
           ))}
+          {isAdmin && (
+            <div className="pt-4 mt-4 border-t border-primary-light/50">
+              <p className="px-3 text-xs font-bold text-gray-500 uppercase mb-2">
+                Admin Zone
+              </p>
+              <Link
+                href="/dashboard/admin/feedback"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-orange-300 hover:bg-primary-light hover:text-white transition-colors"
+              >
+                <Shield className="w-5 h-5" />
+                <span>จัดการ Feedback</span>
+              </Link>
+            </div>
+          )}
         </nav>
 
         <div className="p-4 border-t border-primary-light">

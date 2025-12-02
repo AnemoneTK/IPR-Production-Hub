@@ -115,7 +115,7 @@ export default function DashboardLayout({
         <div className="h-16 flex items-center px-6 border-b border-primary-light/50">
           <div className="flex items-center gap-1 font-extrabold text-xl tracking-tight select-none">
             <span className="text-white">IPR</span>
-            <span className="bg-orange-500 text-gray-900 px-2 py-0.5 rounded-md leading-tight">
+            <span className="bg-[#ffa31a] text-gray-900 px-1 py-0.5 ml-1 rounded-md leading-tight">
               Hub
             </span>
           </div>

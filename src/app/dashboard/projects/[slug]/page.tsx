@@ -13,21 +13,28 @@ import {
   Users,
 } from "lucide-react";
 
-// --- Import Component ของจริง ---
+// --- Import Components ทั้งหมดที่เราสร้างมา ---
 import BoardTab from "@/components/BoardTab";
 import AssetsTab from "@/components/AssetsTab";
 import LyricsTab from "@/components/LyricsTab";
+import SettingsTab from "@/components/SettingsTab";
+import MemberModal from "@/components/MemberModal";
 
 export default function ProjectWorkspace() {
   const params = useParams();
   const router = useRouter();
 
-  // แปลง Slug กลับเป็นภาษาปกติ (เผื่อเป็นภาษาไทย)
+  // แปลง Slug จาก URL (เผื่อมีภาษาไทย)
   const slug = params.slug ? decodeURIComponent(params.slug as string) : null;
 
   const [loading, setLoading] = useState(true);
   const [project, setProject] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState("board"); // ค่าเริ่มต้นเปิดที่หน้ากระดาน
+
+  // State ควบคุม Tab
+  const [activeTab, setActiveTab] = useState("board"); // board, assets, lyrics, settings
+
+  // State ควบคุม Modal สมาชิกทีม
+  const [showMemberModal, setShowMemberModal] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -96,15 +103,18 @@ export default function ProjectWorkspace() {
           </div>
         </div>
 
-        {/* ปุ่มจัดการทีม (Mockup) */}
-        <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:text-gray-900 transition-colors shadow-sm">
+        {/* ปุ่มจัดการทีม (เปิด Modal) */}
+        <button
+          onClick={() => setShowMemberModal(true)}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:text-gray-900 transition-colors shadow-sm"
+        >
           <Users className="w-4 h-4" />
           <span>สมาชิกทีม</span>
         </button>
       </div>
 
       {/* --- 2. Tabs Navigation --- */}
-      <div className="flex items-center gap-1 bg-gray-100/80 p-1.5 rounded-xl w-fit mb-6 shadow-inner">
+      <div className="flex items-center gap-1 bg-gray-100/80 p-1.5 rounded-xl w-fit mb-6 shadow-inner overflow-x-auto max-w-full">
         <TabButton
           active={activeTab === "board"}
           onClick={() => setActiveTab("board")}
@@ -123,7 +133,7 @@ export default function ProjectWorkspace() {
           icon={Music2}
           label="Lyrics"
         />
-        <div className="w-px h-5 bg-gray-300 mx-2" />
+        <div className="w-px h-5 bg-gray-300 mx-2 flex-shrink-0" />
         <TabButton
           active={activeTab === "settings"}
           onClick={() => setActiveTab("settings")}
@@ -133,37 +143,41 @@ export default function ProjectWorkspace() {
       </div>
 
       {/* --- 3. Content Area --- */}
-      <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden relative">
-        {/* หน้ากระดาน (ส่ง ID โปรเจกต์เข้าไปให้ Component) */}
+      {/* เพิ่ม flex flex-col เพื่อให้จัดการความสูงลูกได้ดีขึ้น */}
+      <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden relative flex flex-col">
+        {/* Tab 1: Board (มี Scrollbar แนวนอนในตัวอยู่แล้ว) */}
         {activeTab === "board" && <BoardTab projectId={project.id} />}
 
-        {/* หน้าอื่นๆ */}
-        {activeTab === "assets" && <AssetsTab projectId={project.id} />}
+        {/* Tab 3: Lyrics (มี Scrollbar แนวตั้งในตัวอยู่แล้ว แบ่งครึ่งหน้า) */}
         {activeTab === "lyrics" && <LyricsTab projectId={project.id} />}
 
-        {/* หน้า Settings Mockup */}
-        {activeTab === "settings" && (
-          <div className="p-10 text-center">
-            <h2 className="text-xl font-bold text-gray-800 mb-2">
-              ตั้งค่าโปรเจกต์
-            </h2>
-            <p className="text-gray-500">
-              คุณสามารถแก้ไขชื่อ วันส่งงาน หรือลบโปรเจกต์ได้ที่นี่ (เร็วๆ นี้)
-            </p>
+        {/* Tab 2 & 4: Assets และ Settings (ต้องสร้างกล่อง Scrollbar ให้มัน) */}
+        {(activeTab === "assets" || activeTab === "settings") && (
+          <div className="flex-1 overflow-y-auto">
+            {activeTab === "assets" && <AssetsTab projectId={project.id} />}
+            {activeTab === "settings" && <SettingsTab project={project} />}
           </div>
         )}
       </div>
+
+      {/* --- 4. Member Modal (Pop-up) --- */}
+      {showMemberModal && (
+        <MemberModal
+          projectId={project.id}
+          onClose={() => setShowMemberModal(false)}
+        />
+      )}
     </div>
   );
 }
 
-// Component ปุ่ม Tab
+// Sub-component ปุ่ม Tab
 function TabButton({ active, onClick, icon: Icon, label }: any) {
   return (
     <button
       onClick={onClick}
       className={`
-        flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
+        flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap
         ${
           active
             ? "bg-white text-accent shadow-sm ring-1 ring-black/5 scale-100"

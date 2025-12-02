@@ -11,7 +11,8 @@ import {
   Loader2,
   Download,
   UploadCloud,
-  Trash2, // <--- เพิ่ม Trash2
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 
 export default function AssetsTab({ projectId }: { projectId: number }) {
@@ -29,6 +30,14 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
   // Upload State
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+
+  // --- Delete Modal State (เพิ่มใหม่) ---
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: number;
+    key: string;
+    name: string;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // --- 1. Fetch Data ---
   const fetchData = async () => {
@@ -89,21 +98,18 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
 
-      // A. ขอ Presigned URL
       const response = await fetch("/api/upload", {
         method: "POST",
         body: JSON.stringify({ name: file.name, type: file.type }),
       });
       const { url, fileName } = await response.json();
 
-      // B. Upload to R2
       await fetch(url, {
         method: "PUT",
         body: file,
         headers: { "Content-Type": file.type },
       });
 
-      // C. Save to DB
       const { error: dbError } = await supabase.from("files").insert({
         project_id: projectId,
         folder_id: currentFolderId,
@@ -145,29 +151,36 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
     }
   };
 
-  // --- 5. Delete File (ใหม่! 🔥) ---
-  const handleDeleteFile = async (fileId: number, fileKey: string) => {
-    if (!confirm("ยืนยันที่จะลบไฟล์นี้ถาวร?")) return;
+  // --- 5. Execute Delete File (ทำงานจริงเมื่อกดปุ่มใน Modal) ---
+  const executeDeleteFile = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
 
     try {
-      // A. ลบไฟล์บน R2 (เรียก API ที่เราทำไว้ตอนทำปุ่มลบโปรเจกต์)
+      // A. ลบไฟล์บน R2
       const res = await fetch("/api/delete-files", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileKeys: [fileKey] }), // ส่งไปเป็น Array
+        body: JSON.stringify({ fileKeys: [deleteTarget.key] }),
       });
 
       if (!res.ok) throw new Error("ลบไฟล์บน Cloud ไม่สำเร็จ");
 
       // B. ลบข้อมูลใน Database
-      const { error } = await supabase.from("files").delete().eq("id", fileId);
+      const { error } = await supabase
+        .from("files")
+        .delete()
+        .eq("id", deleteTarget.id);
       if (error) throw error;
 
-      // C. โหลดข้อมูลใหม่
+      // C. สำเร็จ: ปิด Modal และโหลดข้อมูลใหม่
+      setDeleteTarget(null);
       fetchData();
     } catch (error: any) {
       console.error(error);
       alert("เกิดข้อผิดพลาด: " + error.message);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -186,7 +199,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
   };
 
   return (
-    <div className="p-6 min-h-[500px]">
+    <div className="p-6 min-h-[500px] relative">
       <input
         type="file"
         ref={fileInputRef}
@@ -311,7 +324,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
           )}
 
           {/* Files Table */}
-          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
             <table className="w-full text-sm text-left">
               <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-100">
                 <tr>
@@ -328,24 +341,31 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                   <tr>
                     <td
                       colSpan={6}
-                      className="px-4 py-8 text-center text-gray-400"
+                      className="px-4 py-12 text-center text-gray-400 flex flex-col items-center justify-center gap-2"
                     >
-                      ยังไม่มีไฟล์ในโฟลเดอร์นี้
+                      <FileIcon className="w-8 h-8 opacity-50" />
+                      <span>ยังไม่มีไฟล์ในโฟลเดอร์นี้</span>
                     </td>
                   </tr>
                 ) : (
                   files.map((file) => (
-                    <tr key={file.id} className="hover:bg-gray-50 group">
+                    <tr
+                      key={file.id}
+                      className="hover:bg-gray-50 group transition-colors"
+                    >
                       <td className="px-4 py-3 text-gray-400">
                         {file.file_type.includes("audio") ? (
-                          <FileAudio className="w-5 h-5" />
+                          <FileAudio className="w-5 h-5 text-blue-400" />
                         ) : file.file_type.includes("image") ? (
-                          <FileImage className="w-5 h-5" />
+                          <FileImage className="w-5 h-5 text-purple-400" />
                         ) : (
                           <FileIcon className="w-5 h-5" />
                         )}
                       </td>
-                      <td className="px-4 py-3 font-medium text-gray-700">
+                      <td
+                        className="px-4 py-3 font-medium text-gray-700 truncate max-w-[200px]"
+                        title={file.name}
+                      >
                         {file.name}
                       </td>
                       <td className="px-4 py-3 text-gray-500">
@@ -357,8 +377,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                       <td className="px-4 py-3 text-gray-400">
                         {new Date(file.created_at).toLocaleDateString()}
                       </td>
-                      <td className="px-4 py-3 text-right flex justify-end gap-1">
-                        {/* ปุ่ม Download */}
+                      <td className="px-4 py-3 text-right flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={() =>
                             handleDownload(file.file_url, file.name)
@@ -368,12 +387,16 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                         >
                           <Download className="w-4 h-4" />
                         </button>
-                        {/* ปุ่ม Delete (เพิ่มใหม่) */}
+                        {/* ปุ่ม Trigger Modal */}
                         <button
                           onClick={() =>
-                            handleDeleteFile(file.id, file.file_url)
+                            setDeleteTarget({
+                              id: file.id,
+                              key: file.file_url,
+                              name: file.name,
+                            })
                           }
-                          className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                          className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
                           title="ลบไฟล์"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -386,6 +409,51 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
             </table>
           </div>
         </>
+      )}
+
+      {/* --- Delete Confirmation Modal (สวยงาม) --- */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-red-100 scale-100 animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <h3 className="text-lg font-bold text-center text-gray-900">
+              ยืนยันการลบไฟล์?
+            </h3>
+
+            <p className="text-sm text-center text-gray-500 mt-2 mb-4 leading-relaxed">
+              คุณกำลังจะลบไฟล์ <br />
+              <span className="font-medium text-gray-800 bg-gray-100 px-1.5 py-0.5 rounded break-all">
+                "{deleteTarget.name}"
+              </span>
+              <br /> การกระทำนี้ไม่สามารถย้อนกลับได้
+            </p>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={isDeleting}
+                className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={executeDeleteFile}
+                disabled={isDeleting}
+                className="flex-1 py-2.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-all shadow-lg shadow-red-500/30 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {isDeleting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                <span>{isDeleting ? "กำลังลบ..." : "ลบถาวร"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

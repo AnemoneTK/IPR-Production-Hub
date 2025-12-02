@@ -12,6 +12,7 @@ import {
   X,
   Bell,
   Loader2,
+  User, // เพิ่มไอคอน User มาสำรอง
 } from "lucide-react";
 
 export default function DashboardLayout({
@@ -21,53 +22,48 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-  // สถานะการตรวจสอบ: true = กำลังตรวจ, false = ตรวจเสร็จแล้ว
   const [isChecking, setIsChecking] = useState(true);
+
+  // State สำหรับเก็บตัวย่อชื่อ (Initials)
+  const [userInitials, setUserInitials] = useState("");
 
   useEffect(() => {
     const checkSecurity = async () => {
       try {
-        // 1. เช็คว่า Login หรือยัง?
+        // 1. เช็ค User
         const {
           data: { user },
         } = await supabase.auth.getUser();
 
         if (!user) {
-          console.log("User not found, redirecting to login...");
           router.push("/login");
           return;
         }
 
-        console.log("Checking profile for user:", user.email);
-
-        // 2. ดึงข้อมูล Profile มาเช็ค
+        // 2. ดึงข้อมูล Profile (ขอ display_name เพิ่มด้วย)
         const { data: profile, error } = await supabase
           .from("profiles")
-          .select("must_change_password")
+          .select("must_change_password, display_name") // <--- ขอชื่อมาด้วย
           .eq("id", user.id)
           .single();
 
-        if (error) {
-          console.error("Error fetching profile:", error);
-          // ถ้า Error อาจจะเพราะ RLS ยังไม่ผ่าน หรือไม่มีข้อมูล
-          // แต่เพื่อความปลอดภัย เราควรปล่อยผ่านไปก่อนถ้ามันแค่หาไม่เจอ (หรือจะให้เด้งออกก็ได้)
-          // ในเคสนี้ ลองดู Console ว่ามันแดงไหม
-        }
-
-        console.log("Profile Status:", profile);
-
-        // 3. กฎเหล็ก: ถ้า must_change_password เป็น TRUE ต้องดีดออกทันที
         if (profile?.must_change_password === true) {
-          console.log("Force Change Password detected! Redirecting...");
           router.push("/change-password");
           return;
         }
 
-        // ถ้าทุกอย่างปกติ ให้เข้าได้
+        // 3. สร้างตัวย่อชื่อ (Initials Logic)
+        if (profile?.display_name) {
+          // ถ้ามีชื่อเล่น: เอา 2 ตัวแรก (เช่น "Admin" -> "AD")
+          setUserInitials(profile.display_name.substring(0, 2).toUpperCase());
+        } else if (user.email) {
+          // ถ้าไม่มีชื่อ: เอา 2 ตัวแรกของอีเมล
+          setUserInitials(user.email.substring(0, 2).toUpperCase());
+        }
+
         setIsChecking(false);
       } catch (err) {
-        console.error("Unexpected auth check error:", err);
+        console.error("Auth check error:", err);
         router.push("/login");
       }
     };
@@ -80,7 +76,6 @@ export default function DashboardLayout({
     router.push("/login");
   };
 
-  // --- ส่วนเมนู (เหมือนเดิม) ---
   const menuItems = [
     { name: "ภาพรวม (Dashboard)", icon: LayoutDashboard, href: "/dashboard" },
     {
@@ -96,7 +91,6 @@ export default function DashboardLayout({
     { name: "เนื้อเพลง & บท", icon: Music, href: "/dashboard/lyrics" },
   ];
 
-  // ถ้ากำลังเช็คอยู่ ให้โชว์หน้าโหลดเต็มจอ (บัง Dashboard ไว้)
   if (isChecking) {
     return (
       <div className="h-screen w-screen bg-primary flex flex-col items-center justify-center text-white space-y-4">
@@ -108,7 +102,6 @@ export default function DashboardLayout({
     );
   }
 
-  // ถ้าผ่านการเช็คแล้ว ค่อยโชว์หน้า Dashboard
   return (
     <div className="flex h-screen bg-surface-subtle">
       {/* Sidebar */}
@@ -119,10 +112,15 @@ export default function DashboardLayout({
         md:relative md:translate-x-0 flex flex-col
       `}
       >
-        <div className="h-16 flex items-center px-6 font-bold text-xl border-b border-primary-light">
-          IPR Hub
+        <div className="h-16 flex items-center px-6 border-b border-primary-light/50">
+          <div className="flex items-center gap-1 font-extrabold text-xl tracking-tight select-none">
+            <span className="text-white">IPR</span>
+            <span className="bg-orange-500 text-gray-900 px-2 py-0.5 rounded-md leading-tight">
+              Hub
+            </span>
+          </div>
           <button
-            className="md:hidden ml-auto"
+            className="md:hidden ml-auto text-gray-400 hover:text-white"
             onClick={() => setIsSidebarOpen(false)}
           >
             <X className="w-6 h-6" />
@@ -169,9 +167,20 @@ export default function DashboardLayout({
             <button className="p-2 text-gray-400 hover:text-accent transition-colors relative">
               <Bell className="w-5 h-5" />
             </button>
-            <div className="w-8 h-8 rounded-full bg-primary-light flex items-center justify-center text-white text-sm font-bold">
-              ME
-            </div>
+
+            {/* --- ส่วน Profile Icon (แก้ไขใหม่) --- */}
+            <Link href="/dashboard/profile" title="ตั้งค่าบัญชี">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-primary-light flex items-center justify-center text-white text-sm font-bold hover:shadow-md transition-all cursor-pointer ring-2 ring-transparent hover:ring-accent overflow-hidden">
+                {userInitials ? (
+                  // ถ้ามีชื่อย่อ ให้แสดงชื่อย่อ
+                  <span>{userInitials}</span>
+                ) : (
+                  // ถ้ายังโหลดไม่เสร็จ หรือไม่มีชื่อ ให้แสดงไอคอน User แทน
+                  <User className="w-5 h-5" />
+                )}
+              </div>
+            </Link>
+            {/* ---------------------------------- */}
           </div>
         </header>
 

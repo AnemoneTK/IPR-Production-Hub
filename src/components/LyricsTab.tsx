@@ -11,9 +11,7 @@ import {
   MessageSquare,
   X,
   Check,
-  Highlighter,
   MoreHorizontal,
-  AlertTriangle,
   Send,
   Quote,
   CheckCircle2,
@@ -26,6 +24,7 @@ import {
   ArrowUp,
   ArrowDown,
   PlusCircle,
+  RotateCcw, // เพิ่มไอคอน Reset
 } from "lucide-react";
 import {
   DragDropContext,
@@ -65,15 +64,6 @@ interface LyricBlock {
   comments: Comment[];
 }
 
-const HIGHLIGHT_COLORS = [
-  { color: "#fef08a", label: "เหลือง" },
-  { color: "#bbf7d0", label: "เขียว" },
-  { color: "#bfdbfe", label: "ฟ้า" },
-  { color: "#fbcfe8", label: "ชมพู" },
-  { color: "#fed7aa", label: "ส้ม" },
-  { color: "inherit", label: "ล้างสี" },
-];
-
 const CustomHighlight = Highlight.extend({
   addAttributes() {
     return {
@@ -110,6 +100,12 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
   const [isAddingLink, setIsAddingLink] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+
+  // --- Resizable Sidebar State ---
+  const DEFAULT_WIDTH = 384; // w-96
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
+  const [isResizing, setIsResizing] = useState(false);
+  const sidebarRef = useRef<HTMLDivElement>(null);
 
   // 1. Load Data
   useEffect(() => {
@@ -192,6 +188,39 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
     return () => clearTimeout(timeoutId);
   }, [blocks, handleSaveScript]);
 
+  // --- Resizable Logic (Updated) ---
+  const startResizing = useCallback((e: React.MouseEvent) => {
+    e.preventDefault(); // ป้องกันการเลือก Text ขณะลาก
+    setIsResizing(true);
+  }, []);
+
+  const stopResizing = useCallback(() => setIsResizing(false), []);
+
+  const resize = useCallback(
+    (mouseMoveEvent: MouseEvent) => {
+      if (isResizing) {
+        // ใช้ window.innerWidth เพื่อความแม่นยำในการหาขอบขวาของจอ
+        const newWidth = window.innerWidth - mouseMoveEvent.clientX;
+        // กำหนด Limits (min 250px, max 800px)
+        if (newWidth > 250 && newWidth < 800) {
+          setSidebarWidth(newWidth);
+        }
+      }
+    },
+    [isResizing]
+  );
+
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener("mousemove", resize);
+      window.addEventListener("mouseup", stopResizing);
+    }
+    return () => {
+      window.removeEventListener("mousemove", resize);
+      window.removeEventListener("mouseup", stopResizing);
+    };
+  }, [isResizing, resize, stopResizing]);
+
   const createBlock = (type: "lyrics" | "interlude"): LyricBlock => ({
     id: Date.now().toString(),
     type,
@@ -269,7 +298,8 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-full min-h-[600px] divide-y md:divide-y-0 md:divide-x divide-gray-100 overflow-hidden">
+    <div className="flex flex-col md:flex-row h-full min-h-[600px] overflow-hidden">
+      {/* --- Main Content (Lyrics) --- */}
       <div className="flex-1 bg-gray-50/30 overflow-y-auto relative custom-scrollbar">
         <div className="p-6">
           <div className="sticky top-0 -mt-6 -mx-6 px-6 py-3 bg-white/90 backdrop-blur-md z-20 border-b border-gray-200/60 flex justify-between items-center shadow-sm">
@@ -303,7 +333,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
                 <div
                   {...provided.droppableProps}
                   ref={provided.innerRef}
-                  className="space-y-0 pb-20 mt-6"
+                  className="space-y-0 pb-10 mt-6"
                 >
                   {blocks.map((block, index) => (
                     <Draggable
@@ -315,30 +345,29 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
                         <div
                           ref={provided.innerRef}
                           {...provided.draggableProps}
+                          style={{
+                            ...provided.draggableProps.style,
+                            marginBottom: "10px",
+                            opacity: snapshot.isDragging ? 0.8 : 1,
+                          }}
                           className="relative"
                         >
-                          <div
-                            style={{
-                              ...provided.draggableProps.style,
-                              opacity: snapshot.isDragging ? 0.8 : 1,
-                              marginBottom: "10px",
-                            }}
-                          >
-                            <BlockItem
-                              index={index}
-                              block={block}
-                              members={members}
-                              onUpdate={(newData: Partial<LyricBlock>) =>
-                                updateBlock(block.id, newData)
-                              }
-                              onDelete={() => deleteBlock(block.id)}
-                              onDuplicate={() => duplicateBlock(block)}
-                              onMoveUp={() => moveBlock(index, "up")}
-                              onMoveDown={() => moveBlock(index, "down")}
-                              dragHandleProps={provided.dragHandleProps}
-                            />
-                          </div>
+                          {/* Block Item */}
+                          <BlockItem
+                            index={index}
+                            block={block}
+                            members={members}
+                            onUpdate={(newData: Partial<LyricBlock>) =>
+                              updateBlock(block.id, newData)
+                            }
+                            onDelete={() => deleteBlock(block.id)}
+                            onDuplicate={() => duplicateBlock(block)}
+                            onMoveUp={() => moveBlock(index, "up")}
+                            onMoveDown={() => moveBlock(index, "down")}
+                            dragHandleProps={provided.dragHandleProps}
+                          />
 
+                          {/* Insert Button (Between Blocks) */}
                           <div className="h-4 -mt-2 mb-2 relative group/insert z-10 flex items-center justify-center opacity-0 hover:opacity-100 hover:h-10 transition-all duration-200">
                             <div className="absolute inset-0 flex items-center justify-center gap-2 transform scale-y-0 group-hover/insert:scale-y-100 transition-transform">
                               <div className="h-px bg-blue-200 flex-1"></div>
@@ -367,7 +396,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
             </Droppable>
           </DragDropContext>
 
-          <div className="grid grid-cols-2 gap-3 pb-10">
+          <div className="grid grid-cols-2 gap-3 pb-5">
             <button
               onClick={() => addBlock("lyrics")}
               className="py-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 hover:text-accent hover:border-accent/50 hover:bg-white transition-all flex items-center justify-center gap-2 font-medium"
@@ -384,18 +413,45 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
         </div>
       </div>
 
-      <div className="w-full md:w-80 lg:w-96 bg-white flex flex-col h-full border-l border-gray-100 overflow-hidden">
+      {/* --- Resizer Handle --- */}
+      <div
+        onMouseDown={startResizing}
+        className={`w-1.5 cursor-col-resize bg-gray-100 hover:bg-accent/50 transition-colors z-30 flex items-center justify-center group ${
+          isResizing ? "bg-accent" : ""
+        }`}
+      >
+        <div className="h-8 w-1 bg-gray-300 rounded-full group-hover:bg-accent" />
+      </div>
+
+      {/* --- Right Sidebar (References) --- */}
+      <div
+        ref={sidebarRef}
+        style={{ width: sidebarWidth }}
+        className="bg-white flex flex-col h-full border-l border-gray-100 overflow-hidden shadow-xl md:shadow-none z-20 flex-shrink-0"
+      >
         <div className="p-6 border-b border-gray-50 flex-shrink-0">
           <div className="flex justify-between items-center">
             <h3 className="font-bold text-gray-800 flex items-center gap-2 text-lg">
               🔗 References
             </h3>
-            <button
-              onClick={() => setIsAddingLink(true)}
-              className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500"
-            >
-              <Plus className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1">
+              {/* ปุ่ม Reset Width (แสดงเมื่อความกว้างไม่ใช่ค่า Default) */}
+              {sidebarWidth !== DEFAULT_WIDTH && (
+                <button
+                  onClick={() => setSidebarWidth(DEFAULT_WIDTH)}
+                  className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"
+                  title="รีเซ็ตความกว้าง"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                onClick={() => setIsAddingLink(true)}
+                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+            </div>
           </div>
           {isAddingLink && (
             <form
@@ -641,16 +697,16 @@ function BlockItem({
     setQuoteText(null);
   };
 
-  // 🔥 แก้ไขจุดที่ Build Error (เพิ่มตัวแปร textToFind)
+  // 🔥 Fix: Ensure textToFind is defined before usage
   const deleteComment = (comment: Comment) => {
     if (editor && comment.quoted_text) {
-      const textToFind = comment.quoted_text; // ดึงค่าออกมาเก็บไว้ก่อน
+      const textToFind = comment.quoted_text; // เก็บค่าลงตัวแปรก่อน
       const { doc } = editor.state;
 
       doc.descendants((node, pos) => {
         if (node.isText && node.text && node.text.includes(textToFind)) {
           const start = pos + node.text.indexOf(textToFind);
-          const end = start + textToFind.length; // ใช้ตัวแปรที่เก็บไว้ (ปลอดภัยหายห่วง)
+          const end = start + textToFind.length; // ใช้ตัวแปรที่เก็บไว้
           editor
             .chain()
             .setTextSelection({ from: start, to: end })

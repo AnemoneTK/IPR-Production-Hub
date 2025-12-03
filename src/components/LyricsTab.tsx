@@ -24,7 +24,10 @@ import {
   ArrowUp,
   ArrowDown,
   PlusCircle,
-  RotateCcw, // เพิ่มไอคอน Reset
+  RotateCcw,
+  Youtube,
+  FileText,
+  ExternalLink,
 } from "lucide-react";
 import {
   DragDropContext,
@@ -87,15 +90,20 @@ const CustomHighlight = Highlight.extend({
 });
 
 const getYouTubeID = (url: string) => {
+  if (!url) return null;
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
   const match = url.match(regExp);
   return match && match[2].length === 11 ? match[2] : null;
 };
 
 export default function LyricsTab({ projectId }: { projectId: number }) {
+  // Data States
   const [blocks, setBlocks] = useState<LyricBlock[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [links, setLinks] = useState<any[]>([]);
+
+  // UI States
+  const [activeSubTab, setActiveSubTab] = useState<"script" | "refs">("script");
   const [newLink, setNewLink] = useState({ title: "", url: "" });
   const [isAddingLink, setIsAddingLink] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -106,6 +114,10 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+
+  // Filter Links
+  const youtubeLinks = links.filter((l) => getYouTubeID(l.url));
+  const generalLinks = links.filter((l) => !getYouTubeID(l.url));
 
   // 1. Load Data
   useEffect(() => {
@@ -188,9 +200,9 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
     return () => clearTimeout(timeoutId);
   }, [blocks, handleSaveScript]);
 
-  // --- Resizable Logic (Updated) ---
+  // --- Resizable Logic (Fix: Prevent iframe stealing events) ---
   const startResizing = useCallback((e: React.MouseEvent) => {
-    e.preventDefault(); // ป้องกันการเลือก Text ขณะลาก
+    e.preventDefault();
     setIsResizing(true);
   }, []);
 
@@ -199,10 +211,9 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
   const resize = useCallback(
     (mouseMoveEvent: MouseEvent) => {
       if (isResizing) {
-        // ใช้ window.innerWidth เพื่อความแม่นยำในการหาขอบขวาของจอ
         const newWidth = window.innerWidth - mouseMoveEvent.clientX;
-        // กำหนด Limits (min 250px, max 800px)
-        if (newWidth > 250 && newWidth < 800) {
+        if (newWidth > 250 && newWidth < 1000) {
+          // เพิ่ม Max width นิดหน่อยเผื่อจอใหญ่
           setSidebarWidth(newWidth);
         }
       }
@@ -299,117 +310,253 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
 
   return (
     <div className="flex flex-col md:flex-row h-full min-h-[600px] overflow-hidden">
-      {/* --- Main Content (Lyrics) --- */}
-      <div className="flex-1 bg-gray-50/30 overflow-y-auto relative custom-scrollbar">
-        <div className="p-6">
-          <div className="sticky top-0 -mt-6 -mx-6 px-6 py-3 bg-white/90 backdrop-blur-md z-20 border-b border-gray-200/60 flex justify-between items-center shadow-sm">
-            <h3 className="font-bold text-gray-800 flex items-center gap-2 text-lg">
-              🎤 เนื้อเพลง & คิวร้อง
-            </h3>
-            <div className="flex items-center gap-3 text-xs">
-              {isSaving ? (
-                <span className="text-accent flex items-center gap-1">
-                  <Loader2 className="w-3 h-3 animate-spin" /> บันทึก...
-                </span>
-              ) : (
-                lastSaved && (
-                  <span className="text-gray-400">
-                    ล่าสุด {lastSaved.toLocaleTimeString("th-TH")}
-                  </span>
-                )
-              )}
-              <button
-                onClick={handleSaveScript}
-                className="flex items-center gap-1 px-3 py-1.5 bg-accent/10 hover:bg-accent/20 text-accent rounded-lg transition-colors font-medium"
-              >
-                <Save className="w-4 h-4" /> บันทึก
-              </button>
-            </div>
+      {/* --- Main Content (Left Side) --- */}
+      <div className="flex-1 flex flex-col bg-gray-50/30 overflow-hidden relative">
+        {/* Top Bar with Sub-Tabs */}
+        <div className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-200/60 px-6 py-3 flex justify-between items-center shadow-sm">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveSubTab("script")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                activeSubTab === "script"
+                  ? "bg-blue-50 text-accent ring-1 ring-blue-100"
+                  : "text-gray-500 hover:bg-gray-100"
+              }`}
+            >
+              <FileText className="w-4 h-4" /> เนื้อเพลง & บท
+            </button>
+            <button
+              onClick={() => setActiveSubTab("refs")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                activeSubTab === "refs"
+                  ? "bg-purple-50 text-purple-600 ring-1 ring-purple-100"
+                  : "text-gray-500 hover:bg-gray-100"
+              }`}
+            >
+              <LinkIcon className="w-4 h-4" /> General References
+            </button>
           </div>
 
-          <DragDropContext onDragEnd={onDragEnd}>
-            <Droppable droppableId="lyrics-list">
-              {(provided) => (
-                <div
-                  {...provided.droppableProps}
-                  ref={provided.innerRef}
-                  className="space-y-0 pb-10 mt-6"
-                >
-                  {blocks.map((block, index) => (
-                    <Draggable
-                      key={block.id}
-                      draggableId={block.id}
-                      index={index}
-                    >
-                      {(provided, snapshot) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.draggableProps}
-                          style={{
-                            ...provided.draggableProps.style,
-                            marginBottom: "10px",
-                            opacity: snapshot.isDragging ? 0.8 : 1,
-                          }}
-                          className="relative"
-                        >
-                          {/* Block Item */}
-                          <BlockItem
-                            index={index}
-                            block={block}
-                            members={members}
-                            onUpdate={(newData: Partial<LyricBlock>) =>
-                              updateBlock(block.id, newData)
-                            }
-                            onDelete={() => deleteBlock(block.id)}
-                            onDuplicate={() => duplicateBlock(block)}
-                            onMoveUp={() => moveBlock(index, "up")}
-                            onMoveDown={() => moveBlock(index, "down")}
-                            dragHandleProps={provided.dragHandleProps}
-                          />
+          <div className="flex items-center gap-3 text-xs">
+            {isSaving ? (
+              <span className="text-accent flex items-center gap-1">
+                <Loader2 className="w-3 h-3 animate-spin" /> บันทึก...
+              </span>
+            ) : (
+              lastSaved && (
+                <span className="text-gray-400">
+                  ล่าสุด {lastSaved.toLocaleTimeString("th-TH")}
+                </span>
+              )
+            )}
+            <button
+              onClick={handleSaveScript}
+              className="flex items-center gap-1 px-3 py-1.5 bg-accent/10 hover:bg-accent/20 text-accent rounded-lg transition-colors font-medium"
+            >
+              <Save className="w-4 h-4" /> บันทึก
+            </button>
+          </div>
+        </div>
 
-                          {/* Insert Button (Between Blocks) */}
-                          <div className="h-4 -mt-2 mb-2 relative group/insert z-10 flex items-center justify-center opacity-0 hover:opacity-100 hover:h-10 transition-all duration-200">
-                            <div className="absolute inset-0 flex items-center justify-center gap-2 transform scale-y-0 group-hover/insert:scale-y-100 transition-transform">
-                              <div className="h-px bg-blue-200 flex-1"></div>
-                              <button
-                                onClick={() => addBlock("lyrics", index + 1)}
-                                className="flex items-center gap-1 px-3 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded-full text-xs font-bold hover:bg-blue-100 shadow-sm transition-colors"
-                              >
-                                <PlusCircle className="w-3 h-3" /> เนื้อร้อง
-                              </button>
-                              <button
-                                onClick={() => addBlock("interlude", index + 1)}
-                                className="flex items-center gap-1 px-3 py-1 bg-purple-50 border border-purple-200 text-purple-600 rounded-full text-xs font-bold hover:bg-purple-100 shadow-sm transition-colors"
-                              >
-                                <Music className="w-3 h-3" /> ดนตรี
-                              </button>
-                              <div className="h-px bg-blue-200 flex-1"></div>
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+          {activeSubTab === "script" ? (
+            /* --- Lyrics Script View --- */
+            <>
+              <DragDropContext onDragEnd={onDragEnd}>
+                <Droppable droppableId="lyrics-list">
+                  {(provided) => (
+                    <div
+                      {...provided.droppableProps}
+                      ref={provided.innerRef}
+                      className="space-y-0 pb-10"
+                    >
+                      {blocks.map((block, index) => (
+                        <Draggable
+                          key={block.id}
+                          draggableId={block.id}
+                          index={index}
+                        >
+                          {(provided, snapshot) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              style={{
+                                ...provided.draggableProps.style,
+                                marginBottom: "10px",
+                                opacity: snapshot.isDragging ? 0.8 : 1,
+                              }}
+                              className="relative"
+                            >
+                              <BlockItem
+                                index={index}
+                                block={block}
+                                members={members}
+                                onUpdate={(newData: Partial<LyricBlock>) =>
+                                  updateBlock(block.id, newData)
+                                }
+                                onDelete={() => deleteBlock(block.id)}
+                                onDuplicate={() => duplicateBlock(block)}
+                                onMoveUp={() => moveBlock(index, "up")}
+                                onMoveDown={() => moveBlock(index, "down")}
+                                dragHandleProps={provided.dragHandleProps}
+                              />
+
+                              <div className="h-4 -mt-2 mb-2 relative group/insert z-10 flex items-center justify-center opacity-0 hover:opacity-100 hover:h-10 hover:mt-2 transition-all duration-200">
+                                <div className="absolute inset-0 flex items-center justify-center gap-2 transform scale-y-0 group-hover/insert:scale-y-100 transition-transform">
+                                  <div className="h-px bg-blue-200 flex-1"></div>
+                                  <button
+                                    onClick={() =>
+                                      addBlock("lyrics", index + 1)
+                                    }
+                                    className="flex items-center gap-1 px-3 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded-full text-xs font-bold hover:bg-blue-100 shadow-sm transition-colors"
+                                  >
+                                    <PlusCircle className="w-3 h-3" /> เนื้อร้อง
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      addBlock("interlude", index + 1)
+                                    }
+                                    className="flex items-center gap-1 px-3 py-1 bg-purple-50 border border-purple-200 text-purple-600 rounded-full text-xs font-bold hover:bg-purple-100 shadow-sm transition-colors"
+                                  >
+                                    <Music className="w-3 h-3" /> ดนตรี
+                                  </button>
+                                  <div className="h-px bg-blue-200 flex-1"></div>
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                      )}
-                    </Draggable>
-                  ))}
-                  {provided.placeholder}
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
+
+              <div className="grid grid-cols-2 gap-3 pb-10">
+                <button
+                  onClick={() => addBlock("lyrics")}
+                  className="py-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 hover:text-accent hover:border-accent/50 hover:bg-white transition-all flex items-center justify-center gap-2 font-medium"
+                >
+                  <Plus className="w-5 h-5" /> เพิ่มท่อนเนื้อร้อง
+                </button>
+                <button
+                  onClick={() => addBlock("interlude")}
+                  className="py-4 border-2 border-dashed border-purple-200 rounded-xl text-gray-400 hover:text-purple-500 hover:border-purple-300 hover:bg-purple-50/50 transition-all flex items-center justify-center gap-2 font-medium"
+                >
+                  <Music className="w-5 h-5" /> เพิ่มท่อนดนตรี
+                </button>
+              </div>
+            </>
+          ) : (
+            /* --- General References View --- */
+            <div className="space-y-6 max-w-4xl mx-auto">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-gray-800">
+                  🔗 ลิงก์อ้างอิงทั่วไป
+                </h2>
+                <button
+                  onClick={() => setIsAddingLink(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-medium shadow-sm"
+                >
+                  <Plus className="w-4 h-4" /> เพิ่มลิงก์
+                </button>
+              </div>
+
+              {isAddingLink && (
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm animate-in fade-in slide-in-from-top-2">
+                  <h4 className="font-bold text-gray-700 mb-3">
+                    เพิ่มลิงก์ใหม่
+                  </h4>
+                  <form onSubmit={handleAddLink} className="flex gap-3">
+                    <input
+                      autoFocus
+                      type="text"
+                      placeholder="ชื่อลิงก์..."
+                      className="flex-1 px-4 py-2 border border-gray-200 rounded-lg outline-none focus:border-purple-500"
+                      value={newLink.title}
+                      onChange={(e) =>
+                        setNewLink({ ...newLink, title: e.target.value })
+                      }
+                    />
+                    <input
+                      type="url"
+                      placeholder="https://..."
+                      className="flex-1 px-4 py-2 border border-gray-200 rounded-lg outline-none focus:border-purple-500"
+                      value={newLink.url}
+                      onChange={(e) =>
+                        setNewLink({ ...newLink, url: e.target.value })
+                      }
+                    />
+                    <button
+                      type="submit"
+                      className="px-6 py-2 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700"
+                    >
+                      เพิ่ม
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingLink(false)}
+                      className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-lg"
+                    >
+                      ยกเลิก
+                    </button>
+                  </form>
                 </div>
               )}
-            </Droppable>
-          </DragDropContext>
 
-          <div className="grid grid-cols-2 gap-3 pb-5">
-            <button
-              onClick={() => addBlock("lyrics")}
-              className="py-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 hover:text-accent hover:border-accent/50 hover:bg-white transition-all flex items-center justify-center gap-2 font-medium"
-            >
-              <Plus className="w-5 h-5" /> เพิ่มท่อนเนื้อร้อง
-            </button>
-            <button
-              onClick={() => addBlock("interlude")}
-              className="py-4 border-2 border-dashed border-purple-200 rounded-xl text-gray-400 hover:text-purple-500 hover:border-purple-300 hover:bg-purple-50/50 transition-all flex items-center justify-center gap-2 font-medium"
-            >
-              <Music className="w-5 h-5" /> เพิ่มท่อนดนตรี
-            </button>
-          </div>
+              {generalLinks.length === 0 ? (
+                <div className="text-center py-20 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
+                  ยังไม่มีลิงก์อ้างอิง
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3">
+                  {generalLinks.map((link) => (
+                    <div
+                      key={link.id}
+                      className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-xl hover:border-purple-200 hover:shadow-sm transition-all group"
+                    >
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center text-purple-500">
+                          <LinkIcon className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-gray-800 truncate">
+                            {link.title}
+                          </h4>
+                          <a
+                            href={link.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs text-gray-400 hover:text-purple-600 hover:underline truncate block"
+                          >
+                            {link.url}
+                          </a>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={link.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                        <button
+                          onClick={() => handleDeleteLink(link.id)}
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -423,7 +570,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
         <div className="h-8 w-1 bg-gray-300 rounded-full group-hover:bg-accent" />
       </div>
 
-      {/* --- Right Sidebar (References) --- */}
+      {/* --- Right Sidebar (YouTube Only) --- */}
       <div
         ref={sidebarRef}
         style={{ width: sidebarWidth }}
@@ -431,11 +578,10 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
       >
         <div className="p-6 border-b border-gray-50 flex-shrink-0">
           <div className="flex justify-between items-center">
-            <h3 className="font-bold text-gray-800 flex items-center gap-2 text-lg">
-              🔗 References
+            <h3 className="font-bold text-red-600 flex items-center gap-2 text-lg">
+              <Youtube className="w-5 h-5" /> YouTube Monitor
             </h3>
             <div className="flex items-center gap-1">
-              {/* ปุ่ม Reset Width (แสดงเมื่อความกว้างไม่ใช่ค่า Default) */}
               {sidebarWidth !== DEFAULT_WIDTH && (
                 <button
                   onClick={() => setSidebarWidth(DEFAULT_WIDTH)}
@@ -446,23 +592,29 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
                 </button>
               )}
               <button
-                onClick={() => setIsAddingLink(true)}
-                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500"
+                onClick={() => {
+                  setIsAddingLink(true);
+                  // ถ้าอยู่หน้า Script แล้วกดปุ่มบวกทางขวา ให้มั่นใจว่าฟอร์มจะเด้งที่ขวา (หรือใช้ฟอร์มแยกก็ได้)
+                  // แต่ในที่นี้ใช้ State เดียวกัน เดี๋ยวเราจัดการ Render ฟอร์มแยกกัน
+                }}
+                className="p-1.5 hover:bg-red-50 text-red-500 rounded-lg"
               >
                 <Plus className="w-5 h-5" />
               </button>
             </div>
           </div>
-          {isAddingLink && (
+
+          {/* ฟอร์มเพิ่มลิงก์ใน Sidebar (เฉพาะ YouTube) */}
+          {isAddingLink && activeSubTab === "script" && (
             <form
               onSubmit={handleAddLink}
-              className="mt-4 bg-gray-50 p-4 rounded-xl border border-gray-100 animate-in fade-in slide-in-from-top-2"
+              className="mt-4 bg-red-50 p-4 rounded-xl border border-red-100 animate-in fade-in slide-in-from-top-2"
             >
               <input
                 autoFocus
                 type="text"
-                placeholder="ชื่อลิงก์..."
-                className="w-full text-sm mb-2 px-2 py-1 bg-transparent border-b outline-none"
+                placeholder="ชื่อคลิป..."
+                className="w-full text-sm mb-2 px-2 py-1 bg-transparent border-b border-red-200 outline-none text-red-900 placeholder:text-red-300"
                 value={newLink.title}
                 onChange={(e) =>
                   setNewLink({ ...newLink, title: e.target.value })
@@ -470,8 +622,8 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
               />
               <input
                 type="url"
-                placeholder="URL..."
-                className="w-full text-sm mb-3 px-2 py-1 bg-transparent border-b outline-none text-blue-600"
+                placeholder="YouTube URL..."
+                className="w-full text-sm mb-3 px-2 py-1 bg-transparent border-b border-red-200 outline-none text-red-600 placeholder:text-red-300"
                 value={newLink.url}
                 onChange={(e) =>
                   setNewLink({ ...newLink, url: e.target.value })
@@ -481,52 +633,53 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
                 <button
                   type="button"
                   onClick={() => setIsAddingLink(false)}
-                  className="text-gray-500"
+                  className="text-red-400 hover:text-red-600"
                 >
                   ยกเลิก
                 </button>
-                <button type="submit" className="text-accent font-bold">
-                  เพิ่ม
+                <button type="submit" className="text-red-700 font-bold">
+                  เพิ่มคลิป
                 </button>
               </div>
             </form>
           )}
         </div>
-        <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-3 custom-scrollbar">
-          {links.map((link) => (
-            <ReferenceItem
-              key={link.id}
-              link={link}
-              onDelete={handleDeleteLink}
-            />
-          ))}
+
+        <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-3 custom-scrollbar bg-gray-50/50">
+          {youtubeLinks.length === 0 ? (
+            <div className="text-center py-10 text-gray-400 text-sm">
+              ไม่มีวิดีโอ YouTube
+            </div>
+          ) : (
+            youtubeLinks.map((link) => (
+              <ReferenceItem
+                key={link.id}
+                link={link}
+                onDelete={handleDeleteLink}
+                isResizing={isResizing} // 🔥 ส่ง isResizing ลงไปเพื่อปิด pointer-events
+              />
+            ))
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function ReferenceItem({ link, onDelete }: any) {
-  const [showVideo, setShowVideo] = useState(false);
+function ReferenceItem({ link, onDelete, isResizing }: any) {
+  // เปิด Video อัตโนมัติถ้าเป็น Sidebar
   const youtubeId = getYouTubeID(link.url);
+
   return (
-    <div className="group bg-white p-3 rounded-xl border border-gray-100 hover:border-accent/30 hover:shadow-sm transition-all">
+    <div className="group bg-white p-3 rounded-xl border border-gray-100 hover:border-red-200 hover:shadow-sm transition-all">
       <div className="flex justify-between items-start mb-2">
         <div className="min-w-0 flex-1 mr-2">
           <div
-            className="font-medium text-gray-700 text-sm truncate"
+            className="font-bold text-gray-800 text-sm truncate"
             title={link.title}
           >
             {link.title}
           </div>
-          <a
-            href={link.url}
-            target="_blank"
-            rel="noreferrer"
-            className="text-xs text-blue-500 hover:underline flex items-center gap-1 mt-0.5 truncate"
-          >
-            <LinkIcon className="w-3 h-3" /> {link.url}
-          </a>
         </div>
         <button
           onClick={() => onDelete(link.id)}
@@ -536,32 +689,19 @@ function ReferenceItem({ link, onDelete }: any) {
         </button>
       </div>
       {youtubeId && (
-        <div className="mt-2 rounded-lg overflow-hidden bg-black/5 aspect-video relative group/video">
-          {showVideo ? (
-            <iframe
-              width="100%"
-              height="100%"
-              src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1`}
-              title="YouTube video player"
-              frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              className="animate-in fade-in"
-            />
-          ) : (
-            <div
-              className="w-full h-full bg-cover bg-center cursor-pointer flex items-center justify-center"
-              style={{
-                backgroundImage: `url(https://img.youtube.com/vi/${youtubeId}/mqdefault.jpg)`,
-              }}
-              onClick={() => setShowVideo(true)}
-            >
-              <div className="absolute inset-0 bg-black/20 group-hover/video:bg-black/40 transition-colors" />
-              <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center shadow-lg z-10 transform group-hover/video:scale-110 transition-transform">
-                <div className="w-0 h-0 border-t-[6px] border-t-transparent border-l-[10px] border-l-white border-b-[6px] border-b-transparent ml-1"></div>
-              </div>
-            </div>
-          )}
+        <div className="mt-1 rounded-lg overflow-hidden bg-black aspect-video relative group/video shadow-sm">
+          {/* 🔥 ปรับ Pointer Event ที่ Iframe ตามสถานะการย่อขยาย */}
+          <iframe
+            width="100%"
+            height="100%"
+            src={`https://www.youtube.com/embed/${youtubeId}`}
+            title="YouTube video player"
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            className="animate-in fade-in"
+            style={{ pointerEvents: isResizing ? "none" : "auto" }}
+          />
         </div>
       )}
     </div>
@@ -697,16 +837,15 @@ function BlockItem({
     setQuoteText(null);
   };
 
-  // 🔥 Fix: Ensure textToFind is defined before usage
   const deleteComment = (comment: Comment) => {
     if (editor && comment.quoted_text) {
-      const textToFind = comment.quoted_text; // เก็บค่าลงตัวแปรก่อน
+      const textToFind = comment.quoted_text;
       const { doc } = editor.state;
 
       doc.descendants((node, pos) => {
         if (node.isText && node.text && node.text.includes(textToFind)) {
           const start = pos + node.text.indexOf(textToFind);
-          const end = start + textToFind.length; // ใช้ตัวแปรที่เก็บไว้
+          const end = start + textToFind.length;
           editor
             .chain()
             .setTextSelection({ from: start, to: end })
@@ -723,6 +862,7 @@ function BlockItem({
     });
   };
 
+  // 🔥 แก้ไข: กรองเฉพาะคนที่มี Role เป็น "singer" เท่านั้น
   const singerMembers = members.filter((m: any) => m.roles?.includes("singer"));
 
   return (

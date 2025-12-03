@@ -723,7 +723,7 @@ function BlockItem({
     });
   };
 
-  const singerMembers = members; // แสดงทุกคน
+  const singerMembers = members.filter((m: any) => m.roles?.includes("singer"));
 
   return (
     <div

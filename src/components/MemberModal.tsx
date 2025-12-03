@@ -13,39 +13,60 @@ import {
   Video,
   User,
   HelpCircle,
+  Languages,
+  Eye,
+  Briefcase, // <--- เพิ่มไอคอนใหม่
 } from "lucide-react";
 
-// Config สีและไอคอน
+// Config สีและไอคอน (ครบทุกตำแหน่ง)
 const ROLE_CONFIG: any = {
   producer: {
     label: "Producer",
     icon: Shield,
-    color: "text-orange-500",
+    color: "text-orange-600",
     bg: "bg-orange-50 border-orange-200",
+  },
+  manager: {
+    label: "Manager",
+    icon: Briefcase,
+    color: "text-teal-600",
+    bg: "bg-teal-50 border-teal-200",
   },
   mixer: {
     label: "Mixer",
     icon: Music,
-    color: "text-blue-500",
+    color: "text-blue-600",
     bg: "bg-blue-50 border-blue-200",
   },
   singer: {
     label: "Singer",
     icon: Mic,
-    color: "text-pink-500",
+    color: "text-pink-600",
     bg: "bg-pink-50 border-pink-200",
   },
   artist: {
     label: "Artist",
     icon: Palette,
-    color: "text-purple-500",
+    color: "text-purple-600",
     bg: "bg-purple-50 border-purple-200",
   },
   editor: {
     label: "Editor",
     icon: Video,
-    color: "text-green-500",
+    color: "text-green-600",
     bg: "bg-green-50 border-green-200",
+  },
+  translator: {
+    label: "Translator",
+    icon: Languages,
+    color: "text-indigo-600",
+    bg: "bg-indigo-50 border-indigo-200",
+  },
+  viewer: {
+    label: "Viewer",
+    icon: Eye,
+    color: "text-slate-500",
+    bg: "bg-slate-50 border-slate-200",
   },
   member: {
     label: "General",
@@ -70,13 +91,11 @@ export default function MemberModal({
   // 1. โหลดข้อมูล
   const fetchData = async () => {
     setLoading(true);
-    // ดึงสมาชิกในทีม
     const { data: memberData } = await supabase
       .from("project_members")
       .select("*, profiles(id, display_name, email, avatar_url, main_role)")
       .eq("project_id", projectId);
 
-    // ดึงรายชื่อทั้งหมดในระบบ
     const { data: userData } = await supabase
       .from("profiles")
       .select("id, display_name, email, main_role, avatar_url")
@@ -91,15 +110,12 @@ export default function MemberModal({
     fetchData();
   }, [projectId]);
 
-  // 2. กรองรายชื่อเพื่อนที่ "ยังไม่อยู่ในทีม" (ฝั่งซ้าย)
+  // 2. กรองรายชื่อเพื่อน (ฝั่งซ้าย)
   const getAvailableUsers = () => {
-    // ตัดคนที่อยู่ในทีมแล้วออก
     const nonMembers = allUsers.filter(
       (user) => !members.some((m) => m.user_id === user.id)
     );
-
     if (!searchTerm.trim()) return nonMembers;
-
     const lowerTerm = searchTerm.toLowerCase();
     return nonMembers.filter(
       (user) =>
@@ -117,12 +133,8 @@ export default function MemberModal({
       user_id: user.id,
       roles: [initialRole],
     });
-
-    if (error) {
-      alert("เพิ่มไม่สำเร็จ: " + error.message);
-    } else {
-      fetchData(); // โหลดใหม่ทันที
-    }
+    if (error) alert("เพิ่มไม่สำเร็จ: " + error.message);
+    else fetchData();
   };
 
   // 4. ลบสมาชิก
@@ -133,8 +145,7 @@ export default function MemberModal({
       .delete()
       .eq("project_id", projectId)
       .eq("user_id", userId);
-
-    if (error) alert("ลบไม่สำเร็จ (คุณอาจไม่มีสิทธิ์): " + error.message);
+    if (error) alert("ลบไม่สำเร็จ: " + error.message);
     else fetchData();
   };
 
@@ -144,39 +155,33 @@ export default function MemberModal({
     currentRoles: string[],
     roleToToggle: string
   ) => {
-    let newRoles = [...(currentRoles || [])]; // กันเหนียวเผื่อเป็น null
-
+    let newRoles = [...(currentRoles || [])];
     if (newRoles.includes(roleToToggle)) {
       if (newRoles.length > 1)
         newRoles = newRoles.filter((r) => r !== roleToToggle);
-      else return; // ห้ามลบ role สุดท้าย เดี๋ยวหาย
+      else return;
     } else {
       newRoles.push(roleToToggle);
     }
-
-    // อัปเดต UI ทันที (Optimistic Update)
     setMembers(
       members.map((m) => (m.id === memberId ? { ...m, roles: newRoles } : m))
     );
-
-    // ส่งไป Database
     const { error } = await supabase
       .from("project_members")
       .update({ roles: newRoles })
       .eq("id", memberId);
-
     if (error) {
-      alert("บันทึกไม่สำเร็จ: " + error.message);
-      fetchData(); // โหลดค่าเดิมกลับมา
+      alert("บันทึกไม่สำเร็จ");
+      fetchData();
     }
   };
 
-  // ฟังก์ชัน Render โซนคนทำงาน
+  // Render Zone
   const renderZone = (roleKey: string) => {
     const config = ROLE_CONFIG[roleKey];
+    if (!config) return null; // กัน Error
     const Icon = config.icon;
 
-    // กรองคนที่มี role นี้
     const zoneMembers = members.filter((m) => m.roles?.includes(roleKey));
     if (zoneMembers.length === 0) return null;
 
@@ -221,7 +226,7 @@ export default function MemberModal({
         </div>
 
         <div className="flex flex-col md:flex-row h-full overflow-hidden">
-          {/* 1. ฝั่งซ้าย: ค้นหา & เพิ่มสมาชิก (Search & Add) */}
+          {/* 1. ฝั่งซ้าย: รายชื่อในระบบ */}
           <div className="w-full md:w-80 bg-white border-r border-gray-100 flex flex-col z-10">
             <div className="p-4 border-b border-gray-100 bg-gray-50/50">
               <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">
@@ -253,33 +258,45 @@ export default function MemberModal({
                   </p>
                 </div>
               ) : (
-                availableUsers.map((user) => (
-                  <button
-                    key={user.id}
-                    onClick={() => handleAddMember(user)}
-                    className="w-full flex items-center gap-3 p-3 hover:bg-blue-50 hover:border-blue-100 border border-transparent rounded-xl transition-all group text-left mb-1 bg-white shadow-sm"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-xs group-hover:bg-blue-200 group-hover:text-blue-700">
-                      {user.display_name?.substring(0, 2).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">
-                        {user.display_name}
-                      </p>
-                      <div className="flex items-center gap-1 text-[10px] text-gray-400">
-                        <span className="uppercase bg-gray-100 px-1 rounded border border-gray-200">
-                          {user.main_role || "Member"}
-                        </span>
+                availableUsers.map((user) => {
+                  // ดึงสีตาม Role หลักของ User
+                  const roleKey = user.main_role || "member";
+                  const config = ROLE_CONFIG[roleKey] || ROLE_CONFIG["member"];
+
+                  return (
+                    <button
+                      key={user.id}
+                      onClick={() => handleAddMember(user)}
+                      className="w-full flex items-center gap-3 p-3 hover:bg-blue-50 hover:border-blue-100 border border-transparent rounded-xl transition-all group text-left mb-1 bg-white shadow-sm"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-xs group-hover:bg-blue-200 group-hover:text-blue-700">
+                        {user.display_name?.substring(0, 2).toUpperCase()}
                       </div>
-                    </div>
-                    <Plus className="w-4 h-4 text-gray-300 group-hover:text-accent" />
-                  </button>
-                ))
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">
+                          {user.display_name}
+                        </p>
+                        <div className="flex items-center gap-1 text-[10px] mt-1">
+                          {/* ป้าย Role สีสวยๆ */}
+                          <span
+                            className={`uppercase px-1.5 py-0.5 rounded border font-bold tracking-wide ${config.bg} ${config.color}`}
+                          >
+                            {config.label}
+                          </span>
+                          <span className="text-gray-400 truncate ml-1 opacity-60">
+                            {user.email}
+                          </span>
+                        </div>
+                      </div>
+                      <Plus className="w-4 h-4 text-gray-300 group-hover:text-accent" />
+                    </button>
+                  );
+                })
               )}
             </div>
           </div>
 
-          {/* 2. ฝั่งขวา: ทีมปัจจุบัน (Current Team) */}
+          {/* 2. ฝั่งขวา: ทีมปัจจุบัน */}
           <div className="flex-1 overflow-y-auto p-5 bg-white">
             {loading ? (
               <div className="text-center py-10 text-gray-400">
@@ -287,14 +304,17 @@ export default function MemberModal({
               </div>
             ) : (
               <>
+                {/* แสดงผลตามลำดับความสำคัญ */}
                 {renderZone("producer")}
+                {renderZone("manager")}
                 {renderZone("mixer")}
                 {renderZone("singer")}
                 {renderZone("artist")}
+                {renderZone("translator")}
                 {renderZone("editor")}
+                {renderZone("viewer")}
                 {renderZone("member")}
 
-                {/* Fallback: ใครที่ไม่มี Role เลย หรือ Role แปลกๆ */}
                 {members.filter((m) => !m.roles || m.roles.length === 0)
                   .length > 0 && (
                   <div className="mb-6">
@@ -330,7 +350,7 @@ export default function MemberModal({
   );
 }
 
-// Sub-component การ์ดสมาชิก (เพื่อลดความซ้ำซ้อน)
+// Sub-component การ์ดสมาชิก
 function MemberCard({ m, toggleRole, handleRemoveMember }: any) {
   return (
     <div className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl shadow-sm hover:border-accent/30 transition-all group">
@@ -342,35 +362,35 @@ function MemberCard({ m, toggleRole, handleRemoveMember }: any) {
           <p className="text-sm font-semibold text-gray-800">
             {m.profiles?.display_name}
           </p>
-          {/* ปุ่มเปลี่ยน Role */}
-          <div className="flex gap-1 mt-1 flex-wrap">
+          {/* ปุ่มเปลี่ยน Role (Multi-colored) */}
+          <div className="flex gap-1.5 mt-1.5 flex-wrap">
             {Object.keys(ROLE_CONFIG)
               .filter((k) => k !== "member")
-              .map((rKey) => (
-                <button
-                  key={rKey}
-                  onClick={() => toggleRole(m.id, m.roles, rKey)}
-                  className={`
-                    text-[10px] px-1.5 py-0.5 rounded border transition-all
-                    ${
-                      m.roles?.includes(rKey)
-                        ? ROLE_CONFIG[rKey].bg +
-                          " " +
-                          ROLE_CONFIG[rKey].color +
-                          " font-bold shadow-sm"
-                        : "bg-white border-gray-300 text-gray-500 hover:border-gray-300 hover:text-gray-700"
-                    }
-                  `}
-                  title={`Toggle ${ROLE_CONFIG[rKey].label}`}
-                >
-                  {ROLE_CONFIG[rKey].label}
-                </button>
-              ))}
+              .map((rKey) => {
+                const config = ROLE_CONFIG[rKey];
+                const isActive = m.roles?.includes(rKey);
+                return (
+                  <button
+                    key={rKey}
+                    onClick={() => toggleRole(m.id, m.roles, rKey)}
+                    className={`
+                      text-[10px] px-2 py-0.5 rounded-md border transition-all duration-200 font-medium
+                      ${
+                        isActive
+                          ? `${config.bg} ${config.color} shadow-sm ring-1 ring-opacity-20 ring-current`
+                          : `bg-white border-gray-200 ${config.color} opacity-50 hover:opacity-100 hover:bg-gray-50`
+                      }
+                    `}
+                    title={`Toggle ${config.label}`}
+                  >
+                    {config.label}
+                  </button>
+                );
+              })}
           </div>
         </div>
       </div>
 
-      {/* ปุ่มลบ (Producer ลบไม่ได้) */}
       {!m.roles?.includes("producer") && (
         <button
           onClick={() => handleRemoveMember(m.user_id)}

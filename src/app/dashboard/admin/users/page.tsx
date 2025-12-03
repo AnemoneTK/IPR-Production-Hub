@@ -18,10 +18,10 @@ import {
   X,
 } from "lucide-react";
 
-// 🔥 เพิ่มตำแหน่ง Manager ตรงนี้ครับ
+// Config ตำแหน่งงาน
 const ROLE_OPTIONS = [
-  { value: "producer", label: "โปรดิวเซอร์ (Producer)" }, // ปรับคำแปลให้ชัดขึ้นนิดนึง
-  { value: "manager", label: "ผู้จัดการ (Manager)" }, // <--- เพิ่มอันนี้
+  { value: "producer", label: "ผู้จัดการ (Producer)" },
+  { value: "manager", label: "ผู้จัดการ (Manager)" },
   { value: "singer", label: "นักร้อง (Singer)" },
   { value: "mixer", label: "มิกซ์ (Mixer)" },
   { value: "artist", label: "นักวาด (Artist)" },
@@ -35,28 +35,29 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // Modals State
+  // Filters State
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterRole, setFilterRole] = useState("all");
+
+  // Modals & Forms State
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
 
-  // Success Modal
-  const [successData, setSuccessData] = useState<{
-    email: string;
-    role: string;
+  // 🔥 Success Modal State (ปรับใหม่ให้ใช้ร่วมกันได้ทุกงาน)
+  const [successModal, setSuccessModal] = useState<{
+    title: string;
+    message: string;
   } | null>(null);
 
-  // Status/Delete Modals
   const [statusTarget, setStatusTarget] = useState<{
     user: any;
     type: "suspend" | "activate";
   } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-
   const [editingUser, setEditingUser] = useState<any>(null);
 
-  // Forms State
   const [createForm, setCreateForm] = useState({ email: "", role: "viewer" });
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // 1. Fetch Users
   useEffect(() => {
@@ -91,6 +92,15 @@ export default function AdminUsersPage() {
     setLoading(false);
   };
 
+  // Logic การกรองข้อมูล
+  const filteredUsers = users.filter((user) => {
+    const matchesSearch =
+      user.display_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = filterRole === "all" || user.main_role === filterRole;
+    return matchesSearch && matchesRole;
+  });
+
   // 2. Create User
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,7 +114,11 @@ export default function AdminUsersPage() {
       if (!res.ok) throw new Error("Failed");
 
       setShowCreateModal(false);
-      setSuccessData({ email: createForm.email, role: createForm.role });
+      // 🔥 เรียกใช้ Modal สวยๆ
+      setSuccessModal({
+        title: "สร้างบัญชีสำเร็จ!",
+        message: `บัญชี ${createForm.email} ถูกสร้างเรียบร้อยแล้ว ระบบได้ส่งอีเมลแจ้งรหัสผ่านไปยังผู้ใช้แล้ว`,
+      });
       setCreateForm({ email: "", role: "viewer" });
       fetchUsers();
     } catch (err) {
@@ -114,7 +128,7 @@ export default function AdminUsersPage() {
     }
   };
 
-  // 3. Update User
+  // 3. Update User (Edit)
   const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsProcessing(true);
@@ -125,9 +139,14 @@ export default function AdminUsersPage() {
         body: JSON.stringify(editingUser),
       });
       if (!res.ok) throw new Error("Failed");
-      alert("แก้ไขข้อมูลสำเร็จ");
+
       setShowEditModal(false);
       setEditingUser(null);
+      // 🔥 เรียกใช้ Modal สวยๆ
+      setSuccessModal({
+        title: "แก้ไขข้อมูลสำเร็จ!",
+        message: "ข้อมูลผู้ใช้งานได้รับการอัปเดตเรียบร้อยแล้ว",
+      });
       fetchUsers();
     } catch (err) {
       alert("Error updating user");
@@ -153,6 +172,13 @@ export default function AdminUsersPage() {
       if (!res.ok) throw new Error("Failed");
       fetchUsers();
       setStatusTarget(null);
+      // 🔥 เรียกใช้ Modal สวยๆ (Optional: ถ้าไม่อยากให้เด้งตอนเปิดปิด ก็ลบบรรทัดนี้ได้)
+      setSuccessModal({
+        title: "สถานะเปลี่ยนแล้ว!",
+        message: `บัญชีผู้ใช้ถูก ${
+          newUser.is_active ? "เปิดใช้งาน" : "ระงับการใช้งาน"
+        } เรียบร้อยแล้ว`,
+      });
     } catch (e) {
       alert("เกิดข้อผิดพลาด");
     } finally {
@@ -169,9 +195,13 @@ export default function AdminUsersPage() {
         method: "DELETE",
       });
       if (!res.ok) throw new Error("Failed");
-
       setUsers(users.filter((u) => u.id !== deleteTarget.id));
       setDeleteTarget(null);
+      // 🔥 เรียกใช้ Modal สวยๆ
+      setSuccessModal({
+        title: "ลบบัญชีสำเร็จ!",
+        message: "ข้อมูลผู้ใช้ถูกลบออกจากระบบถาวรแล้ว",
+      });
     } catch (e) {
       alert("ลบไม่สำเร็จ");
     } finally {
@@ -188,18 +218,55 @@ export default function AdminUsersPage() {
 
   return (
     <div className="space-y-6 pb-10">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Shield className="w-6 h-6 text-blue-600" /> จัดการบัญชีผู้ใช้
-        </h1>
+      {/* Header & Filter (เหมือนเดิม) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Shield className="w-6 h-6 text-blue-600" /> จัดการบัญชีผู้ใช้
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            บริหารจัดการสมาชิก สิทธิ์ และสถานะบัญชี
+          </p>
+        </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium shadow-sm transition-all"
+          className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium shadow-sm transition-all active:scale-95"
         >
           <UserPlus className="w-5 h-5" /> สร้างบัญชีใหม่
         </button>
       </div>
 
+      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
+        <div className="relative w-full md:w-80">
+          <Search className="absolute left-3 top-2.5 text-gray-400 w-4 h-4" />
+          <input
+            type="text"
+            placeholder="ค้นหาชื่อ หรือ อีเมล..."
+            className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 outline-none transition-all"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <div className="relative w-full md:w-56">
+          <select
+            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 outline-none cursor-pointer"
+            value={filterRole}
+            onChange={(e) => setFilterRole(e.target.value)}
+          >
+            <option value="all">ทุกตำแหน่ง</option>
+            {ROLE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="text-xs text-gray-400 ml-auto hidden md:block">
+          แสดง {filteredUsers.length} จากทั้งหมด {users.length} ผู้ใช้
+        </div>
+      </div>
+
+      {/* Users Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
@@ -219,14 +286,22 @@ export default function AdminUsersPage() {
                     <Loader2 className="w-8 h-8 animate-spin mx-auto text-gray-300" />
                   </td>
                 </tr>
+              ) : filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-12 text-center text-gray-400">
+                    ไม่พบผู้ใช้ที่ค้นหา
+                  </td>
+                </tr>
               ) : (
-                users.map((user) => (
+                filteredUsers.map((user) => (
                   <tr key={user.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div
                           className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white ${
-                            user.is_active ? "bg-blue-500" : "bg-gray-400"
+                            user.is_active
+                              ? "bg-gradient-to-br from-blue-500 to-blue-600"
+                              : "bg-gray-400"
                           }`}
                         >
                           {user.display_name?.substring(0, 2).toUpperCase() ||
@@ -287,21 +362,18 @@ export default function AdminUsersPage() {
                             ? "text-green-600 hover:bg-green-50"
                             : "text-gray-400 hover:bg-gray-100"
                         }`}
-                        title={user.is_active ? "ปิดบัญชี" : "เปิดบัญชี"}
                       >
                         <Power className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => openEditModal(user)}
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="แก้ไข"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => setDeleteTarget(user)}
                         className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="ลบบัญชีถาวร"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -314,7 +386,34 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      {/* --- Create User Modal --- */}
+      {/* --- Success Modal (ใช้ร่วมกันได้ทุกงาน) --- */}
+      {successModal && (
+        <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center p-4 backdrop-blur-sm animate-in zoom-in-95 duration-300">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-8 text-center border-t-4 border-green-500 relative">
+            <button
+              onClick={() => setSuccessModal(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 text-green-600">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">
+              {successModal.title}
+            </h3>
+            <p className="text-gray-500 text-sm mb-6">{successModal.message}</p>
+            <button
+              onClick={() => setSuccessModal(null)}
+              className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition-colors shadow-lg shadow-green-500/30"
+            >
+              ตกลง, เข้าใจแล้ว
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* --- Create Modal --- */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/60 z-[80] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 border border-gray-100">
@@ -385,39 +484,6 @@ export default function AdminUsersPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* --- Success Modal --- */}
-      {successData && (
-        <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center p-4 backdrop-blur-sm animate-in zoom-in-95 duration-300">
-          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-8 text-center border-t-4 border-green-500 relative">
-            <button
-              onClick={() => setSuccessData(null)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 text-green-600">
-              <CheckCircle2 className="w-8 h-8" />
-            </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">
-              สร้างบัญชีสำเร็จ!
-            </h3>
-            <p className="text-gray-500 text-sm mb-6">
-              บัญชี{" "}
-              <span className="font-bold text-gray-800">
-                {successData.email}
-              </span>{" "}
-              ถูกสร้างเรียบร้อยแล้ว ระบบได้ส่งอีเมลแจ้งรหัสผ่านไปยังผู้ใช้แล้ว
-            </p>
-            <button
-              onClick={() => setSuccessData(null)}
-              className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition-colors shadow-lg shadow-green-500/30"
-            >
-              ตกลง, เข้าใจแล้ว
-            </button>
           </div>
         </div>
       )}
@@ -505,7 +571,8 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      {/* --- Status Modal --- */}
+      {/* --- Status/Delete Modals (เหมือนเดิม) --- */}
+      {/* ... โค้ดส่วน Status และ Delete Modal เดิม ... (ไม่ต้องแก้) */}
       {statusTarget && (
         <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 border border-gray-100 scale-100 animate-in zoom-in-95 duration-200 text-center">
@@ -538,8 +605,7 @@ export default function AdminUsersPage() {
               การใช้งานบัญชีของ{" "}
               <span className="font-bold text-gray-800">
                 {statusTarget.user.display_name}
-              </span>{" "}
-              ระบบจะส่งอีเมลแจ้งเตือนผู้ใช้
+              </span>
             </p>
             <div className="flex gap-3">
               <button
@@ -570,7 +636,6 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      {/* --- Delete User Modal --- */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 border border-red-100 scale-100 animate-in zoom-in-95 duration-200 text-center">
@@ -585,8 +650,7 @@ export default function AdminUsersPage() {
               <span className="font-bold text-gray-800">
                 {deleteTarget.email}
               </span>{" "}
-              ออกจากระบบอย่างถาวรใช่ไหม? <br />
-              <span className="text-red-500 font-bold">กู้คืนไม่ได้นะ!</span>
+              ออกจากระบบอย่างถาวรใช่ไหม?
             </p>
             <div className="flex gap-3">
               <button

@@ -256,21 +256,30 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
         fileKeysToDelete = getAllDescendantFiles(deleteTarget.id);
       }
 
+      // A. พยายามลบไฟล์บน R2 (แต่ใส่ try-catch ดักไว้ ไม่ให้พังถ้าหาไฟล์ไม่เจอ)
       if (fileKeysToDelete.length > 0) {
-        await fetch("/api/delete-files", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fileKeys: fileKeysToDelete }),
-        });
+        try {
+          const res = await fetch("/api/delete-files", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fileKeys: fileKeysToDelete }),
+          });
+          // ต่อให้ res.ok เป็น false เราก็จะปล่อยผ่านไป เพื่อไปลบใน DB ต่อ
+        } catch (e) {
+          console.warn("ลบไฟล์ใน R2 ไม่สำเร็จ (ไฟล์อาจจะหายไปแล้ว):", e);
+        }
       }
 
+      // B. ลบข้อมูลใน Database (สำคัญที่สุด ต้องลบให้ได้)
       const table = deleteTarget.type === "file" ? "files" : "folders";
       const { error } = await supabase
         .from(table)
         .delete()
         .eq("id", deleteTarget.id);
+
       if (error) throw error;
 
+      // C. อัปเดตหน้าจอ
       if (deleteTarget.type === "file") {
         setFiles((prev) => prev.filter((f) => f.id !== deleteTarget.id));
         setAllFilesRaw((prev) => prev.filter((f) => f.id !== deleteTarget.id));

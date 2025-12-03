@@ -129,8 +129,9 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
     setIsUploading(true);
     try {
       const {
@@ -138,37 +139,45 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
 
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: JSON.stringify({ name: file.name, type: file.type }),
-      });
-      const { url, fileName } = await response.json();
+      // วนลูปอัปโหลดทีละไฟล์
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
 
-      await fetch(url, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": file.type },
-      });
+        // A. ขอ Presigned URL
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: JSON.stringify({ name: file.name, type: file.type }),
+        });
+        const { url, fileName } = await response.json();
 
-      const { error: dbError } = await supabase.from("files").insert({
-        project_id: projectId,
-        folder_id: currentFolderId,
-        name: file.name,
-        file_url: fileName,
-        file_type: file.type,
-        size: file.size,
-        uploaded_by: user.id,
-      });
-      if (dbError) throw dbError;
-      fetchData();
+        // B. Upload to R2
+        await fetch(url, {
+          method: "PUT",
+          body: file,
+          headers: { "Content-Type": file.type },
+        });
+
+        // C. Save to DB
+        const { error: dbError } = await supabase.from("files").insert({
+          project_id: projectId,
+          folder_id: currentFolderId,
+          name: file.name,
+          file_url: fileName,
+          file_type: file.type,
+          size: file.size,
+          uploaded_by: user.id,
+        });
+        if (dbError) throw dbError;
+      }
+
+      fetchData(); // โหลดข้อมูลใหม่ทีเดียวตอนจบ
     } catch (error: any) {
-      alert("อัปโหลดล้มเหลว: " + error.message);
+      alert("เกิดข้อผิดพลาดในการอัปโหลด: " + error.message);
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
-
   const handleDownload = async (fileKey: string, originalName: string) => {
     try {
       const response = await fetch("/api/download", {

@@ -9,7 +9,6 @@ import {
   Search,
   Trash2,
   AlertTriangle,
-  X,
 } from "lucide-react";
 import FeedbackModal, { FEEDBACK_STATUSES } from "@/components/FeedbackModal";
 
@@ -20,10 +19,13 @@ export default function AdminFeedbackPage() {
 
   // Modal States
   const [selectedFeedback, setSelectedFeedback] = useState<any>(null);
+
+  // 🔥 แก้ไข 1: เปลี่ยน state เก็บข้อมูลลบ ให้รองรับ Array ของรูป (string[])
   const [deleteTarget, setDeleteTarget] = useState<{
     id: number;
-    imageUrl: string | null;
+    imageUrls: string[];
   } | null>(null);
+
   const [isDeleting, setIsDeleting] = useState(false);
 
   // 1. Check Admin & Fetch Data
@@ -67,28 +69,30 @@ export default function AdminFeedbackPage() {
     await supabase.from("feedbacks").update({ status: newStatus }).eq("id", id);
   };
 
-  // เตรียมลบ (เปิด Modal)
+  // 🔥 แก้ไข 2: รับ image_urls (ที่เป็น Array) แทน image_url ตัวเดียว
   const promptDelete = (
     e: React.MouseEvent,
     id: number,
-    imageUrl: string | null
+    imageUrls: string[] | null
   ) => {
     e.stopPropagation();
-    setDeleteTarget({ id, imageUrl });
+    // ถ้าไม่มีรูป ให้ส่ง array ว่างไป
+    setDeleteTarget({ id, imageUrls: imageUrls || [] });
   };
 
-  // ลบจริง (ทำงานเมื่อกดปุ่มใน Modal)
+  // 🔥 แก้ไข 3: ส่ง Array ไปให้ API ลบทีเดียวหมด
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setIsDeleting(true);
 
     try {
-      // A. ถ้ามีรูป ให้ลบออกจาก R2
-      if (deleteTarget.imageUrl) {
+      // A. ถ้ามีรูป (หลายรูป) ให้ลบออกจาก R2
+      if (deleteTarget.imageUrls && deleteTarget.imageUrls.length > 0) {
         await fetch("/api/delete-files", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fileKeys: [deleteTarget.imageUrl] }),
+          // ส่งไปทั้งก้อนเลย API delete-files เรารองรับ Array อยู่แล้ว
+          body: JSON.stringify({ fileKeys: deleteTarget.imageUrls }),
         });
       }
 
@@ -230,9 +234,10 @@ export default function AdminFeedbackPage() {
                     </td>
 
                     <td className="px-6 py-4 text-right">
+                      {/* 🔥 แก้ไข 4: ส่ง item.image_urls (array) ไปแทน */}
                       <button
                         onClick={(e) =>
-                          promptDelete(e, item.id, item.image_url)
+                          promptDelete(e, item.id, item.image_urls)
                         }
                         className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                         title="ลบรายการ"
@@ -258,7 +263,7 @@ export default function AdminFeedbackPage() {
         </div>
       )}
 
-      {/* --- Detail Modal --- */}
+      {/* Detail Modal */}
       {selectedFeedback && (
         <FeedbackModal
           feedback={selectedFeedback}
@@ -267,7 +272,7 @@ export default function AdminFeedbackPage() {
         />
       )}
 
-      {/* --- Delete Confirmation Modal (New & Pretty!) --- */}
+      {/* Delete Confirmation Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/60 z-[80] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-red-100 scale-100 animate-in zoom-in-95 duration-200">
@@ -281,7 +286,12 @@ export default function AdminFeedbackPage() {
 
             <p className="text-sm text-center text-gray-500 mt-2 mb-6 leading-relaxed">
               คุณต้องการลบรายการนี้ใช่ไหม <br />
-              ข้อมูลและรูปภาพที่แนบมาจะถูกลบถาวร
+              {/* แสดงจำนวนรูปที่จะถูกลบด้วย */}
+              {deleteTarget.imageUrls.length > 0 && (
+                <span className="text-red-600 font-bold block mt-1">
+                  ⚠️ รูปภาพแนบ {deleteTarget.imageUrls.length} รูปจะถูกลบถาวร
+                </span>
+              )}
             </p>
 
             <div className="flex gap-3">

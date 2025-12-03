@@ -15,6 +15,7 @@ import {
   User,
   Bug,
   Shield,
+  UserPlus,
 } from "lucide-react";
 
 export default function DashboardLayout({
@@ -155,6 +156,15 @@ export default function DashboardLayout({
               <p className="px-3 text-xs font-bold text-gray-500 uppercase mb-2">
                 Admin Zone
               </p>
+              <Link
+                href="/dashboard/admin/users"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-orange-300 hover:bg-primary-light hover:text-white transition-colors mt-1"
+              >
+                <div className="w-5 h-5 flex items-center justify-center">
+                  <UserPlus className="w-4 h-4" />
+                </div>
+                <span>จัดการบัญชีผู้ใช้</span>
+              </Link>
               <Link
                 href="/dashboard/admin/feedback"
                 className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-orange-300 hover:bg-primary-light hover:text-white transition-colors"

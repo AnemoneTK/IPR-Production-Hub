@@ -23,10 +23,32 @@ export default function LoginPage() {
         password,
       });
 
+      // --- แก้ไขจุดที่ 1: เช็ค Error ก่อนทำอย่างอื่น ---
       if (error) {
         throw error;
       }
 
+      // --- แก้ไขจุดที่ 2: เช็คว่ามี User จริงไหม (กัน TypeScript ฟ้อง null) ---
+      if (!data.user) {
+        throw new Error("ไม่พบข้อมูลผู้ใช้");
+      }
+
+      // 2. ดึงข้อมูล Profile เพื่อเช็คว่า Active ไหม
+      // (ถึงตรงนี้ data.user.id จะไม่แดงแล้ว เพราะเราเช็คด้านบนแล้ว)
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_active")
+        .eq("id", data.user.id)
+        .single();
+
+      // เช็คสถานะการระงับบัญชี
+      if (profile && profile.is_active === false) {
+        await supabase.auth.signOut(); // เตะออกทันที
+        router.push("/suspended"); // ส่งไปหน้าแจ้งเตือน
+        return;
+      }
+
+      // 3. ถ้าผ่านทุกด่าน ค่อยไป Dashboard
       router.push("/dashboard");
     } catch (error: any) {
       console.error("Login Error:", error.message);

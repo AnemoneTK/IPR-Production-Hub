@@ -50,24 +50,35 @@ export const FEEDBACK_STATUSES = {
 export default function FeedbackModal({ feedback, onClose, onUpdate }: any) {
   const [status, setStatus] = useState(feedback.status || "pending");
   const [updating, setUpdating] = useState(false);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
 
   // ดึงลิงก์รูป (ถ้ามี)
   useEffect(() => {
-    if (feedback.image_url) {
-      fetch("/api/download", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileKey: feedback.image_url,
-          originalName: "evidence.png",
-        }),
-      })
-        .then((r) => r.json())
-        .then((d) => setImageUrl(d.url))
-        .catch((err) => console.error("Error loading image:", err));
-    }
-  }, [feedback.image_url]);
+    const loadImages = async () => {
+      // เช็คว่า image_urls (ใหม่) หรือ image_url (เก่า) มีข้อมูลไหม
+      const keys =
+        feedback.image_urls || (feedback.image_url ? [feedback.image_url] : []);
+
+      if (keys.length > 0) {
+        const urls = await Promise.all(
+          keys.map(async (key: string) => {
+            const res = await fetch("/api/download", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                fileKey: key,
+                originalName: "evidence.png",
+              }),
+            });
+            const data = await res.json();
+            return data.url;
+          })
+        );
+        setImageUrls(urls);
+      }
+    };
+    loadImages();
+  }, [feedback]);
 
   const handleStatusChange = async (newStatus: string) => {
     setUpdating(true);
@@ -198,32 +209,32 @@ export default function FeedbackModal({ feedback, onClose, onUpdate }: any) {
             </div>
 
             {/* Image Evidence */}
-            {feedback.image_url && (
+            {(feedback.image_urls?.length > 0 || feedback.image_url) && (
               <div>
                 <h4 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
                   <ImageIcon className="w-4 h-4 text-gray-500" /> หลักฐาน /
                   ภาพประกอบ
                 </h4>
-                {imageUrl ? (
-                  <a
-                    href={imageUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block relative group rounded-xl overflow-hidden border-2 border-gray-100 hover:border-blue-200 transition-all"
-                  >
-                    <div className="bg-gray-50 aspect-video flex items-center justify-center">
-                      <img
-                        src={imageUrl}
-                        alt="Evidence"
-                        className="max-w-full max-h-[300px] object-contain shadow-sm"
-                      />
-                    </div>
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                      <span className="opacity-0 group-hover:opacity-100 bg-white text-gray-800 px-4 py-2 rounded-lg text-xs font-bold shadow-lg transition-all transform scale-90 group-hover:scale-100 flex items-center gap-2">
-                        <ImageIcon className="w-4 h-4" /> คลิกเพื่อดูรูปใหญ่
-                      </span>
-                    </div>
-                  </a>
+                {imageUrls.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    {imageUrls.map((url, i) => (
+                      <a
+                        key={i}
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block relative group rounded-xl overflow-hidden border-2 border-gray-100 hover:border-blue-200 transition-all"
+                      >
+                        <div className="bg-gray-50 aspect-video flex items-center justify-center">
+                          <img
+                            src={url}
+                            alt={`Evidence ${i}`}
+                            className="max-w-full max-h-[200px] object-contain shadow-sm"
+                          />
+                        </div>
+                      </a>
+                    ))}
+                  </div>
                 ) : (
                   <div className="h-32 bg-gray-50 rounded-xl flex items-center justify-center text-gray-400 border-2 border-dashed border-gray-200">
                     <div className="flex flex-col items-center gap-2">

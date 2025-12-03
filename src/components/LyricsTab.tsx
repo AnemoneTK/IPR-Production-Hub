@@ -172,17 +172,15 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const { error } = await supabase
-      .from("scripts")
-      .upsert(
-        {
-          project_id: projectId,
-          content: JSON.stringify(blocks),
-          updated_by: user?.id,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "project_id" }
-      );
+    const { error } = await supabase.from("scripts").upsert(
+      {
+        project_id: projectId,
+        content: JSON.stringify(blocks),
+        updated_by: user?.id,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "project_id" }
+    );
     if (!error) setLastSaved(new Date());
     setIsSaving(false);
   }, [blocks, projectId]);
@@ -793,7 +791,7 @@ function BlockItem({
             </button>
           )}
 
-          <div className="flex flex-col gap-0.5 mr-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex flex-col gap-0.5 mr-2 opacity-80 group-hover:opacity-100 transition-opacity">
             <button
               onClick={onMoveUp}
               className="text-gray-400 hover:text-gray-600"

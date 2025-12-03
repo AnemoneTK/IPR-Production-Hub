@@ -110,8 +110,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
   // --- Resizable Sidebar State ---
-  const DEFAULT_WIDTH = 384; // w-96
-  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
+  const [sidebarWidth, setSidebarWidth] = useState(400); // ค่าเริ่มต้นชั่วคราว (จะถูกทับด้วย useEffect)
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
 
@@ -174,6 +173,13 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
     fetchData();
   }, [projectId]);
 
+  // 1.5 Set Initial Width to 50% on Mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setSidebarWidth(window.innerWidth / 2 - 100);
+    }
+  }, []);
+
   // 2. Auto Save
   const handleSaveScript = useCallback(async () => {
     setIsSaving(true);
@@ -200,7 +206,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
     return () => clearTimeout(timeoutId);
   }, [blocks, handleSaveScript]);
 
-  // --- Resizable Logic (Fix: Prevent iframe stealing events) ---
+  // --- Resizable Logic (Updated) ---
   const startResizing = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setIsResizing(true);
@@ -212,14 +218,20 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
     (mouseMoveEvent: MouseEvent) => {
       if (isResizing) {
         const newWidth = window.innerWidth - mouseMoveEvent.clientX;
-        if (newWidth > 250 && newWidth < 1000) {
-          // เพิ่ม Max width นิดหน่อยเผื่อจอใหญ่
+        // Limit: Min 250px, Max 90% of screen
+        if (newWidth > 250 && newWidth < window.innerWidth * 0.9) {
           setSidebarWidth(newWidth);
         }
       }
     },
     [isResizing]
   );
+
+  const handleResetWidth = () => {
+    if (typeof window !== "undefined") {
+      setSidebarWidth(window.innerWidth / 2 - 100);
+    }
+  };
 
   useEffect(() => {
     if (isResizing) {
@@ -369,7 +381,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
                     <div
                       {...provided.droppableProps}
                       ref={provided.innerRef}
-                      className="space-y-0 pb-10"
+                      className="space-y-0 pb-20"
                     >
                       {blocks.map((block, index) => (
                         <Draggable
@@ -386,7 +398,8 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
                                 marginBottom: "10px",
                                 opacity: snapshot.isDragging ? 0.8 : 1,
                               }}
-                              className="relative"
+                              // 🔥 สำคัญ 1: เพิ่ม hover:z-20 ตรงนี้ เพื่อยกทั้งก้อนให้ลอยเหนือเพื่อนบ้านตอนเอาเมาส์ชี้
+                              className="relative hover:z-20 group/block"
                             >
                               <BlockItem
                                 index={index}
@@ -402,14 +415,16 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
                                 dragHandleProps={provided.dragHandleProps}
                               />
 
-                              <div className="h-4 -mt-2 mb-2 relative group/insert z-10 flex items-center justify-center opacity-0 hover:opacity-100 hover:h-10 hover:mt-2 transition-all duration-200">
-                                <div className="absolute inset-0 flex items-center justify-center gap-2 transform scale-y-0 group-hover/insert:scale-y-100 transition-transform">
-                                  <div className="h-px bg-blue-200 flex-1"></div>
+                              {/* ส่วนปุ่มแทรก (Insert Button) */}
+                              {/* 🔥 สำคัญ 2: ปรับตำแหน่งและความสูงให้รับเมาส์ง่ายขึ้น */}
+                              <div className="absolute left-0 right-0 -bottom-5 h-10 z-50 flex items-center justify-center opacity-0 hover:opacity-100 transition-all duration-200">
+                                <div className="flex items-center justify-center gap-2 transform scale-y-75 opacity-0 hover:scale-y-100 hover:opacity-100 transition-all duration-200 w-full origin-center">
+                                  <div className="h-px bg-blue-200 flex-1 opacity-50"></div>
                                   <button
                                     onClick={() =>
                                       addBlock("lyrics", index + 1)
                                     }
-                                    className="flex items-center gap-1 px-3 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded-full text-xs font-bold hover:bg-blue-100 shadow-sm transition-colors"
+                                    className="flex items-center gap-1 px-3 py-1.5 bg-white border border-blue-200 text-blue-600 rounded-full text-xs font-bold hover:bg-blue-50 hover:border-blue-300 shadow-sm transition-colors hover:scale-105"
                                   >
                                     <PlusCircle className="w-3 h-3" /> เนื้อร้อง
                                   </button>
@@ -417,11 +432,11 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
                                     onClick={() =>
                                       addBlock("interlude", index + 1)
                                     }
-                                    className="flex items-center gap-1 px-3 py-1 bg-purple-50 border border-purple-200 text-purple-600 rounded-full text-xs font-bold hover:bg-purple-100 shadow-sm transition-colors"
+                                    className="flex items-center gap-1 px-3 py-1.5 bg-white border border-purple-200 text-purple-600 rounded-full text-xs font-bold hover:bg-purple-50 hover:border-purple-300 shadow-sm transition-colors hover:scale-105"
                                   >
                                     <Music className="w-3 h-3" /> ดนตรี
                                   </button>
-                                  <div className="h-px bg-blue-200 flex-1"></div>
+                                  <div className="h-px bg-blue-200 flex-1 opacity-50"></div>
                                 </div>
                               </div>
                             </div>
@@ -582,20 +597,16 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
               <Youtube className="w-5 h-5" /> YouTube Monitor
             </h3>
             <div className="flex items-center gap-1">
-              {sidebarWidth !== DEFAULT_WIDTH && (
-                <button
-                  onClick={() => setSidebarWidth(DEFAULT_WIDTH)}
-                  className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"
-                  title="รีเซ็ตความกว้าง"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                </button>
-              )}
+              <button
+                onClick={handleResetWidth}
+                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"
+                title="รีเซ็ตความกว้าง (ครึ่งจอ)"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
               <button
                 onClick={() => {
                   setIsAddingLink(true);
-                  // ถ้าอยู่หน้า Script แล้วกดปุ่มบวกทางขวา ให้มั่นใจว่าฟอร์มจะเด้งที่ขวา (หรือใช้ฟอร์มแยกก็ได้)
-                  // แต่ในที่นี้ใช้ State เดียวกัน เดี๋ยวเราจัดการ Render ฟอร์มแยกกัน
                 }}
                 className="p-1.5 hover:bg-red-50 text-red-500 rounded-lg"
               >
@@ -667,7 +678,6 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
 }
 
 function ReferenceItem({ link, onDelete, isResizing }: any) {
-  // เปิด Video อัตโนมัติถ้าเป็น Sidebar
   const youtubeId = getYouTubeID(link.url);
 
   return (
@@ -837,15 +847,16 @@ function BlockItem({
     setQuoteText(null);
   };
 
+  // 🔥 Fix: Ensure textToFind is defined before usage
   const deleteComment = (comment: Comment) => {
     if (editor && comment.quoted_text) {
-      const textToFind = comment.quoted_text;
+      const textToFind = comment.quoted_text; // เก็บค่าลงตัวแปรก่อน
       const { doc } = editor.state;
 
       doc.descendants((node, pos) => {
         if (node.isText && node.text && node.text.includes(textToFind)) {
           const start = pos + node.text.indexOf(textToFind);
-          const end = start + textToFind.length;
+          const end = start + textToFind.length; // ใช้ตัวแปรที่เก็บไว้
           editor
             .chain()
             .setTextSelection({ from: start, to: end })
@@ -862,7 +873,6 @@ function BlockItem({
     });
   };
 
-  // 🔥 แก้ไข: กรองเฉพาะคนที่มี Role เป็น "singer" เท่านั้น
   const singerMembers = members.filter((m: any) => m.roles?.includes("singer"));
 
   return (

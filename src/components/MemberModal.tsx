@@ -17,6 +17,8 @@ import {
   Eye,
   Briefcase,
   Check,
+  AlertTriangle,
+  Loader2,
 } from "lucide-react";
 
 // สีสำหรับเลือก (Pastel Palette)
@@ -101,6 +103,10 @@ export default function MemberModal({
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
+  // States สำหรับ Modal ลบ
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const fetchData = async () => {
     setLoading(true);
     const { data: memberData } = await supabase
@@ -147,15 +153,27 @@ export default function MemberModal({
     else fetchData();
   };
 
-  const handleRemoveMember = async (userId: string) => {
-    if (!confirm("ต้องการลบสมาชิกคนนี้ออกจากทีม?")) return;
+  // เปิด Modal ยืนยันลบ
+  const promptDeleteMember = (member: any) => {
+    setDeleteTarget(member);
+  };
+
+  // ยืนยันการลบ
+  const confirmDeleteMember = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     const { error } = await supabase
       .from("project_members")
       .delete()
-      .eq("project_id", projectId)
-      .eq("user_id", userId);
-    if (error) alert("ลบไม่สำเร็จ: " + error.message);
-    else fetchData();
+      .eq("id", deleteTarget.id);
+
+    if (error) {
+      alert("ลบไม่สำเร็จ: " + error.message);
+    } else {
+      fetchData();
+    }
+    setIsDeleting(false);
+    setDeleteTarget(null);
   };
 
   const toggleRole = async (
@@ -184,7 +202,6 @@ export default function MemberModal({
     }
   };
 
-  // 🔥 ฟังก์ชันเปลี่ยนสีประจำตัว
   const changeMemberColor = async (memberId: number, color: string) => {
     setMembers(
       members.map((m) =>
@@ -217,7 +234,7 @@ export default function MemberModal({
               key={m.id + roleKey}
               m={m}
               toggleRole={toggleRole}
-              handleRemoveMember={handleRemoveMember}
+              onDeleteClick={() => promptDeleteMember(m)} // ส่งฟังก์ชันเปิด Modal ไปแทน
               changeMemberColor={changeMemberColor}
             />
           ))}
@@ -227,7 +244,7 @@ export default function MemberModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
       <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
         {/* Header */}
         <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
@@ -342,7 +359,7 @@ export default function MemberModal({
                           key={m.id}
                           m={m}
                           toggleRole={toggleRole}
-                          handleRemoveMember={handleRemoveMember}
+                          onDeleteClick={() => promptDeleteMember(m)}
                           changeMemberColor={changeMemberColor}
                         />
                       ))}
@@ -360,15 +377,57 @@ export default function MemberModal({
           </div>
         </div>
       </div>
+
+      {/* --- Delete Confirmation Modal --- */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-red-100 scale-100 animate-in zoom-in-95 duration-200 text-center">
+            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900">
+              ยืนยันการลบสมาชิก?
+            </h3>
+            <p className="text-sm text-gray-500 mt-2 mb-6 leading-relaxed">
+              คุณต้องการลบ{" "}
+              <span className="font-bold text-gray-800">
+                "{deleteTarget.profiles?.display_name}"
+              </span>{" "}
+              ออกจากทีมใช่ไหม?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={isDeleting}
+                className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={confirmDeleteMember}
+                disabled={isDeleting}
+                className="flex-1 py-2.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 flex items-center justify-center gap-2 shadow-lg shadow-red-500/30"
+              >
+                {isDeleting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                <span>ลบออก</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// Sub-component MemberCard (เพิ่ม Color Picker)
+// Sub-component MemberCard
 function MemberCard({
   m,
   toggleRole,
-  handleRemoveMember,
+  onDeleteClick, // รับ prop ใหม่ชื่อ onDeleteClick
   changeMemberColor,
 }: any) {
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -441,7 +500,7 @@ function MemberCard({
 
       {!m.roles?.includes("producer") && (
         <button
-          onClick={() => handleRemoveMember(m.user_id)}
+          onClick={onDeleteClick} // เรียกใช้ onDeleteClick
           className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
         >
           <Trash2 className="w-4 h-4" />

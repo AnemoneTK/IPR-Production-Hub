@@ -15,7 +15,19 @@ import {
   MoreHorizontal,
   AlertTriangle,
   Send,
+  Quote,
+  CheckCircle2,
+  Mic,
+  Eraser,
 } from "lucide-react";
+
+// Tiptap Imports
+import { useEditor, EditorContent, BubbleMenu } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Highlight from "@tiptap/extension-highlight";
+import TextStyle from "@tiptap/extension-text-style";
+import { Color } from "@tiptap/extension-color";
+import BubbleMenuExtension from "@tiptap/extension-bubble-menu";
 
 // --- Interfaces ---
 interface Comment {
@@ -23,29 +35,24 @@ interface Comment {
   user_id: string;
   user_name: string;
   text: string;
+  quoted_text?: string;
   created_at: string;
+}
+
+interface SingerData {
+  user_id: string;
+  is_recorded: boolean;
 }
 
 interface LyricBlock {
   id: string;
   name: string;
-  singers: string[];
+  singers: SingerData[];
   htmlContent: string;
   comments: Comment[];
 }
 
-// สีไฮไลท์
-const HIGHLIGHT_COLORS = [
-  { color: "#fef08a", label: "เหลือง" },
-  { color: "#bbf7d0", label: "เขียว" },
-  { color: "#bfdbfe", label: "ฟ้า" },
-  { color: "#fbcfe8", label: "ชมพู" },
-  { color: "#fed7aa", label: "ส้ม" },
-  { color: "transparent", label: "ล้างสี" },
-];
-
 export default function LyricsTab({ projectId }: { projectId: number }) {
-  // Global States
   const [blocks, setBlocks] = useState<LyricBlock[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [links, setLinks] = useState<any[]>([]);
@@ -58,16 +65,22 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
   // 1. Load Data
   useEffect(() => {
     const fetchData = async () => {
-      // 1.1 Members
+      // 1.1 ดึง Members + สีประจำตัว (assigned_color)
       const { data: memberData } = await supabase
         .from("project_members")
-        .select("roles, profiles(id, display_name, avatar_url)")
+        .select(
+          "user_id, roles, assigned_color, profiles(id, display_name, avatar_url)"
+        )
         .eq("project_id", projectId);
+
       const formattedMembers =
         memberData?.map((m: any) => ({
           ...(m.profiles || {}),
           roles: m.roles || [],
+          // ถ้าไม่มีสี ให้ใช้สีฟ้าอ่อนเป็นค่า Default
+          assigned_color: m.assigned_color || "#bfdbfe",
         })) || [];
+
       setMembers(formattedMembers);
 
       // 1.2 Lyrics
@@ -82,7 +95,9 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
           const formatted = Array.isArray(parsed)
             ? parsed.map((b: any) => ({
                 ...b,
-                name: b.name || "",
+                singers: (b.singers || []).map((s: any) =>
+                  typeof s === "string" ? { user_id: s, is_recorded: false } : s
+                ),
                 htmlContent: b.htmlContent || b.text || "",
                 comments: b.comments || [],
               }))
@@ -95,7 +110,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
                     id: Date.now().toString(),
                     name: "",
                     singers: [],
-                    htmlContent: "",
+                    htmlContent: "<p></p>",
                     comments: [],
                   },
                 ]
@@ -106,7 +121,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
               id: Date.now().toString(),
               name: "",
               singers: [],
-              htmlContent: "",
+              htmlContent: "<p></p>",
               comments: [],
             },
           ]);
@@ -118,7 +133,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
             id: Date.now().toString(),
             name: "",
             singers: [],
-            htmlContent: "",
+            htmlContent: "<p></p>",
             comments: [],
           },
         ]);
@@ -162,7 +177,6 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
     return () => clearTimeout(timeoutId);
   }, [blocks, handleSaveScript]);
 
-  // Actions
   const addBlock = () =>
     setBlocks([
       ...blocks,
@@ -170,19 +184,15 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
         id: Date.now().toString(),
         name: "",
         singers: [],
-        htmlContent: "",
+        htmlContent: "<p></p>",
         comments: [],
       },
     ]);
   const updateBlock = (id: string, newData: Partial<LyricBlock>) =>
     setBlocks(blocks.map((b) => (b.id === id ? { ...b, ...newData } : b)));
-
-  // ฟังก์ชันลบ (ลบจาก State เลย เพราะการยืนยันทำที่ Child แล้ว)
-  const deleteBlockDirectly = (id: string) => {
+  const deleteBlock = (id: string) =>
     setBlocks(blocks.filter((b) => b.id !== id));
-  };
 
-  // Links Actions
   const handleAddLink = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newLink.title || !newLink.url) return;
@@ -208,7 +218,6 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
 
   return (
     <div className="flex flex-col md:flex-row h-full min-h-[600px] divide-y md:divide-y-0 md:divide-x divide-gray-100 overflow-hidden">
-      {/* Editor Side */}
       <div className="flex-1 bg-gray-50/30 overflow-y-auto relative custom-scrollbar">
         <div className="p-6">
           <div className="sticky top-0 -mt-6 -mx-6 px-6 py-3 bg-white/90 backdrop-blur-md z-20 border-b border-gray-200/60 flex justify-between items-center shadow-sm">
@@ -235,7 +244,6 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
               </button>
             </div>
           </div>
-
           <div className="space-y-6 pb-20 mt-6">
             {blocks.map((block, index) => (
               <BlockItem
@@ -246,7 +254,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
                 onUpdate={(newData: Partial<LyricBlock>) =>
                   updateBlock(block.id, newData)
                 }
-                onDelete={() => deleteBlockDirectly(block.id)}
+                onDelete={() => deleteBlock(block.id)}
               />
             ))}
             <button
@@ -258,8 +266,6 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
           </div>
         </div>
       </div>
-
-      {/* References Side */}
       <div className="w-full md:w-80 lg:w-96 bg-white flex flex-col h-full border-l border-gray-100 overflow-hidden">
         <div className="p-6 border-b border-gray-50 flex-shrink-0">
           <div className="flex justify-between items-center">
@@ -313,11 +319,6 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
           )}
         </div>
         <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-2 custom-scrollbar">
-          {links.length === 0 && !isAddingLink && (
-            <div className="text-center py-10 text-gray-400 text-sm border-2 border-dashed border-gray-100 rounded-xl">
-              ยังไม่มีลิงก์อ้างอิง
-            </div>
-          )}
           {links.map((link) => (
             <div
               key={link.id}
@@ -350,46 +351,81 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
   );
 }
 
-// --- Sub-Component: Block Item ---
 function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
   const [showMemberSelect, setShowMemberSelect] = useState(false);
-  const [showHighlighter, setShowHighlighter] = useState(false);
   const [showComments, setShowComments] = useState(
     (block.comments || []).length > 0
   );
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [commentInput, setCommentInput] = useState("");
-  const contentRef = useRef<HTMLDivElement>(null);
+  const [quoteText, setQuoteText] = useState<string | null>(null);
 
-  const singerMembers = members.filter((m: any) =>
-    (m.roles || []).includes("singer")
-  );
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      TextStyle,
+      Color,
+      Highlight.configure({ multicolor: true }),
+      BubbleMenuExtension,
+    ],
+    content: block.htmlContent || "<p></p>",
+    onUpdate: ({ editor }) => {
+      onUpdate({ htmlContent: editor.getHTML() });
+    },
+    editorProps: {
+      attributes: {
+        class:
+          "prose prose-sm w-full p-4 outline-none min-h-[80px] focus:prose-p:text-gray-900 text-gray-700 max-w-none",
+      },
+    },
+  });
+
+  useEffect(() => {
+    if (
+      editor &&
+      block.htmlContent !== editor.getHTML() &&
+      editor.isEmpty &&
+      block.htmlContent
+    ) {
+      editor.commands.setContent(block.htmlContent);
+    }
+  }, [block.id, editor]);
 
   const toggleSinger = (userId: string) => {
     const currentSingers = block.singers || [];
-    const newSingers = currentSingers.includes(userId)
-      ? currentSingers.filter((id: string) => id !== userId)
-      : [...currentSingers, userId];
+    const exists = currentSingers.find((s: any) => s.user_id === userId);
+    let newSingers;
+    if (exists)
+      newSingers = currentSingers.filter((s: any) => s.user_id !== userId);
+    else
+      newSingers = [...currentSingers, { user_id: userId, is_recorded: false }];
     onUpdate({ singers: newSingers });
   };
 
-  const applyHighlight = (color: string) => {
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-    if (!contentRef.current?.contains(selection.anchorNode)) {
-      contentRef.current?.focus();
-      return;
-    }
-    document.execCommand("styleWithCSS", false, "true");
-    document.execCommand("hiliteColor", false, color);
-    if (contentRef.current)
-      onUpdate({ htmlContent: contentRef.current.innerHTML });
-    setShowHighlighter(false);
+  const toggleRecorded = (userId: string) => {
+    const newSingers = block.singers.map((s: any) =>
+      s.user_id === userId ? { ...s, is_recorded: !s.is_recorded } : s
+    );
+    onUpdate({ singers: newSingers });
   };
 
-  const handleContentChange = () => {
-    if (contentRef.current)
-      onUpdate({ htmlContent: contentRef.current.innerHTML });
+  // 🔥 แก้ไข 1: บังคับทาสี (setMark) แทนการ Toggle เพื่อแก้ปัญหาสีเพี้ยนหรือทับซ้อน
+  const highlightWithSingerColor = (color: string) => {
+    if (!editor) return;
+    // ใช้ setMark จะเป็นการ "ทา" สีลงไปเลย (ถ้ามีสีเดิมอยู่จะทับ)
+    editor.chain().focus().setMark("highlight", { color: color }).run();
+  };
+
+  const handleQuote = () => {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    if (from === to) return;
+    const text = editor.state.doc.textBetween(from, to, " ");
+    if (text) {
+      setQuoteText(text);
+      setShowComments(true);
+      editor.chain().focus().setMark("highlight", { color: "#fef08a" }).run();
+    }
   };
 
   const addComment = async (e: React.FormEvent) => {
@@ -408,29 +444,61 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
       user_id: user?.id || "",
       user_name: profile?.display_name || "Me",
       text: commentInput,
+      quoted_text: quoteText || undefined,
       created_at: new Date().toISOString(),
     };
     onUpdate({ comments: [...(block.comments || []), newComment] });
     setCommentInput("");
-    setShowComments(true);
+    setQuoteText(null);
   };
-  const deleteComment = (commentId: string) => {
+
+  // 🔥 แก้ไข 2: ลบไฮไลท์อย่างฉลาด (ค้นหาและลบ)
+  const deleteComment = (comment: Comment) => {
+    if (editor && comment.quoted_text) {
+      const { doc } = editor.state;
+      let found = false;
+
+      // ค้นหา Text Node ที่มีข้อความนี้อยู่
+      doc.descendants((node, pos) => {
+        if (
+          !found &&
+          node.isText &&
+          node.text?.includes(comment.quoted_text!)
+        ) {
+          const start = pos + node.text.indexOf(comment.quoted_text!);
+          const end = start + comment.quoted_text!.length;
+
+          // สั่งลบ Highlight เฉพาะช่วงนี้
+          editor
+            .chain()
+            .setTextSelection({ from: start, to: end })
+            .unsetHighlight()
+            .run();
+          found = true;
+          return false; // หยุดค้นหา
+        }
+      });
+    }
     onUpdate({
       comments: (block.comments || []).filter(
-        (c: Comment) => c.id !== commentId
+        (c: Comment) => c.id !== comment.id
       ),
     });
   };
+
+  const singerMembers = members.filter((m: any) =>
+    (m.roles || []).includes("singer")
+  );
 
   return (
     <div className="group relative rounded-xl border border-gray-200 shadow-sm bg-white transition-all duration-300 hover:shadow-md">
       {/* Header */}
       <div className="flex justify-between items-center p-3 pb-2 border-b border-gray-50 bg-gray-50/50 rounded-t-xl">
-        <div className="relative flex items-center gap-2 flex-1">
+        <div className="relative flex items-center gap-2 flex-1 flex-wrap">
           <input
             type="text"
             placeholder={`ท่อนที่ ${index + 1}`}
-            className="bg-transparent font-bold text-gray-700 text-sm w-32 outline-none placeholder:text-gray-400 focus:text-accent focus:placeholder:text-accent/50"
+            className="bg-transparent font-bold text-gray-700 text-sm w-24 outline-none placeholder:text-gray-400 focus:text-accent"
             value={block.name || ""}
             onChange={(e) => onUpdate({ name: e.target.value })}
           />
@@ -439,53 +507,61 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
             onClick={() => setShowMemberSelect(!showMemberSelect)}
             className={`flex items-center gap-1 px-2 py-1 text-xs text-gray-600 bg-white border border-gray-200 rounded-full hover:border-accent hover:text-accent transition-colors shadow-sm`}
           >
-            <User className="w-3 h-3" />
+            <User className="w-3 h-3" />{" "}
             {block.singers?.length > 0
               ? `${block.singers.length} คน`
               : "เลือกคนร้อง"}
           </button>
-          <div className="flex -space-x-1 overflow-hidden">
-            {(block.singers || []).map((singerId: string) => {
-              const member = members.find((m: any) => m.id === singerId);
+          <div className="flex gap-2 flex-wrap">
+            {(block.singers || []).map((s: any) => {
+              const member = members.find((m: any) => m.id === s.user_id);
               return (
-                <div
-                  key={singerId}
-                  className="w-6 h-6 rounded-full bg-blue-100 border border-white flex items-center justify-center text-[9px] font-bold text-blue-600 cursor-help"
-                  title={member?.display_name}
+                <button
+                  key={s.user_id}
+                  onClick={() => toggleRecorded(s.user_id)}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium transition-all shadow-sm`}
+                  style={{
+                    backgroundColor: s.is_recorded
+                      ? "#dcfce7"
+                      : member?.assigned_color || "#e2e8f0",
+                    borderColor: s.is_recorded ? "#86efac" : "transparent",
+                    opacity: s.is_recorded ? 1 : 0.9,
+                  }}
+                  title={s.is_recorded ? "อัดเสร็จแล้ว" : "ยังไม่อัด"}
                 >
-                  {member?.display_name?.substring(0, 2).toUpperCase()}
-                </div>
+                  {member?.display_name || "Unknown"}
+                  {s.is_recorded && (
+                    <CheckCircle2 className="w-3.5 h-3.5 ml-1 text-green-600" />
+                  )}
+                </button>
               );
             })}
           </div>
           {showMemberSelect && (
-            <div className="absolute top-full left-20 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-10 overflow-hidden p-1">
+            <div className="absolute top-full left-20 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden p-1">
               <div className="text-[10px] uppercase font-bold text-gray-400 px-3 py-2 bg-gray-50 mb-1">
-                เลือกนักร้อง (Singers Only)
+                เลือกนักร้อง
               </div>
-              {singerMembers.length > 0 ? (
-                singerMembers.map((m: any) => (
-                  <button
-                    key={m.id}
-                    onClick={() => toggleSinger(m.id)}
-                    className="w-full flex items-center justify-between px-3 py-2 text-sm text-left hover:bg-blue-50 rounded-lg transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 rounded-full bg-gray-200 text-[9px] flex items-center justify-center font-bold text-gray-500">
-                        {m.display_name?.substring(0, 2)}
-                      </div>
-                      <span className="truncate">{m.display_name}</span>
+              {singerMembers.map((m: any) => (
+                <button
+                  key={m.id}
+                  onClick={() => toggleSinger(m.id)}
+                  className="w-full flex items-center justify-between px-3 py-2 text-sm text-left hover:bg-blue-50 rounded-lg transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] shadow-sm border border-white"
+                      style={{ backgroundColor: m.assigned_color || "#bfdbfe" }}
+                    >
+                      {m.display_name?.substring(0, 2)}
                     </div>
-                    {block.singers?.includes(m.id) && (
-                      <Check className="w-3 h-3 text-accent" />
-                    )}
-                  </button>
-                ))
-              ) : (
-                <div className="p-3 text-xs text-center text-gray-400">
-                  ยังไม่มีตำแหน่ง Singer ในทีม
-                </div>
-              )}
+                    <span className="truncate">{m.display_name}</span>
+                  </div>
+                  {block.singers?.some((s: any) => s.user_id === m.id) && (
+                    <Check className="w-3 h-3 text-accent" />
+                  )}
+                </button>
+              ))}
               <div
                 className="fixed inset-0 z-[-1]"
                 onClick={() => setShowMemberSelect(false)}
@@ -493,94 +569,108 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
             </div>
           )}
         </div>
-
-        <div className="flex gap-1 relative">
-          <div className="relative">
-            <button
-              onClick={() => setShowHighlighter(!showHighlighter)}
-              className="p-1.5 text-gray-400 hover:text-accent hover:bg-accent/10 rounded-lg transition-colors"
-              title="ไฮไลท์ข้อความ"
-            >
-              <Highlighter className="w-4 h-4" />
-            </button>
-            {showHighlighter && (
-              <div className="absolute top-full right-0 mt-2 p-2 bg-white rounded-xl shadow-xl border border-gray-100 z-10 flex gap-2">
-                {HIGHLIGHT_COLORS.map((c) => (
-                  <button
-                    key={c.color}
-                    className="w-6 h-6 rounded-full border shadow-sm hover:scale-110 transition-transform"
-                    style={{ backgroundColor: c.color }}
-                    title={c.label}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      applyHighlight(c.color);
-                    }}
-                  />
-                ))}
-                <div
-                  className="fixed inset-0 z-[-1]"
-                  onClick={() => setShowHighlighter(false)}
-                ></div>
-              </div>
-            )}
-          </div>
-          <div className="relative">
-            <button
-              onClick={() => setShowDeleteConfirm(!showDeleteConfirm)}
-              className={`p-1.5 rounded-lg transition-colors ${
-                showDeleteConfirm
-                  ? "bg-red-50 text-red-500"
-                  : "text-gray-400 hover:text-red-500 hover:bg-red-50"
-              }`}
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-            {showDeleteConfirm && (
-              <>
-                <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-red-100 z-20 overflow-hidden animate-in fade-in slide-in-from-top-2">
-                  <div className="p-3 text-center border-b border-gray-50">
-                    <p className="text-xs font-bold text-gray-800">
-                      ยืนยันลบท่อนนี้?
-                    </p>
-                  </div>
-                  <div className="flex">
-                    <button
-                      onClick={onDelete}
-                      className="flex-1 py-2 text-xs font-bold text-white bg-red-500 hover:bg-red-600 transition-colors"
-                    >
-                      ลบ
-                    </button>
-                    <button
-                      onClick={() => setShowDeleteConfirm(false)}
-                      className="flex-1 py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 transition-colors"
-                    >
-                      ยกเลิก
-                    </button>
-                  </div>
+        <div className="relative">
+          <button
+            onClick={() => setShowDeleteConfirm(!showDeleteConfirm)}
+            className={`p-1.5 rounded-lg transition-colors ${
+              showDeleteConfirm
+                ? "bg-red-50 text-red-500"
+                : "text-gray-400 hover:text-red-500 hover:bg-red-50"
+            }`}
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+          {showDeleteConfirm && (
+            <>
+              <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-red-100 z-20 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                <div className="p-3 text-center border-b border-gray-50">
+                  <p className="text-xs font-bold text-gray-800">
+                    ยืนยันลบท่อนนี้?
+                  </p>
                 </div>
-                <div
-                  className="fixed inset-0 z-10 cursor-default"
-                  onClick={() => setShowDeleteConfirm(false)}
-                ></div>
-              </>
-            )}
-          </div>
+                <div className="flex">
+                  <button
+                    onClick={onDelete}
+                    className="flex-1 py-2 text-xs font-bold text-white bg-red-500 hover:bg-red-600 transition-colors"
+                  >
+                    ลบ
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="flex-1 py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  >
+                    ยกเลิก
+                  </button>
+                </div>
+              </div>
+              <div
+                className="fixed inset-0 z-10 cursor-default"
+                onClick={() => setShowDeleteConfirm(false)}
+              ></div>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Content */}
-      <div
-        ref={contentRef}
-        contentEditable
-        className="w-full p-4 text-base leading-relaxed text-gray-800 outline-none min-h-[80px] empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400 cursor-text whitespace-pre-wrap break-words"
-        data-placeholder="พิมพ์เนื้อเพลงที่นี่..."
-        onInput={handleContentChange}
-        onBlur={handleContentChange}
-        dangerouslySetInnerHTML={{ __html: block.htmlContent || "" }}
-        style={{ lineHeight: "1.8" }}
-      />
-
-      {/* Footer */}
+      <div className="relative">
+        {editor && (
+          <BubbleMenu
+            editor={editor}
+            tippyOptions={{ duration: 100 }}
+            className="flex flex-col gap-1 p-1.5 bg-white rounded-xl shadow-xl border border-gray-100 min-w-[160px]"
+          >
+            <div className="text-[10px] font-bold text-gray-400 uppercase px-2 pb-1 border-b border-gray-50 mb-1">
+              ไฮไลท์ตามคนร้อง
+            </div>
+            {block.singers && block.singers.length > 0 ? (
+              block.singers.map((s: any) => {
+                const member = members.find((m: any) => m.id === s.user_id);
+                if (!member) return null;
+                return (
+                  <button
+                    key={s.user_id}
+                    onClick={() =>
+                      highlightWithSingerColor(member.assigned_color)
+                    }
+                    className="flex items-center gap-3 px-2 py-2 hover:bg-gray-50 rounded-lg text-xs text-left w-full transition-colors group/btn"
+                  >
+                    <div
+                      className="w-4 h-4 rounded-full border shadow-sm flex-shrink-0"
+                      style={{ backgroundColor: member.assigned_color }}
+                    />
+                    <span className="truncate font-medium text-gray-700">
+                      {member.display_name}
+                    </span>
+                  </button>
+                );
+              })
+            ) : (
+              <div className="text-xs text-gray-400 px-2 py-2 text-center">
+                ยังไม่เลือกคนร้อง
+              </div>
+            )}
+            <div className="h-px bg-gray-100 my-1"></div>
+            <div className="flex items-center justify-between px-1 pt-1">
+              <button
+                onClick={() => editor.chain().focus().unsetHighlight().run()}
+                className="p-1.5 text-gray-500 hover:text-red-500 rounded-lg hover:bg-red-50 flex items-center gap-1 transition-colors"
+                title="ล้างสีไฮไลท์"
+              >
+                <Eraser className="w-4 h-4" />{" "}
+                <span className="text-[10px] font-bold">ล้าง</span>
+              </button>
+              <button
+                onClick={handleQuote}
+                className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                title="คอมเมนต์"
+              >
+                <MessageSquare className="w-4 h-4" />
+              </button>
+            </div>
+          </BubbleMenu>
+        )}
+        <EditorContent editor={editor} />
+      </div>
       <div className="px-4 pb-3 border-t border-dashed border-gray-100 pt-2">
         <button
           onClick={() => setShowComments(!showComments)}
@@ -595,28 +685,23 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
         </button>
         {showComments && (
           <div className="mt-3 space-y-3 animate-in fade-in slide-in-from-top-1">
-            {(block.comments || []).map((c: Comment) => (
-              <div
-                key={c.id}
-                className="flex gap-2 text-xs group/comment bg-gray-50 p-2 rounded-lg border border-gray-100"
-              >
-                <div className="font-bold text-gray-700 whitespace-nowrap">
-                  {c.user_name}:
-                </div>
-                <div className="text-gray-600 flex-1">{c.text}</div>
+            {quoteText && (
+              <div className="flex items-center gap-2 text-sm text-gray-600 bg-yellow-50 p-2.5 rounded-lg border border-yellow-100">
+                <Quote className="w-4 h-4 text-yellow-600 flex-shrink-0" />{" "}
+                <span className="italic truncate flex-1">"{quoteText}"</span>
                 <button
-                  onClick={() => deleteComment(c.id)}
-                  className="text-gray-300 hover:text-red-500 opacity-0 group-hover/comment:opacity-100"
+                  onClick={() => setQuoteText(null)}
+                  className="hover:text-red-500"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
-            ))}
+            )}
             <form onSubmit={addComment} className="flex gap-2 relative">
               <input
                 type="text"
-                className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:border-accent outline-none"
-                placeholder="เขียนโน้ต..."
+                className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-accent outline-none"
+                placeholder={quoteText ? "แสดงความเห็น..." : "เขียนโน้ต..."}
                 value={commentInput}
                 onChange={(e) => setCommentInput(e.target.value)}
               />
@@ -625,9 +710,35 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
                 disabled={!commentInput.trim()}
                 className="text-accent hover:text-accent-hover disabled:opacity-50"
               >
-                <Send className="w-4 h-4" />
+                <Send className="w-5 h-5" />
               </button>
             </form>
+            {(block.comments || []).map((c: Comment) => (
+              <div
+                key={c.id}
+                className="bg-gray-50 p-3 rounded-lg border border-gray-100 text-sm group/comment"
+              >
+                {c.quoted_text && (
+                  <div className="mb-1.5 pl-2 border-l-2 border-yellow-300 text-gray-500 italic text-xs bg-yellow-50/50 p-1 rounded">
+                    "{c.quoted_text}"
+                  </div>
+                )}
+                <div className="flex justify-between gap-2">
+                  <div>
+                    <span className="font-bold text-gray-800 mr-1.5">
+                      {c.user_name}:
+                    </span>
+                    <span className="text-gray-700">{c.text}</span>
+                  </div>
+                  <button
+                    onClick={() => deleteComment(c)}
+                    className="text-gray-300 hover:text-red-500 opacity-0 group-hover/comment:opacity-100 self-start"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

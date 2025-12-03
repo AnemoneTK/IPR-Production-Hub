@@ -15,10 +15,23 @@ import {
   HelpCircle,
   Languages,
   Eye,
-  Briefcase, // <--- เพิ่มไอคอนใหม่
+  Briefcase,
+  Check,
 } from "lucide-react";
 
-// Config สีและไอคอน (ครบทุกตำแหน่ง)
+// สีสำหรับเลือก (Pastel Palette)
+const MEMBER_COLORS = [
+  "#fecaca",
+  "#fdba74",
+  "#fef08a",
+  "#bbf7d0",
+  "#bfdbfe",
+  "#c7d2fe",
+  "#e9d5ff",
+  "#fbcfe8",
+  "#e2e8f0",
+];
+
 const ROLE_CONFIG: any = {
   producer: {
     label: "Producer",
@@ -88,7 +101,6 @@ export default function MemberModal({
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // 1. โหลดข้อมูล
   const fetchData = async () => {
     setLoading(true);
     const { data: memberData } = await supabase
@@ -110,7 +122,6 @@ export default function MemberModal({
     fetchData();
   }, [projectId]);
 
-  // 2. กรองรายชื่อเพื่อน (ฝั่งซ้าย)
   const getAvailableUsers = () => {
     const nonMembers = allUsers.filter(
       (user) => !members.some((m) => m.user_id === user.id)
@@ -125,7 +136,6 @@ export default function MemberModal({
   };
   const availableUsers = getAvailableUsers();
 
-  // 3. เพิ่มสมาชิก
   const handleAddMember = async (user: any) => {
     const initialRole = user.main_role || "member";
     const { error } = await supabase.from("project_members").insert({
@@ -137,7 +147,6 @@ export default function MemberModal({
     else fetchData();
   };
 
-  // 4. ลบสมาชิก
   const handleRemoveMember = async (userId: string) => {
     if (!confirm("ต้องการลบสมาชิกคนนี้ออกจากทีม?")) return;
     const { error } = await supabase
@@ -149,7 +158,6 @@ export default function MemberModal({
     else fetchData();
   };
 
-  // 5. เปลี่ยนตำแหน่ง (Toggle)
   const toggleRole = async (
     memberId: number,
     currentRoles: string[],
@@ -176,12 +184,23 @@ export default function MemberModal({
     }
   };
 
-  // Render Zone
+  // 🔥 ฟังก์ชันเปลี่ยนสีประจำตัว
+  const changeMemberColor = async (memberId: number, color: string) => {
+    setMembers(
+      members.map((m) =>
+        m.id === memberId ? { ...m, assigned_color: color } : m
+      )
+    );
+    await supabase
+      .from("project_members")
+      .update({ assigned_color: color })
+      .eq("id", memberId);
+  };
+
   const renderZone = (roleKey: string) => {
     const config = ROLE_CONFIG[roleKey];
-    if (!config) return null; // กัน Error
+    if (!config) return null;
     const Icon = config.icon;
-
     const zoneMembers = members.filter((m) => m.roles?.includes(roleKey));
     if (zoneMembers.length === 0) return null;
 
@@ -199,6 +218,7 @@ export default function MemberModal({
               m={m}
               toggleRole={toggleRole}
               handleRemoveMember={handleRemoveMember}
+              changeMemberColor={changeMemberColor}
             />
           ))}
         </div>
@@ -214,7 +234,7 @@ export default function MemberModal({
           <div>
             <h3 className="font-bold text-xl text-gray-800">จัดการทีมงาน</h3>
             <p className="text-xs text-gray-500 mt-1">
-              เพิ่มสมาชิกจากฝั่งซ้าย เข้าสู่ทีมฝั่งขวา
+              เพิ่มสมาชิกและกำหนดหน้าที่รับผิดชอบ
             </p>
           </div>
           <button
@@ -226,7 +246,7 @@ export default function MemberModal({
         </div>
 
         <div className="flex flex-col md:flex-row h-full overflow-hidden">
-          {/* 1. ฝั่งซ้าย: รายชื่อในระบบ */}
+          {/* Left: Available Users */}
           <div className="w-full md:w-80 bg-white border-r border-gray-100 flex flex-col z-10">
             <div className="p-4 border-b border-gray-100 bg-gray-50/50">
               <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">
@@ -243,7 +263,6 @@ export default function MemberModal({
                 />
               </div>
             </div>
-
             <div className="flex-1 overflow-y-auto p-2 bg-gray-50/30">
               {loading ? (
                 <div className="text-center py-8 text-gray-400 text-xs">
@@ -259,10 +278,8 @@ export default function MemberModal({
                 </div>
               ) : (
                 availableUsers.map((user) => {
-                  // ดึงสีตาม Role หลักของ User
                   const roleKey = user.main_role || "member";
                   const config = ROLE_CONFIG[roleKey] || ROLE_CONFIG["member"];
-
                   return (
                     <button
                       key={user.id}
@@ -277,7 +294,6 @@ export default function MemberModal({
                           {user.display_name}
                         </p>
                         <div className="flex items-center gap-1 text-[10px] mt-1">
-                          {/* ป้าย Role สีสวยๆ */}
                           <span
                             className={`uppercase px-1.5 py-0.5 rounded border font-bold tracking-wide ${config.bg} ${config.color}`}
                           >
@@ -296,7 +312,7 @@ export default function MemberModal({
             </div>
           </div>
 
-          {/* 2. ฝั่งขวา: ทีมปัจจุบัน */}
+          {/* Right: Current Team */}
           <div className="flex-1 overflow-y-auto p-5 bg-white">
             {loading ? (
               <div className="text-center py-10 text-gray-400">
@@ -304,7 +320,6 @@ export default function MemberModal({
               </div>
             ) : (
               <>
-                {/* แสดงผลตามลำดับความสำคัญ */}
                 {renderZone("producer")}
                 {renderZone("manager")}
                 {renderZone("mixer")}
@@ -314,7 +329,6 @@ export default function MemberModal({
                 {renderZone("editor")}
                 {renderZone("viewer")}
                 {renderZone("member")}
-
                 {members.filter((m) => !m.roles || m.roles.length === 0)
                   .length > 0 && (
                   <div className="mb-6">
@@ -329,11 +343,11 @@ export default function MemberModal({
                           m={m}
                           toggleRole={toggleRole}
                           handleRemoveMember={handleRemoveMember}
+                          changeMemberColor={changeMemberColor}
                         />
                       ))}
                   </div>
                 )}
-
                 {members.length === 0 && (
                   <div className="text-center py-20 text-gray-400 border-2 border-dashed border-gray-100 rounded-xl">
                     ยังไม่มีสมาชิกในทีม
@@ -350,19 +364,57 @@ export default function MemberModal({
   );
 }
 
-// Sub-component การ์ดสมาชิก
-function MemberCard({ m, toggleRole, handleRemoveMember }: any) {
+// Sub-component MemberCard (เพิ่ม Color Picker)
+function MemberCard({
+  m,
+  toggleRole,
+  handleRemoveMember,
+  changeMemberColor,
+}: any) {
+  const [showColorPicker, setShowColorPicker] = useState(false);
+
   return (
     <div className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl shadow-sm hover:border-accent/30 transition-all group">
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-gray-600 font-bold text-xs shadow-inner">
-          {m.profiles?.display_name?.substring(0, 2).toUpperCase()}
+        {/* Avatar & Color Picker */}
+        <div className="relative">
+          <button
+            onClick={() => setShowColorPicker(!showColorPicker)}
+            className="w-9 h-9 rounded-full flex items-center justify-center text-gray-700 font-bold text-xs shadow-inner border-2 border-white ring-1 ring-gray-200 hover:scale-105 transition-transform"
+            style={{ backgroundColor: m.assigned_color || "#e2e8f0" }}
+            title="เปลี่ยนสีประจำตัว"
+          >
+            {m.profiles?.display_name?.substring(0, 2).toUpperCase()}
+          </button>
+
+          {/* Color Popup */}
+          {showColorPicker && (
+            <>
+              <div className="absolute top-full left-0 mt-2 bg-white p-2 rounded-xl shadow-xl border border-gray-100 grid grid-cols-3 gap-1 z-50 w-24 animate-in fade-in zoom-in-95">
+                {MEMBER_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    className="w-6 h-6 rounded-full border border-gray-200 hover:scale-110 transition-transform"
+                    style={{ backgroundColor: color }}
+                    onClick={() => {
+                      changeMemberColor(m.id, color);
+                      setShowColorPicker(false);
+                    }}
+                  />
+                ))}
+              </div>
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setShowColorPicker(false)}
+              ></div>
+            </>
+          )}
         </div>
+
         <div>
           <p className="text-sm font-semibold text-gray-800">
             {m.profiles?.display_name}
           </p>
-          {/* ปุ่มเปลี่ยน Role (Multi-colored) */}
           <div className="flex gap-1.5 mt-1.5 flex-wrap">
             {Object.keys(ROLE_CONFIG)
               .filter((k) => k !== "member")
@@ -373,15 +425,11 @@ function MemberCard({ m, toggleRole, handleRemoveMember }: any) {
                   <button
                     key={rKey}
                     onClick={() => toggleRole(m.id, m.roles, rKey)}
-                    className={`
-                      text-[10px] px-2 py-0.5 rounded-md border transition-all duration-200 font-medium
-                      ${
-                        isActive
-                          ? `${config.bg} ${config.color} shadow-sm ring-1 ring-opacity-20 ring-current`
-                          : `bg-white border-gray-200 ${config.color} opacity-50 hover:opacity-100 hover:bg-gray-50`
-                      }
-                    `}
-                    title={`Toggle ${config.label}`}
+                    className={`text-[10px] px-2 py-0.5 rounded-md border transition-all duration-200 font-medium ${
+                      isActive
+                        ? `${config.bg} ${config.color} shadow-sm ring-1 ring-opacity-20 ring-current`
+                        : `bg-white border-gray-200 ${config.color} opacity-50 hover:opacity-100 hover:bg-gray-50`
+                    }`}
                   >
                     {config.label}
                   </button>
@@ -395,7 +443,6 @@ function MemberCard({ m, toggleRole, handleRemoveMember }: any) {
         <button
           onClick={() => handleRemoveMember(m.user_id)}
           className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-          title="นำออกจากทีม"
         >
           <Trash2 className="w-4 h-4" />
         </button>

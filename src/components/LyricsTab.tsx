@@ -21,7 +21,18 @@ import {
   Eraser,
   Wind,
   Music,
+  GripVertical,
+  Copy,
+  ArrowUp,
+  ArrowDown,
+  PlusCircle,
 } from "lucide-react";
+import {
+  DragDropContext,
+  Droppable,
+  Draggable,
+  DropResult,
+} from "@hello-pangea/dnd";
 
 // Tiptap Imports
 import { useEditor, EditorContent, BubbleMenu } from "@tiptap/react";
@@ -40,7 +51,6 @@ interface Comment {
   quoted_text?: string;
   created_at: string;
 }
-
 interface SingerData {
   user_id: string;
   is_recorded: boolean;
@@ -64,32 +74,33 @@ const HIGHLIGHT_COLORS = [
   { color: "inherit", label: "ล้างสี" },
 ];
 
-// Custom Highlight Extension
 const CustomHighlight = Highlight.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
       commentId: {
         default: null,
-        parseHTML: (element) => element.getAttribute("data-comment-id"),
-        renderHTML: (attributes) => {
-          if (!attributes.commentId) return {};
-          return { "data-comment-id": attributes.commentId };
-        },
+        parseHTML: (e) => e.getAttribute("data-comment-id"),
+        renderHTML: (a) =>
+          a.commentId ? { "data-comment-id": a.commentId } : {},
       },
       color: {
         default: null,
-        parseHTML: (element) => element.style.backgroundColor,
-        renderHTML: (attributes) => {
-          if (!attributes.color) return {};
-          return {
-            style: `background-color: ${attributes.color}; color: inherit`,
-          };
-        },
+        parseHTML: (e) => e.style.backgroundColor,
+        renderHTML: (a) =>
+          a.color
+            ? { style: `background-color: ${a.color}; color: inherit` }
+            : {},
       },
     };
   },
 });
+
+const getYouTubeID = (url: string) => {
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+  const match = url.match(regExp);
+  return match && match[2].length === 11 ? match[2] : null;
+};
 
 export default function LyricsTab({ projectId }: { projectId: number }) {
   const [blocks, setBlocks] = useState<LyricBlock[]>([]);
@@ -109,7 +120,6 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
           "user_id, roles, assigned_color, profiles(id, display_name, avatar_url)"
         )
         .eq("project_id", projectId);
-
       const formattedMembers =
         memberData?.map((m: any) => ({
           ...(m.profiles || {}),
@@ -156,17 +166,15 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
     fetchData();
   }, [projectId]);
 
-  // 2. Auto Save
   const handleSaveScript = useCallback(async () => {
     setIsSaving(true);
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const contentToSave = JSON.stringify(blocks);
     const { error } = await supabase.from("scripts").upsert(
       {
         project_id: projectId,
-        content: contentToSave,
+        content: JSON.stringify(blocks),
         updated_by: user?.id,
         updated_at: new Date().toISOString(),
       },
@@ -186,35 +194,72 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
   const createBlock = (type: "lyrics" | "interlude"): LyricBlock => ({
     id: Date.now().toString(),
     type,
-    name: type === "interlude" ? "Solo / Interlude" : "",
+    name: type === "interlude" ? "Interlude / Solo" : "",
     singers: [],
     htmlContent: "<p></p>",
     comments: [],
   });
 
-  const addBlock = (type: "lyrics" | "interlude") =>
-    setBlocks([...blocks, createBlock(type)]);
+  // 🔥 Add Block (แทรกตาม Index)
+  const addBlock = (type: "lyrics" | "interlude", index?: number) => {
+    const newBlock = createBlock(type);
+    if (typeof index === "number") {
+      const newBlocks = [...blocks];
+      newBlocks.splice(index, 0, newBlock);
+      setBlocks(newBlocks);
+    } else {
+      setBlocks([...blocks, newBlock]);
+    }
+  };
   const updateBlock = (id: string, newData: Partial<LyricBlock>) =>
     setBlocks(blocks.map((b) => (b.id === id ? { ...b, ...newData } : b)));
   const deleteBlock = (id: string) =>
     setBlocks(blocks.filter((b) => b.id !== id));
 
+  const duplicateBlock = (block: LyricBlock) => {
+    const newBlock = { ...block, id: Date.now().toString(), comments: [] };
+    const index = blocks.findIndex((b) => b.id === block.id);
+    const newBlocks = [...blocks];
+    newBlocks.splice(index + 1, 0, newBlock);
+    setBlocks(newBlocks);
+  };
+
+  const moveBlock = (index: number, direction: "up" | "down") => {
+    if (
+      (direction === "up" && index === 0) ||
+      (direction === "down" && index === blocks.length - 1)
+    )
+      return;
+    const items = [...blocks];
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    const temp = items[index];
+    items[index] = items[targetIndex];
+    items[targetIndex] = temp;
+    setBlocks(items);
+  };
+
+  const onDragEnd = (result: DropResult) => {
+    if (!result.destination) return;
+    const items = Array.from(blocks);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+    setBlocks(items);
+  };
+
   const handleAddLink = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newLink.title || !newLink.url) return;
-    const { error } = await supabase
+    await supabase
       .from("reference_links")
       .insert({ project_id: projectId, ...newLink });
-    if (!error) {
-      setNewLink({ title: "", url: "" });
-      setIsAddingLink(false);
-      const { data } = await supabase
-        .from("reference_links")
-        .select("*")
-        .eq("project_id", projectId)
-        .order("created_at", { ascending: false });
-      setLinks(data || []);
-    }
+    setNewLink({ title: "", url: "" });
+    setIsAddingLink(false);
+    const { data } = await supabase
+      .from("reference_links")
+      .select("*")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false });
+    setLinks(data || []);
   };
   const handleDeleteLink = async (id: number) => {
     if (!confirm("ลบลิงก์นี้?")) return;
@@ -250,37 +295,96 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
               </button>
             </div>
           </div>
-          <div className="space-y-6 pb-20 mt-6">
-            {blocks.map((block, index) => (
-              <BlockItem
-                key={block.id}
-                index={index}
-                block={block}
-                members={members}
-                onUpdate={(newData: Partial<LyricBlock>) =>
-                  updateBlock(block.id, newData)
-                }
-                onDelete={() => deleteBlock(block.id)}
-              />
-            ))}
 
-            <div className="grid grid-cols-2 gap-3 pb-10">
-              <button
-                onClick={() => addBlock("lyrics")}
-                className="py-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:text-accent hover:border-accent/50 hover:bg-white transition-all flex items-center justify-center gap-2 font-medium"
-              >
-                <Plus className="w-5 h-5" /> เพิ่มท่อนเนื้อร้อง
-              </button>
-              <button
-                onClick={() => addBlock("interlude")}
-                className="py-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:text-orange-500 hover:border-orange-200 hover:bg-orange-50/50 transition-all flex items-center justify-center gap-2 font-medium"
-              >
-                <Music className="w-5 h-5" /> เพิ่มท่อนดนตรี
-              </button>
-            </div>
+          <DragDropContext onDragEnd={onDragEnd}>
+            <Droppable droppableId="lyrics-list">
+              {(provided) => (
+                <div
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                  className="space-y-0 pb-20 mt-6"
+                >
+                  {blocks.map((block, index) => (
+                    <Draggable
+                      key={block.id}
+                      draggableId={block.id}
+                      index={index}
+                    >
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          className="relative"
+                        >
+                          <div
+                            style={{
+                              ...provided.draggableProps.style,
+                              opacity: snapshot.isDragging ? 0.8 : 1,
+                              marginBottom: "10px",
+                            }}
+                          >
+                            <BlockItem
+                              index={index}
+                              block={block}
+                              members={members}
+                              onUpdate={(newData: Partial<LyricBlock>) =>
+                                updateBlock(block.id, newData)
+                              }
+                              onDelete={() => deleteBlock(block.id)}
+                              onDuplicate={() => duplicateBlock(block)}
+                              onMoveUp={() => moveBlock(index, "up")}
+                              onMoveDown={() => moveBlock(index, "down")}
+                              dragHandleProps={provided.dragHandleProps}
+                            />
+                          </div>
+
+                          {/* 🔥 Insert Between Zone */}
+                          <div className="h-4 -mt-2 mb-2 relative group/insert z-10 flex items-center justify-center opacity-0 hover:opacity-100 hover:h-10 transition-all duration-200">
+                            <div className="absolute inset-0 flex items-center justify-center gap-2 transform scale-y-0 group-hover/insert:scale-y-100 transition-transform">
+                              <div className="h-px bg-blue-200 flex-1"></div>
+                              <button
+                                onClick={() => addBlock("lyrics", index + 1)}
+                                className="flex items-center gap-1 px-3 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded-full text-xs font-bold hover:bg-blue-100 shadow-sm transition-colors"
+                              >
+                                <PlusCircle className="w-3 h-3" /> เนื้อร้อง
+                              </button>
+                              <button
+                                onClick={() => addBlock("interlude", index + 1)}
+                                className="flex items-center gap-1 px-3 py-1 bg-purple-50 border border-purple-200 text-purple-600 rounded-full text-xs font-bold hover:bg-purple-100 shadow-sm transition-colors"
+                              >
+                                <Music className="w-3 h-3" /> ดนตรี
+                              </button>
+                              <div className="h-px bg-blue-200 flex-1"></div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
+
+          <div className="grid grid-cols-2 gap-3 pb-10">
+            <button
+              onClick={() => addBlock("lyrics")}
+              className="py-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 hover:text-accent hover:border-accent/50 hover:bg-white transition-all flex items-center justify-center gap-2 font-medium"
+            >
+              <Plus className="w-5 h-5" /> เพิ่มท่อนเนื้อร้อง
+            </button>
+            <button
+              onClick={() => addBlock("interlude")}
+              className="py-4 border-2 border-dashed border-purple-200 rounded-xl text-gray-400 hover:text-purple-500 hover:border-purple-300 hover:bg-purple-50/50 transition-all flex items-center justify-center gap-2 font-medium"
+            >
+              <Music className="w-5 h-5" /> เพิ่มท่อนดนตรี
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Right Side */}
       <div className="w-full md:w-80 lg:w-96 bg-white flex flex-col h-full border-l border-gray-100 overflow-hidden">
         <div className="p-6 border-b border-gray-50 flex-shrink-0">
           <div className="flex justify-between items-center">
@@ -333,32 +437,13 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
             </form>
           )}
         </div>
-        <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-2 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-3 custom-scrollbar">
           {links.map((link) => (
-            <div
+            <ReferenceItem
               key={link.id}
-              className="flex items-start justify-between bg-white p-3 rounded-lg border border-gray-100 hover:border-accent/30 hover:shadow-sm transition-all group"
-            >
-              <div className="min-w-0">
-                <div className="font-medium text-gray-700 text-sm truncate">
-                  {link.title}
-                </div>
-                <a
-                  href={link.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs text-blue-500 hover:underline flex items-center gap-1 mt-0.5 truncate"
-                >
-                  <LinkIcon className="w-3 h-3" /> {link.url}
-                </a>
-              </div>
-              <button
-                onClick={() => handleDeleteLink(link.id)}
-                className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 p-1"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
+              link={link}
+              onDelete={handleDeleteLink}
+            />
           ))}
         </div>
       </div>
@@ -366,9 +451,80 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
   );
 }
 
-function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
+function ReferenceItem({ link, onDelete }: any) {
+  const [showVideo, setShowVideo] = useState(false);
+  const youtubeId = getYouTubeID(link.url);
+  return (
+    <div className="group bg-white p-3 rounded-xl border border-gray-100 hover:border-accent/30 hover:shadow-sm transition-all">
+      <div className="flex justify-between items-start mb-2">
+        <div className="min-w-0 flex-1 mr-2">
+          <div
+            className="font-medium text-gray-700 text-sm truncate"
+            title={link.title}
+          >
+            {link.title}
+          </div>
+          <a
+            href={link.url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-blue-500 hover:underline flex items-center gap-1 mt-0.5 truncate"
+          >
+            <LinkIcon className="w-3 h-3" /> {link.url}
+          </a>
+        </div>
+        <button
+          onClick={() => onDelete(link.id)}
+          className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 p-1 transition-opacity"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+      {youtubeId && (
+        <div className="mt-2 rounded-lg overflow-hidden bg-black/5 aspect-video relative group/video">
+          {showVideo ? (
+            <iframe
+              width="100%"
+              height="100%"
+              src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1`}
+              title="YouTube video player"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              className="animate-in fade-in"
+            />
+          ) : (
+            <div
+              className="w-full h-full bg-cover bg-center cursor-pointer flex items-center justify-center"
+              style={{
+                backgroundImage: `url(https://img.youtube.com/vi/${youtubeId}/mqdefault.jpg)`,
+              }}
+              onClick={() => setShowVideo(true)}
+            >
+              <div className="absolute inset-0 bg-black/20 group-hover/video:bg-black/40 transition-colors" />
+              <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center shadow-lg z-10 transform group-hover/video:scale-110 transition-transform">
+                <div className="w-0 h-0 border-t-[6px] border-t-transparent border-l-[10px] border-l-white border-b-[6px] border-b-transparent ml-1"></div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BlockItem({
+  index,
+  block,
+  members,
+  onUpdate,
+  onDelete,
+  onDuplicate,
+  onMoveUp,
+  onMoveDown,
+  dragHandleProps,
+}: any) {
   const [showMemberSelect, setShowMemberSelect] = useState(false);
-  const [showHighlighter, setShowHighlighter] = useState(false);
   const [showComments, setShowComments] = useState(
     (block.comments || []).length > 0
   );
@@ -394,6 +550,13 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
       attributes: {
         class:
           "prose prose-sm w-full p-4 outline-none min-h-[80px] focus:prose-p:text-gray-900 text-gray-700 max-w-none",
+      },
+      handleKeyDown: (view, event) => {
+        if (event.key === "/") {
+          insertBreathMark();
+          return true;
+        }
+        return false;
       },
     },
   });
@@ -432,10 +595,15 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
     editor.chain().focus().setMark("highlight", { color: color }).run();
   };
 
-  // 🔥 ฟังก์ชันแทรกจุดหายใจ
   const insertBreathMark = () => {
     if (!editor) return;
-    editor.chain().focus().insertContent(" 💨 ").run();
+    editor
+      .chain()
+      .focus()
+      .insertContent(
+        ' <span style="color: #3b82f6; font-weight: bold;">/</span> '
+      )
+      .run();
   };
 
   const handleQuote = () => {
@@ -461,25 +629,14 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
       .select("display_name")
       .eq("id", user?.id)
       .single();
-    const newId = Date.now().toString();
     const newComment: Comment = {
-      id: newId,
+      id: Date.now().toString(),
       user_id: user?.id || "",
       user_name: profile?.display_name || "Me",
       text: commentInput,
       quoted_text: quoteText || undefined,
       created_at: new Date().toISOString(),
     };
-
-    // ถ้าเป็นการ Quote ให้ฝัง ID ลงไปใน Highlight
-    if (quoteText && editor) {
-      editor
-        .chain()
-        .focus()
-        .setMark("highlight", { color: "#fef08a", commentId: newId })
-        .run();
-    }
-
     onUpdate({ comments: [...(block.comments || []), newComment] });
     setCommentInput("");
     setQuoteText(null);
@@ -487,18 +644,21 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
 
   const deleteComment = (comment: Comment) => {
     if (editor && comment.quoted_text) {
-      // ค้นหาและลบ Highlight ตาม ID
       const { doc } = editor.state;
       doc.descendants((node, pos) => {
-        const marks = node.marks.filter(
-          (m) => m.type.name === "highlight" && m.attrs.commentId === comment.id
-        );
-        if (marks.length > 0) {
+        if (
+          node.isText &&
+          node.text &&
+          node.text.includes(comment.quoted_text!)
+        ) {
+          const start = pos + node.text.indexOf(comment.quoted_text!);
+          const end = start + comment.quoted_text.length;
           editor
             .chain()
-            .setTextSelection({ from: pos, to: pos + node.nodeSize })
+            .setTextSelection({ from: start, to: end })
             .unsetHighlight()
             .run();
+          return false;
         }
       });
     }
@@ -509,31 +669,43 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
     });
   };
 
-  const singerMembers = members.filter((m: any) =>
-    (m.roles || []).includes("singer")
-  );
+  // 🔥 แก้ไขตรงนี้: ไม่กรองแค่ 'singer' แล้ว แสดงทุกคนในโปรเจกต์
+  const availableSingers = members;
 
   return (
     <div
       className={`group relative rounded-xl border shadow-sm transition-all duration-300 hover:shadow-md ${
-        isInterlude ? "bg-gray-50 border-gray-200" : "bg-white border-gray-200"
+        isInterlude
+          ? "bg-purple-50 border-purple-200"
+          : "bg-white border-gray-200"
       }`}
     >
       {/* Header */}
       <div
         className={`flex justify-between items-center p-2 pl-3 border-b rounded-t-xl ${
           isInterlude
-            ? "bg-gray-100 border-gray-200"
+            ? "bg-purple-100 border-purple-200"
             : "bg-gray-50/50 border-gray-50"
         }`}
       >
         <div className="relative flex items-center gap-2 flex-1 flex-wrap">
+          {/* Drag Handle */}
+          <div
+            {...dragHandleProps}
+            className="cursor-grab text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-black/5"
+            title="ลากเพื่อย้าย"
+          >
+            <GripVertical className="w-4 h-4" />
+          </div>
+
           <input
             type="text"
             placeholder={
               isInterlude ? "ชื่อท่อนดนตรี..." : `ท่อนที่ ${index + 1}`
             }
-            className="bg-transparent font-bold text-gray-700 text-sm w-32 outline-none placeholder:text-gray-400 focus:text-accent"
+            className={`bg-transparent font-bold text-sm w-32 outline-none placeholder:text-gray-400 focus:text-accent ${
+              isInterlude ? "text-purple-700" : "text-gray-700"
+            }`}
             value={block.name || ""}
             onChange={(e) => onUpdate({ name: e.target.value })}
           />
@@ -550,6 +722,7 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
                   ? `${block.singers.length} คน`
                   : "เลือกคนร้อง"}
               </button>
+              {/* Singer Badges */}
               <div className="flex gap-2 flex-wrap">
                 {(block.singers || []).map((s: any) => {
                   const member = members.find((m: any) => m.id === s.user_id);
@@ -581,9 +754,9 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
           {showMemberSelect && !isInterlude && (
             <div className="absolute top-full left-28 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden p-1">
               <div className="text-[10px] uppercase font-bold text-gray-400 px-3 py-2 bg-gray-50 mb-1">
-                เลือกนักร้อง
+                สมาชิกในโปรเจกต์
               </div>
-              {singerMembers.map((m: any) => (
+              {availableSingers.map((m: any) => (
                 <button
                   key={m.id}
                   onClick={() => toggleSinger(m.id)}
@@ -611,49 +784,39 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
           )}
         </div>
 
-        {/* Right Tools */}
+        {/* Tools */}
         <div className="flex gap-1 items-center">
-          {/* 🔥 ปุ่มแทรกจุดหายใจ (อยู่ใน Header) */}
           {!isInterlude && (
             <button
               onClick={insertBreathMark}
               className="p-1.5 text-blue-400 hover:bg-blue-50 rounded-lg transition-colors mr-1"
-              title="แทรกจุดหายใจ"
+              title="แทรกจุดหายใจ (Alt+/)"
             >
               <Wind className="w-4 h-4" />
             </button>
           )}
 
-          <div className="relative">
+          <div className="flex flex-col gap-0.5 mr-2 opacity-80 group-hover:opacity-100 transition-opacity">
             <button
-              onClick={() => setShowHighlighter(!showHighlighter)}
-              className="p-1.5 text-gray-400 hover:text-accent hover:bg-accent/10 rounded-lg transition-colors"
-              title="ไฮไลท์ข้อความ"
+              onClick={onMoveUp}
+              className="text-gray-400 hover:text-gray-600"
             >
-              <Highlighter className="w-4 h-4" />
+              <ArrowUp className="w-3 h-3" />
             </button>
-            {showHighlighter && (
-              <div className="absolute top-full right-0 mt-2 p-2 bg-white rounded-xl shadow-xl border border-gray-100 z-10 flex gap-2">
-                {HIGHLIGHT_COLORS.map((c) => (
-                  <button
-                    key={c.color}
-                    className="w-6 h-6 rounded-full border shadow-sm hover:scale-110 transition-transform"
-                    style={{ backgroundColor: c.color }}
-                    title={c.label}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      highlightWithSingerColor(c.color);
-                      setShowHighlighter(false);
-                    }}
-                  />
-                ))}
-                <div
-                  className="fixed inset-0 z-[-1]"
-                  onClick={() => setShowHighlighter(false)}
-                ></div>
-              </div>
-            )}
+            <button
+              onClick={onMoveDown}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <ArrowDown className="w-3 h-3" />
+            </button>
           </div>
+          <button
+            onClick={onDuplicate}
+            className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg"
+            title="ทำซ้ำ"
+          >
+            <Copy className="w-4 h-4" />
+          </button>
 
           <div className="relative">
             <button
@@ -699,11 +862,12 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
         </div>
       </div>
 
-      {/* Content Editor */}
+      {/* Editor */}
       <div className="relative">
         {isInterlude ? (
-          <div className="w-full h-16 flex items-center justify-center bg-gray-50 text-gray-400 text-sm font-medium">
-            🎵 ท่อนดนตรี (Interlude / Solo)
+          <div className="w-full h-20 flex flex-col items-center justify-center text-purple-400 bg-purple-50/50">
+            <Music className="w-6 h-6 mb-1 opacity-50" />
+            <span className="text-xs font-medium">ท่อนดนตรี</span>
           </div>
         ) : (
           <>
@@ -743,7 +907,6 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
                     ยังไม่เลือกคนร้อง
                   </div>
                 )}
-
                 <div className="h-px bg-gray-100 my-1"></div>
                 <div className="flex items-center justify-between px-1 pt-1">
                   <button

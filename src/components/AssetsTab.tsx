@@ -46,7 +46,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
   const [newFolderName, setNewFolderName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(false); // State สำหรับปุ่มสร้างโฟลเดอร์อัตโนมัติ
+  const [isInitializing, setIsInitializing] = useState(false);
 
   // Rename & Delete States
   const [editingItem, setEditingItem] = useState<{
@@ -137,32 +137,26 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
     }
   };
 
-  // 🔥 ฟังก์ชันสร้างโฟลเดอร์มาตรฐาน (Auto Setup)
   const handleInitFolders = async () => {
     setIsInitializing(true);
-    const defaultFolders = [
-      "🎵 Raw Audio (เสียงดิบ)",
-      "🎚️ Mixed & Master",
-      "📸 Artwork & Images",
-    ];
+    const defaultFolders = ["🎵 Raw Audio", "🎚️ Mixed & Master", "📸 Artwork"];
 
     try {
       for (const name of defaultFolders) {
-        // เช็คว่ามีโฟลเดอร์ชื่อนี้หรือยัง (กันซ้ำ)
         const exists = allFoldersRaw.some(
           (f) => f.name === name && f.parent_id === null
         );
         if (!exists) {
           await supabase.from("folders").insert({
             project_id: projectId,
-            parent_id: null, // สร้างที่หน้าแรกสุด
+            parent_id: null,
             name: name,
           });
         }
       }
-      await fetchData(); // โหลดข้อมูลใหม่
+      await fetchData();
     } catch (error) {
-      alert("เกิดข้อผิดพลาดในการสร้างโฟลเดอร์");
+      alert("Error init folders");
     } finally {
       setIsInitializing(false);
     }
@@ -315,7 +309,6 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
     }
   };
 
-  // Navigation
   const enterFolder = (folder: any) => {
     setFolderPath([...folderPath, folder]);
     setCurrentFolderId(folder.id);
@@ -342,7 +335,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
 
   return (
     <div
-      className={`p-6 min-h-[500px] relative transition-colors ${
+      className={`p-4 md:p-6 min-h-[500px] relative transition-colors ${
         isDragging ? "bg-blue-50/50" : ""
       }`}
       onDragOver={handleDragOver}
@@ -366,9 +359,9 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
         multiple
       />
 
-      {/* Toolbar */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
+      {/* Toolbar (Responsive Stack) */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
           {currentFolderId && (
             <button
               onClick={navigateUp}
@@ -377,7 +370,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
               <ArrowLeft className="w-5 h-5" />
             </button>
           )}
-          <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
+          <div className="flex items-center gap-2 text-sm font-medium text-gray-600 whitespace-nowrap">
             <span
               onClick={() => {
                 setCurrentFolderId(null);
@@ -403,7 +396,8 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
             ))}
           </div>
         </div>
-        <div className="flex gap-2">
+
+        <div className="flex flex-wrap gap-2 items-center">
           <div className="flex bg-gray-100 p-1 rounded-lg mr-2">
             <button
               onClick={() => setViewMode("grid")}
@@ -427,7 +421,6 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
             </button>
           </div>
 
-          {/* 🔥 ปุ่ม Setup Auto Folders (จะโชว์เฉพาะตอนอยู่หน้าแรกและยังไม่มีโฟลเดอร์) */}
           {!currentFolderId && folders.length === 0 && (
             <button
               onClick={handleInitFolders}
@@ -439,7 +432,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
               ) : (
                 <Wand2 className="w-4 h-4" />
               )}
-              ตั้งค่าโฟลเดอร์
+              <span className="hidden sm:inline">ตั้งค่า</span>
             </button>
           )}
 
@@ -447,7 +440,8 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
             onClick={() => setIsCreatingFolder(true)}
             className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
           >
-            <Folder className="w-4 h-4" /> สร้างโฟลเดอร์
+            <Folder className="w-4 h-4" />{" "}
+            <span className="hidden sm:inline">สร้าง</span>
           </button>
           <button
             onClick={() => fileInputRef.current?.click()}
@@ -459,7 +453,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
             ) : (
               <UploadCloud className="w-4 h-4" />
             )}{" "}
-            {isUploading ? "กำลังอัป..." : "อัปโหลดไฟล์"}
+            {isUploading ? "กำลังอัป..." : "อัปโหลด"}
           </button>
         </div>
       </div>
@@ -501,14 +495,13 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
         <>
           {/* Folders Grid */}
           {folders.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-8">
               {folders.map((folder) => (
                 <div key={folder.id} className="group relative">
                   <div
                     onClick={() => enterFolder(folder)}
                     className="p-4 bg-gray-50 rounded-xl border border-gray-100 hover:bg-blue-50 hover:border-blue-200 cursor-pointer transition-all flex flex-col items-center text-center"
                   >
-                    {/* ไอคอนโฟลเดอร์เปลี่ยนสีตามชื่อ */}
                     <Folder
                       className={`w-10 h-10 mb-2 transition-colors ${
                         folder.name.includes("Raw")
@@ -547,7 +540,9 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                       </span>
                     )}
                   </div>
-                  <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
+
+                  {/* Desktop Overlay */}
+                  <div className="absolute top-1 right-1 hidden md:flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -575,14 +570,44 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                       <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
+
+                  {/* Mobile Actions (Visible) */}
+                  <div className="md:hidden flex justify-center mt-1 gap-3">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingItem({
+                          type: "folder",
+                          id: folder.id,
+                          name: folder.name,
+                        });
+                      }}
+                      className="text-blue-500"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteTarget({
+                          type: "folder",
+                          id: folder.id,
+                          name: folder.name,
+                        });
+                      }}
+                      className="text-red-500"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Files */}
+          {/* 🔥 GRID MODE */}
           {viewMode === "grid" && files.length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {files.map((file) => (
                 <div
                   key={file.id}
@@ -590,7 +615,9 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                 >
                   <div className="aspect-square bg-gray-50 flex items-center justify-center relative overflow-hidden">
                     <FileThumbnail file={file} />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-sm">
+
+                    {/* Desktop Overlay */}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex items-center justify-center gap-2 backdrop-blur-sm">
                       <button
                         onClick={() => handleDownload(file.file_url, file.name)}
                         className="p-2 bg-white rounded-full text-gray-700 hover:bg-gray-100"
@@ -664,121 +691,162 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                         {new Date(file.created_at).toLocaleDateString()}
                       </span>
                     </div>
+
+                    {/* Mobile Actions (Visible) */}
+                    <div className="md:hidden flex justify-between items-center mt-3 pt-2 border-t border-gray-50">
+                      <button
+                        onClick={() => handleDownload(file.file_url, file.name)}
+                        className="text-gray-600 p-1"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() =>
+                          setEditingItem({
+                            type: "file",
+                            id: file.id,
+                            name: file.name,
+                          })
+                        }
+                        className="text-blue-600 p-1"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() =>
+                          setDeleteTarget({
+                            type: "file",
+                            id: file.id,
+                            name: file.name,
+                            key: file.file_url,
+                          })
+                        }
+                        className="text-red-600 p-1"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           )}
 
+          {/* 🔥 LIST MODE (Scrollable) */}
           {viewMode === "list" && files.length > 0 && (
             <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-100">
-                  <tr>
-                    <th className="px-4 py-3 w-10"></th>
-                    <th className="px-4 py-3">ชื่อไฟล์</th>
-                    <th className="px-4 py-3">ขนาด</th>
-                    <th className="px-4 py-3">คนอัปโหลด</th>
-                    <th className="px-4 py-3">วันที่</th>
-                    <th className="px-4 py-3 text-right"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {files.map((file) => (
-                    <tr
-                      key={file.id}
-                      className="hover:bg-gray-50 group transition-colors"
-                    >
-                      <td className="px-4 py-3 text-gray-400">
-                        {getFileIcon(file)}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-gray-700 max-w-[200px]">
-                        {editingItem?.id === file.id &&
-                        editingItem?.type === "file" ? (
-                          <form
-                            onSubmit={handleRename}
-                            className="flex items-center gap-2"
-                          >
-                            <input
-                              autoFocus
-                              type="text"
-                              className="w-full px-2 py-1 border border-accent rounded text-sm outline-none"
-                              value={editingItem.name}
-                              onChange={(e) =>
-                                setEditingItem({
-                                  ...editingItem,
-                                  name: e.target.value,
-                                })
-                              }
-                            />
-                            <button type="submit" className="text-green-600">
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEditingItem(null)}
-                              className="text-gray-400"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </form>
-                        ) : (
-                          <span className="truncate block" title={file.name}>
-                            {file.name}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500">
-                        {formatSize(file.size)}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500">
-                        {file.profiles?.display_name}
-                      </td>
-                      <td className="px-4 py-3 text-gray-400">
-                        {new Date(file.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-3 text-right flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() =>
-                            setEditingItem({
-                              type: "file",
-                              id: file.id,
-                              name: file.name,
-                            })
-                          }
-                          className="p-1.5 text-gray-400 hover:text-blue-500 rounded-lg hover:bg-blue-50"
-                          title="เปลี่ยนชื่อ"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() =>
-                            handleDownload(file.file_url, file.name)
-                          }
-                          className="p-1.5 text-gray-400 hover:text-accent rounded-lg hover:bg-blue-50"
-                          title="ดาวน์โหลด"
-                        >
-                          <Download className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() =>
-                            setDeleteTarget({
-                              type: "file",
-                              id: file.id,
-                              name: file.name,
-                              key: file.file_url,
-                            })
-                          }
-                          className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50"
-                          title="ลบไฟล์"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left min-w-[600px]">
+                  {" "}
+                  {/* Set min-width */}
+                  <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-100">
+                    <tr>
+                      <th className="px-4 py-3 w-10"></th>
+                      <th className="px-4 py-3">ชื่อไฟล์</th>
+                      <th className="px-4 py-3">ขนาด</th>
+                      <th className="px-4 py-3">คนอัปโหลด</th>
+                      <th className="px-4 py-3">วันที่</th>
+                      <th className="px-4 py-3 text-right"></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {files.map((file) => (
+                      <tr
+                        key={file.id}
+                        className="hover:bg-gray-50 group transition-colors"
+                      >
+                        <td className="px-4 py-3 text-gray-400">
+                          {getFileIcon(file)}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-gray-700 max-w-[200px]">
+                          {editingItem?.id === file.id &&
+                          editingItem?.type === "file" ? (
+                            <form
+                              onSubmit={handleRename}
+                              className="flex items-center gap-2"
+                            >
+                              <input
+                                autoFocus
+                                type="text"
+                                className="w-full px-2 py-1 border border-accent rounded text-sm outline-none"
+                                value={editingItem.name}
+                                onChange={(e) =>
+                                  setEditingItem({
+                                    ...editingItem,
+                                    name: e.target.value,
+                                  })
+                                }
+                              />
+                              <button type="submit" className="text-green-600">
+                                <Check className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingItem(null)}
+                                className="text-gray-400"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </form>
+                          ) : (
+                            <span className="truncate block" title={file.name}>
+                              {file.name}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-gray-500">
+                          {formatSize(file.size)}
+                        </td>
+                        <td className="px-4 py-3 text-gray-500">
+                          {file.profiles?.display_name}
+                        </td>
+                        <td className="px-4 py-3 text-gray-400">
+                          {new Date(file.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3 text-right flex justify-end gap-1">
+                          <button
+                            onClick={() =>
+                              handleDownload(file.file_url, file.name)
+                            }
+                            className="p-1.5 text-gray-400 hover:text-accent rounded-lg hover:bg-blue-50"
+                            title="ดาวน์โหลด"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                          {/* Always show edit/delete on List view for simplicity, or use hover on desktop */}
+                          <button
+                            onClick={() =>
+                              setEditingItem({
+                                type: "file",
+                                id: file.id,
+                                name: file.name,
+                              })
+                            }
+                            className="p-1.5 text-gray-400 hover:text-blue-500 rounded-lg hover:bg-blue-50"
+                            title="เปลี่ยนชื่อ"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() =>
+                              setDeleteTarget({
+                                type: "file",
+                                id: file.id,
+                                name: file.name,
+                                key: file.file_url,
+                              })
+                            }
+                            className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50"
+                            title="ลบไฟล์"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
@@ -798,7 +866,6 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
         </>
       )}
 
-      {/* Delete Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-red-100 scale-100 animate-in zoom-in-95 duration-200">
@@ -852,6 +919,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
   );
 }
 
+// Helpers
 const getFileIcon = (file: any) => {
   if (file.file_type.includes("image"))
     return <FileImage className="w-5 h-5 text-purple-400" />;
@@ -886,7 +954,6 @@ const FileThumbnail = ({ file }: { file: any }) => {
         .catch((err) => console.error(err));
     }
   }, [file]);
-
   if (file.file_type.includes("image") && imageUrl)
     return (
       <img
@@ -895,7 +962,6 @@ const FileThumbnail = ({ file }: { file: any }) => {
         className="w-full h-full object-cover transform hover:scale-110 transition-transform duration-500"
       />
     );
-
   const isMix =
     file.name.toLowerCase().includes("mix") ||
     file.name.toLowerCase().includes("master");

@@ -110,7 +110,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
   // --- Resizable Sidebar State ---
-  const [sidebarWidth, setSidebarWidth] = useState(400); // ค่าเริ่มต้นชั่วคราว (จะถูกทับด้วย useEffect)
+  const [sidebarWidth, setSidebarWidth] = useState(400); // ค่าชั่วคราว
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
 
@@ -173,11 +173,16 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
     fetchData();
   }, [projectId]);
 
-  // 1.5 Set Initial Width to 50% on Mount
-  useEffect(() => {
+  // 1.5 Set Initial Width (Default & Max)
+  const calculateMaxWidth = () => {
     if (typeof window !== "undefined") {
-      setSidebarWidth(window.innerWidth / 2 - 100);
+      return window.innerWidth / 2 - 100;
     }
+    return 400; // fallback
+  };
+
+  useEffect(() => {
+    setSidebarWidth(calculateMaxWidth());
   }, []);
 
   // 2. Auto Save
@@ -206,7 +211,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
     return () => clearTimeout(timeoutId);
   }, [blocks, handleSaveScript]);
 
-  // --- Resizable Logic (Updated) ---
+  // --- Resizable Logic (Constraint Applied) ---
   const startResizing = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setIsResizing(true);
@@ -218,9 +223,16 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
     (mouseMoveEvent: MouseEvent) => {
       if (isResizing) {
         const newWidth = window.innerWidth - mouseMoveEvent.clientX;
-        // Limit: Min 250px, Max 90% of screen
-        if (newWidth > 250 && newWidth < window.innerWidth * 0.9) {
-          setSidebarWidth(newWidth);
+        const maxWidth = calculateMaxWidth(); // คำนวณค่าสูงสุดปัจจุบัน
+
+        if (newWidth > 350) {
+          // ถ้ากว้างกว่า Max ให้ล็อคไว้ที่ Max (ไม่ให้เกิน)
+          if (newWidth >= maxWidth) {
+            setSidebarWidth(maxWidth);
+          } else {
+            // ถ้าน้อยกว่า Max (แต่มากกว่า 250) ให้ย่อได้ตามปกติ
+            setSidebarWidth(newWidth);
+          }
         }
       }
     },
@@ -228,9 +240,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
   );
 
   const handleResetWidth = () => {
-    if (typeof window !== "undefined") {
-      setSidebarWidth(window.innerWidth / 2 - 100);
-    }
+    setSidebarWidth(calculateMaxWidth());
   };
 
   useEffect(() => {

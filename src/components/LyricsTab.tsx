@@ -19,6 +19,8 @@ import {
   CheckCircle2,
   Mic,
   Eraser,
+  Wind,
+  Music,
 } from "lucide-react";
 
 // Tiptap Imports
@@ -46,11 +48,48 @@ interface SingerData {
 
 interface LyricBlock {
   id: string;
+  type: "lyrics" | "interlude";
   name: string;
   singers: SingerData[];
   htmlContent: string;
   comments: Comment[];
 }
+
+const HIGHLIGHT_COLORS = [
+  { color: "#fef08a", label: "เหลือง" },
+  { color: "#bbf7d0", label: "เขียว" },
+  { color: "#bfdbfe", label: "ฟ้า" },
+  { color: "#fbcfe8", label: "ชมพู" },
+  { color: "#fed7aa", label: "ส้ม" },
+  { color: "inherit", label: "ล้างสี" },
+];
+
+// Custom Highlight Extension
+const CustomHighlight = Highlight.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      commentId: {
+        default: null,
+        parseHTML: (element) => element.getAttribute("data-comment-id"),
+        renderHTML: (attributes) => {
+          if (!attributes.commentId) return {};
+          return { "data-comment-id": attributes.commentId };
+        },
+      },
+      color: {
+        default: null,
+        parseHTML: (element) => element.style.backgroundColor,
+        renderHTML: (attributes) => {
+          if (!attributes.color) return {};
+          return {
+            style: `background-color: ${attributes.color}; color: inherit`,
+          };
+        },
+      },
+    };
+  },
+});
 
 export default function LyricsTab({ projectId }: { projectId: number }) {
   const [blocks, setBlocks] = useState<LyricBlock[]>([]);
@@ -58,14 +97,12 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
   const [links, setLinks] = useState<any[]>([]);
   const [newLink, setNewLink] = useState({ title: "", url: "" });
   const [isAddingLink, setIsAddingLink] = useState(false);
-
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
   // 1. Load Data
   useEffect(() => {
     const fetchData = async () => {
-      // 1.1 ดึง Members + สีประจำตัว (assigned_color)
       const { data: memberData } = await supabase
         .from("project_members")
         .select(
@@ -77,13 +114,10 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
         memberData?.map((m: any) => ({
           ...(m.profiles || {}),
           roles: m.roles || [],
-          // ถ้าไม่มีสี ให้ใช้สีฟ้าอ่อนเป็นค่า Default
           assigned_color: m.assigned_color || "#bfdbfe",
         })) || [];
-
       setMembers(formattedMembers);
 
-      // 1.2 Lyrics
       const { data: scriptData } = await supabase
         .from("scripts")
         .select("content, updated_at")
@@ -95,6 +129,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
           const formatted = Array.isArray(parsed)
             ? parsed.map((b: any) => ({
                 ...b,
+                type: b.type || "lyrics",
                 singers: (b.singers || []).map((s: any) =>
                   typeof s === "string" ? { user_id: s, is_recorded: false } : s
                 ),
@@ -102,44 +137,15 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
                 comments: b.comments || [],
               }))
             : [];
-          setBlocks(
-            formatted.length > 0
-              ? formatted
-              : [
-                  {
-                    id: Date.now().toString(),
-                    name: "",
-                    singers: [],
-                    htmlContent: "<p></p>",
-                    comments: [],
-                  },
-                ]
-          );
+          setBlocks(formatted.length > 0 ? formatted : [createBlock("lyrics")]);
         } catch {
-          setBlocks([
-            {
-              id: Date.now().toString(),
-              name: "",
-              singers: [],
-              htmlContent: "<p></p>",
-              comments: [],
-            },
-          ]);
+          setBlocks([createBlock("lyrics")]);
         }
         setLastSaved(new Date(scriptData.updated_at));
       } else {
-        setBlocks([
-          {
-            id: Date.now().toString(),
-            name: "",
-            singers: [],
-            htmlContent: "<p></p>",
-            comments: [],
-          },
-        ]);
+        setBlocks([createBlock("lyrics")]);
       }
 
-      // 1.3 Links
       const { data: linkData } = await supabase
         .from("reference_links")
         .select("*")
@@ -177,17 +183,17 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
     return () => clearTimeout(timeoutId);
   }, [blocks, handleSaveScript]);
 
-  const addBlock = () =>
-    setBlocks([
-      ...blocks,
-      {
-        id: Date.now().toString(),
-        name: "",
-        singers: [],
-        htmlContent: "<p></p>",
-        comments: [],
-      },
-    ]);
+  const createBlock = (type: "lyrics" | "interlude"): LyricBlock => ({
+    id: Date.now().toString(),
+    type,
+    name: type === "interlude" ? "Solo / Interlude" : "",
+    singers: [],
+    htmlContent: "<p></p>",
+    comments: [],
+  });
+
+  const addBlock = (type: "lyrics" | "interlude") =>
+    setBlocks([...blocks, createBlock(type)]);
   const updateBlock = (id: string, newData: Partial<LyricBlock>) =>
     setBlocks(blocks.map((b) => (b.id === id ? { ...b, ...newData } : b)));
   const deleteBlock = (id: string) =>
@@ -257,12 +263,21 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
                 onDelete={() => deleteBlock(block.id)}
               />
             ))}
-            <button
-              onClick={addBlock}
-              className="w-full py-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:text-accent hover:border-accent/50 hover:bg-white transition-all flex items-center justify-center gap-2 font-medium"
-            >
-              <Plus className="w-5 h-5" /> เพิ่มท่อนใหม่
-            </button>
+
+            <div className="grid grid-cols-2 gap-3 pb-10">
+              <button
+                onClick={() => addBlock("lyrics")}
+                className="py-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:text-accent hover:border-accent/50 hover:bg-white transition-all flex items-center justify-center gap-2 font-medium"
+              >
+                <Plus className="w-5 h-5" /> เพิ่มท่อนเนื้อร้อง
+              </button>
+              <button
+                onClick={() => addBlock("interlude")}
+                className="py-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:text-orange-500 hover:border-orange-200 hover:bg-orange-50/50 transition-all flex items-center justify-center gap-2 font-medium"
+              >
+                <Music className="w-5 h-5" /> เพิ่มท่อนดนตรี
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -353,6 +368,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
 
 function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
   const [showMemberSelect, setShowMemberSelect] = useState(false);
+  const [showHighlighter, setShowHighlighter] = useState(false);
   const [showComments, setShowComments] = useState(
     (block.comments || []).length > 0
   );
@@ -360,12 +376,14 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
   const [commentInput, setCommentInput] = useState("");
   const [quoteText, setQuoteText] = useState<string | null>(null);
 
+  const isInterlude = block.type === "interlude";
+
   const editor = useEditor({
     extensions: [
       StarterKit,
       TextStyle,
       Color,
-      Highlight.configure({ multicolor: true }),
+      CustomHighlight.configure({ multicolor: true }),
       BubbleMenuExtension,
     ],
     content: block.htmlContent || "<p></p>",
@@ -409,11 +427,15 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
     onUpdate({ singers: newSingers });
   };
 
-  // 🔥 แก้ไข 1: บังคับทาสี (setMark) แทนการ Toggle เพื่อแก้ปัญหาสีเพี้ยนหรือทับซ้อน
   const highlightWithSingerColor = (color: string) => {
     if (!editor) return;
-    // ใช้ setMark จะเป็นการ "ทา" สีลงไปเลย (ถ้ามีสีเดิมอยู่จะทับ)
     editor.chain().focus().setMark("highlight", { color: color }).run();
+  };
+
+  // 🔥 ฟังก์ชันแทรกจุดหายใจ
+  const insertBreathMark = () => {
+    if (!editor) return;
+    editor.chain().focus().insertContent(" 💨 ").run();
   };
 
   const handleQuote = () => {
@@ -439,43 +461,44 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
       .select("display_name")
       .eq("id", user?.id)
       .single();
+    const newId = Date.now().toString();
     const newComment: Comment = {
-      id: Date.now().toString(),
+      id: newId,
       user_id: user?.id || "",
       user_name: profile?.display_name || "Me",
       text: commentInput,
       quoted_text: quoteText || undefined,
       created_at: new Date().toISOString(),
     };
+
+    // ถ้าเป็นการ Quote ให้ฝัง ID ลงไปใน Highlight
+    if (quoteText && editor) {
+      editor
+        .chain()
+        .focus()
+        .setMark("highlight", { color: "#fef08a", commentId: newId })
+        .run();
+    }
+
     onUpdate({ comments: [...(block.comments || []), newComment] });
     setCommentInput("");
     setQuoteText(null);
   };
 
-  // 🔥 แก้ไข 2: ลบไฮไลท์อย่างฉลาด (ค้นหาและลบ)
   const deleteComment = (comment: Comment) => {
     if (editor && comment.quoted_text) {
+      // ค้นหาและลบ Highlight ตาม ID
       const { doc } = editor.state;
-      let found = false;
-
-      // ค้นหา Text Node ที่มีข้อความนี้อยู่
       doc.descendants((node, pos) => {
-        if (
-          !found &&
-          node.isText &&
-          node.text?.includes(comment.quoted_text!)
-        ) {
-          const start = pos + node.text.indexOf(comment.quoted_text!);
-          const end = start + comment.quoted_text!.length;
-
-          // สั่งลบ Highlight เฉพาะช่วงนี้
+        const marks = node.marks.filter(
+          (m) => m.type.name === "highlight" && m.attrs.commentId === comment.id
+        );
+        if (marks.length > 0) {
           editor
             .chain()
-            .setTextSelection({ from: start, to: end })
+            .setTextSelection({ from: pos, to: pos + node.nodeSize })
             .unsetHighlight()
             .run();
-          found = true;
-          return false; // หยุดค้นหา
         }
       });
     }
@@ -491,54 +514,72 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
   );
 
   return (
-    <div className="group relative rounded-xl border border-gray-200 shadow-sm bg-white transition-all duration-300 hover:shadow-md">
+    <div
+      className={`group relative rounded-xl border shadow-sm transition-all duration-300 hover:shadow-md ${
+        isInterlude ? "bg-gray-50 border-gray-200" : "bg-white border-gray-200"
+      }`}
+    >
       {/* Header */}
-      <div className="flex justify-between items-center p-3 pb-2 border-b border-gray-50 bg-gray-50/50 rounded-t-xl">
+      <div
+        className={`flex justify-between items-center p-2 pl-3 border-b rounded-t-xl ${
+          isInterlude
+            ? "bg-gray-100 border-gray-200"
+            : "bg-gray-50/50 border-gray-50"
+        }`}
+      >
         <div className="relative flex items-center gap-2 flex-1 flex-wrap">
           <input
             type="text"
-            placeholder={`ท่อนที่ ${index + 1}`}
-            className="bg-transparent font-bold text-gray-700 text-sm w-24 outline-none placeholder:text-gray-400 focus:text-accent"
+            placeholder={
+              isInterlude ? "ชื่อท่อนดนตรี..." : `ท่อนที่ ${index + 1}`
+            }
+            className="bg-transparent font-bold text-gray-700 text-sm w-32 outline-none placeholder:text-gray-400 focus:text-accent"
             value={block.name || ""}
             onChange={(e) => onUpdate({ name: e.target.value })}
           />
-          <div className="h-4 w-px bg-gray-300 mx-1"></div>
-          <button
-            onClick={() => setShowMemberSelect(!showMemberSelect)}
-            className={`flex items-center gap-1 px-2 py-1 text-xs text-gray-600 bg-white border border-gray-200 rounded-full hover:border-accent hover:text-accent transition-colors shadow-sm`}
-          >
-            <User className="w-3 h-3" />{" "}
-            {block.singers?.length > 0
-              ? `${block.singers.length} คน`
-              : "เลือกคนร้อง"}
-          </button>
-          <div className="flex gap-2 flex-wrap">
-            {(block.singers || []).map((s: any) => {
-              const member = members.find((m: any) => m.id === s.user_id);
-              return (
-                <button
-                  key={s.user_id}
-                  onClick={() => toggleRecorded(s.user_id)}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium transition-all shadow-sm`}
-                  style={{
-                    backgroundColor: s.is_recorded
-                      ? "#dcfce7"
-                      : member?.assigned_color || "#e2e8f0",
-                    borderColor: s.is_recorded ? "#86efac" : "transparent",
-                    opacity: s.is_recorded ? 1 : 0.9,
-                  }}
-                  title={s.is_recorded ? "อัดเสร็จแล้ว" : "ยังไม่อัด"}
-                >
-                  {member?.display_name || "Unknown"}
-                  {s.is_recorded && (
-                    <CheckCircle2 className="w-3.5 h-3.5 ml-1 text-green-600" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          {showMemberSelect && (
-            <div className="absolute top-full left-20 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden p-1">
+
+          {!isInterlude && (
+            <>
+              <div className="h-4 w-px bg-gray-300 mx-1"></div>
+              <button
+                onClick={() => setShowMemberSelect(!showMemberSelect)}
+                className={`flex items-center gap-1 px-2 py-1 text-xs text-gray-600 bg-white border border-gray-200 rounded-full hover:border-accent hover:text-accent transition-colors shadow-sm`}
+              >
+                <User className="w-3 h-3" />{" "}
+                {block.singers?.length > 0
+                  ? `${block.singers.length} คน`
+                  : "เลือกคนร้อง"}
+              </button>
+              <div className="flex gap-2 flex-wrap">
+                {(block.singers || []).map((s: any) => {
+                  const member = members.find((m: any) => m.id === s.user_id);
+                  return (
+                    <button
+                      key={s.user_id}
+                      onClick={() => toggleRecorded(s.user_id)}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium transition-all shadow-sm`}
+                      style={{
+                        backgroundColor: s.is_recorded
+                          ? "#dcfce7"
+                          : member?.assigned_color || "#e2e8f0",
+                        borderColor: s.is_recorded ? "#86efac" : "transparent",
+                        opacity: s.is_recorded ? 1 : 0.9,
+                      }}
+                      title={s.is_recorded ? "อัดเสร็จแล้ว" : "ยังไม่อัด"}
+                    >
+                      {member?.display_name || "Unknown"}
+                      {s.is_recorded && (
+                        <CheckCircle2 className="w-3.5 h-3.5 ml-1 text-green-600" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {showMemberSelect && !isInterlude && (
+            <div className="absolute top-full left-28 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden p-1">
               <div className="text-[10px] uppercase font-bold text-gray-400 px-3 py-2 bg-gray-50 mb-1">
                 เลือกนักร้อง
               </div>
@@ -569,179 +610,241 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
             </div>
           )}
         </div>
-        <div className="relative">
-          <button
-            onClick={() => setShowDeleteConfirm(!showDeleteConfirm)}
-            className={`p-1.5 rounded-lg transition-colors ${
-              showDeleteConfirm
-                ? "bg-red-50 text-red-500"
-                : "text-gray-400 hover:text-red-500 hover:bg-red-50"
-            }`}
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-          {showDeleteConfirm && (
-            <>
-              <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-red-100 z-20 overflow-hidden animate-in fade-in slide-in-from-top-2">
-                <div className="p-3 text-center border-b border-gray-50">
-                  <p className="text-xs font-bold text-gray-800">
-                    ยืนยันลบท่อนนี้?
-                  </p>
-                </div>
-                <div className="flex">
-                  <button
-                    onClick={onDelete}
-                    className="flex-1 py-2 text-xs font-bold text-white bg-red-500 hover:bg-red-600 transition-colors"
-                  >
-                    ลบ
-                  </button>
-                  <button
-                    onClick={() => setShowDeleteConfirm(false)}
-                    className="flex-1 py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 transition-colors"
-                  >
-                    ยกเลิก
-                  </button>
-                </div>
-              </div>
-              <div
-                className="fixed inset-0 z-10 cursor-default"
-                onClick={() => setShowDeleteConfirm(false)}
-              ></div>
-            </>
+
+        {/* Right Tools */}
+        <div className="flex gap-1 items-center">
+          {/* 🔥 ปุ่มแทรกจุดหายใจ (อยู่ใน Header) */}
+          {!isInterlude && (
+            <button
+              onClick={insertBreathMark}
+              className="p-1.5 text-blue-400 hover:bg-blue-50 rounded-lg transition-colors mr-1"
+              title="แทรกจุดหายใจ"
+            >
+              <Wind className="w-4 h-4" />
+            </button>
           )}
+
+          <div className="relative">
+            <button
+              onClick={() => setShowHighlighter(!showHighlighter)}
+              className="p-1.5 text-gray-400 hover:text-accent hover:bg-accent/10 rounded-lg transition-colors"
+              title="ไฮไลท์ข้อความ"
+            >
+              <Highlighter className="w-4 h-4" />
+            </button>
+            {showHighlighter && (
+              <div className="absolute top-full right-0 mt-2 p-2 bg-white rounded-xl shadow-xl border border-gray-100 z-10 flex gap-2">
+                {HIGHLIGHT_COLORS.map((c) => (
+                  <button
+                    key={c.color}
+                    className="w-6 h-6 rounded-full border shadow-sm hover:scale-110 transition-transform"
+                    style={{ backgroundColor: c.color }}
+                    title={c.label}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      highlightWithSingerColor(c.color);
+                      setShowHighlighter(false);
+                    }}
+                  />
+                ))}
+                <div
+                  className="fixed inset-0 z-[-1]"
+                  onClick={() => setShowHighlighter(false)}
+                ></div>
+              </div>
+            )}
+          </div>
+
+          <div className="relative">
+            <button
+              onClick={() => setShowDeleteConfirm(!showDeleteConfirm)}
+              className={`p-1.5 rounded-lg transition-colors ${
+                showDeleteConfirm
+                  ? "bg-red-50 text-red-500"
+                  : "text-gray-400 hover:text-red-500 hover:bg-red-50"
+              }`}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+            {showDeleteConfirm && (
+              <>
+                <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-red-100 z-20 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                  <div className="p-3 text-center border-b border-gray-50">
+                    <p className="text-xs font-bold text-gray-800">
+                      ยืนยันลบท่อนนี้?
+                    </p>
+                  </div>
+                  <div className="flex">
+                    <button
+                      onClick={onDelete}
+                      className="flex-1 py-2 text-xs font-bold text-white bg-red-500 hover:bg-red-600 transition-colors"
+                    >
+                      ลบ
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="flex-1 py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 transition-colors"
+                    >
+                      ยกเลิก
+                    </button>
+                  </div>
+                </div>
+                <div
+                  className="fixed inset-0 z-10 cursor-default"
+                  onClick={() => setShowDeleteConfirm(false)}
+                ></div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
+      {/* Content Editor */}
       <div className="relative">
-        {editor && (
-          <BubbleMenu
-            editor={editor}
-            tippyOptions={{ duration: 100 }}
-            className="flex flex-col gap-1 p-1.5 bg-white rounded-xl shadow-xl border border-gray-100 min-w-[160px]"
-          >
-            <div className="text-[10px] font-bold text-gray-400 uppercase px-2 pb-1 border-b border-gray-50 mb-1">
-              ไฮไลท์ตามคนร้อง
-            </div>
-            {block.singers && block.singers.length > 0 ? (
-              block.singers.map((s: any) => {
-                const member = members.find((m: any) => m.id === s.user_id);
-                if (!member) return null;
-                return (
-                  <button
-                    key={s.user_id}
-                    onClick={() =>
-                      highlightWithSingerColor(member.assigned_color)
-                    }
-                    className="flex items-center gap-3 px-2 py-2 hover:bg-gray-50 rounded-lg text-xs text-left w-full transition-colors group/btn"
-                  >
-                    <div
-                      className="w-4 h-4 rounded-full border shadow-sm flex-shrink-0"
-                      style={{ backgroundColor: member.assigned_color }}
-                    />
-                    <span className="truncate font-medium text-gray-700">
-                      {member.display_name}
-                    </span>
-                  </button>
-                );
-              })
-            ) : (
-              <div className="text-xs text-gray-400 px-2 py-2 text-center">
-                ยังไม่เลือกคนร้อง
-              </div>
-            )}
-            <div className="h-px bg-gray-100 my-1"></div>
-            <div className="flex items-center justify-between px-1 pt-1">
-              <button
-                onClick={() => editor.chain().focus().unsetHighlight().run()}
-                className="p-1.5 text-gray-500 hover:text-red-500 rounded-lg hover:bg-red-50 flex items-center gap-1 transition-colors"
-                title="ล้างสีไฮไลท์"
+        {isInterlude ? (
+          <div className="w-full h-16 flex items-center justify-center bg-gray-50 text-gray-400 text-sm font-medium">
+            🎵 ท่อนดนตรี (Interlude / Solo)
+          </div>
+        ) : (
+          <>
+            {editor && (
+              <BubbleMenu
+                editor={editor}
+                tippyOptions={{ duration: 100 }}
+                className="flex flex-col gap-1 p-1.5 bg-white rounded-xl shadow-xl border border-gray-100 min-w-[160px]"
               >
-                <Eraser className="w-4 h-4" />{" "}
-                <span className="text-[10px] font-bold">ล้าง</span>
-              </button>
-              <button
-                onClick={handleQuote}
-                className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                title="คอมเมนต์"
-              >
-                <MessageSquare className="w-4 h-4" />
-              </button>
-            </div>
-          </BubbleMenu>
-        )}
-        <EditorContent editor={editor} />
-      </div>
-      <div className="px-4 pb-3 border-t border-dashed border-gray-100 pt-2">
-        <button
-          onClick={() => setShowComments(!showComments)}
-          className={`flex items-center gap-1 text-xs font-medium transition-colors ${
-            (block.comments || []).length > 0
-              ? "text-accent"
-              : "text-gray-400 hover:text-gray-600"
-          }`}
-        >
-          <MessageSquare className="w-3 h-3" /> {(block.comments || []).length}{" "}
-          Comments
-        </button>
-        {showComments && (
-          <div className="mt-3 space-y-3 animate-in fade-in slide-in-from-top-1">
-            {quoteText && (
-              <div className="flex items-center gap-2 text-sm text-gray-600 bg-yellow-50 p-2.5 rounded-lg border border-yellow-100">
-                <Quote className="w-4 h-4 text-yellow-600 flex-shrink-0" />{" "}
-                <span className="italic truncate flex-1">"{quoteText}"</span>
-                <button
-                  onClick={() => setQuoteText(null)}
-                  className="hover:text-red-500"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-            <form onSubmit={addComment} className="flex gap-2 relative">
-              <input
-                type="text"
-                className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-accent outline-none"
-                placeholder={quoteText ? "แสดงความเห็น..." : "เขียนโน้ต..."}
-                value={commentInput}
-                onChange={(e) => setCommentInput(e.target.value)}
-              />
-              <button
-                type="submit"
-                disabled={!commentInput.trim()}
-                className="text-accent hover:text-accent-hover disabled:opacity-50"
-              >
-                <Send className="w-5 h-5" />
-              </button>
-            </form>
-            {(block.comments || []).map((c: Comment) => (
-              <div
-                key={c.id}
-                className="bg-gray-50 p-3 rounded-lg border border-gray-100 text-sm group/comment"
-              >
-                {c.quoted_text && (
-                  <div className="mb-1.5 pl-2 border-l-2 border-yellow-300 text-gray-500 italic text-xs bg-yellow-50/50 p-1 rounded">
-                    "{c.quoted_text}"
+                <div className="text-[10px] font-bold text-gray-400 uppercase px-2 pb-1 border-b border-gray-50 mb-1">
+                  ไฮไลท์ตามคนร้อง
+                </div>
+                {block.singers && block.singers.length > 0 ? (
+                  block.singers.map((s: any) => {
+                    const member = members.find((m: any) => m.id === s.user_id);
+                    if (!member) return null;
+                    return (
+                      <button
+                        key={s.user_id}
+                        onClick={() =>
+                          highlightWithSingerColor(member.assigned_color)
+                        }
+                        className="flex items-center gap-3 px-2 py-2 hover:bg-gray-50 rounded-lg text-xs text-left w-full transition-colors group/btn"
+                      >
+                        <div
+                          className="w-4 h-4 rounded-full border shadow-sm flex-shrink-0"
+                          style={{ backgroundColor: member.assigned_color }}
+                        />
+                        <span className="truncate font-medium text-gray-700">
+                          {member.display_name}
+                        </span>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="text-xs text-gray-400 px-2 py-2 text-center">
+                    ยังไม่เลือกคนร้อง
                   </div>
                 )}
-                <div className="flex justify-between gap-2">
-                  <div>
-                    <span className="font-bold text-gray-800 mr-1.5">
-                      {c.user_name}:
-                    </span>
-                    <span className="text-gray-700">{c.text}</span>
-                  </div>
+
+                <div className="h-px bg-gray-100 my-1"></div>
+                <div className="flex items-center justify-between px-1 pt-1">
                   <button
-                    onClick={() => deleteComment(c)}
-                    className="text-gray-300 hover:text-red-500 opacity-0 group-hover/comment:opacity-100 self-start"
+                    onClick={() =>
+                      editor.chain().focus().unsetHighlight().run()
+                    }
+                    className="p-1.5 text-gray-500 hover:text-red-500 rounded-lg hover:bg-red-50 flex items-center gap-1 transition-colors"
+                    title="ล้างสีไฮไลท์"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <Eraser className="w-4 h-4" />{" "}
+                    <span className="text-[10px] font-bold">ล้าง</span>
+                  </button>
+                  <button
+                    onClick={handleQuote}
+                    className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    title="คอมเมนต์"
+                  >
+                    <MessageSquare className="w-4 h-4" />
                   </button>
                 </div>
-              </div>
-            ))}
-          </div>
+              </BubbleMenu>
+            )}
+            <EditorContent editor={editor} />
+          </>
         )}
       </div>
+
+      {/* Footer */}
+      {!isInterlude && (
+        <div className="px-4 pb-3 border-t border-dashed border-gray-100 pt-2">
+          <button
+            onClick={() => setShowComments(!showComments)}
+            className={`flex items-center gap-1 text-xs font-medium transition-colors ${
+              (block.comments || []).length > 0
+                ? "text-accent"
+                : "text-gray-400 hover:text-gray-600"
+            }`}
+          >
+            <MessageSquare className="w-3 h-3" />{" "}
+            {(block.comments || []).length} Comments
+          </button>
+          {showComments && (
+            <div className="mt-3 space-y-3 animate-in fade-in slide-in-from-top-1">
+              {quoteText && (
+                <div className="flex items-center gap-2 text-sm text-gray-600 bg-yellow-50 p-2.5 rounded-lg border border-yellow-100">
+                  <Quote className="w-4 h-4 text-yellow-600 flex-shrink-0" />{" "}
+                  <span className="italic truncate flex-1">"{quoteText}"</span>
+                  <button
+                    onClick={() => setQuoteText(null)}
+                    className="hover:text-red-500"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+              <form onSubmit={addComment} className="flex gap-2 relative">
+                <input
+                  type="text"
+                  className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-accent outline-none"
+                  placeholder={quoteText ? "แสดงความเห็น..." : "เขียนโน้ต..."}
+                  value={commentInput}
+                  onChange={(e) => setCommentInput(e.target.value)}
+                />
+                <button
+                  type="submit"
+                  disabled={!commentInput.trim()}
+                  className="text-accent hover:text-accent-hover disabled:opacity-50"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </form>
+              {(block.comments || []).map((c: Comment) => (
+                <div
+                  key={c.id}
+                  className="bg-gray-50 p-3 rounded-lg border border-gray-100 text-sm group/comment"
+                >
+                  {c.quoted_text && (
+                    <div className="mb-1.5 pl-2 border-l-2 border-yellow-300 text-gray-500 italic text-xs bg-yellow-50/50 p-1 rounded">
+                      "{c.quoted_text}"
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-2">
+                    <div>
+                      <span className="font-bold text-gray-800 mr-1.5">
+                        {c.user_name}:
+                      </span>
+                      <span className="text-gray-700">{c.text}</span>
+                    </div>
+                    <button
+                      onClick={() => deleteComment(c)}
+                      className="text-gray-300 hover:text-red-500 opacity-0 group-hover/comment:opacity-100 self-start"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

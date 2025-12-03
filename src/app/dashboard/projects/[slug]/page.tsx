@@ -13,7 +13,7 @@ import {
   Users,
 } from "lucide-react";
 
-// --- Import Components ทั้งหมดที่เราสร้างมา ---
+// Import Components
 import BoardTab from "@/components/BoardTab";
 import AssetsTab from "@/components/AssetsTab";
 import LyricsTab from "@/components/LyricsTab";
@@ -24,23 +24,19 @@ export default function ProjectWorkspace() {
   const params = useParams();
   const router = useRouter();
 
-  // แปลง Slug จาก URL (เผื่อมีภาษาไทย)
   const slug = params.slug ? decodeURIComponent(params.slug as string) : null;
 
   const [loading, setLoading] = useState(true);
   const [project, setProject] = useState<any>(null);
 
-  // State ควบคุม Tab
-  const [activeTab, setActiveTab] = useState("board"); // board, assets, lyrics, settings
-
-  // State ควบคุม Modal สมาชิกทีม
+  const [activeTab, setActiveTab] = useState("board");
   const [showMemberModal, setShowMemberModal] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
 
     const fetchProjectDetails = async () => {
-      // ดึงข้อมูลโปรเจกต์โดยใช้ Slug
+      // ดึงข้อมูลโปรเจกต์
       const { data, error } = await supabase
         .from("projects")
         .select("*")
@@ -49,7 +45,6 @@ export default function ProjectWorkspace() {
 
       if (error) {
         console.error("Project Error:", error);
-        // ถ้าหาไม่เจอ หรือไม่มีสิทธิ์ ให้ดีดกลับไปหน้ารวม
         router.push("/dashboard/projects");
         return;
       }
@@ -71,7 +66,7 @@ export default function ProjectWorkspace() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* --- 1. Project Header --- */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-gray-100 pb-4">
         <div>
           <div className="flex items-center gap-2 text-sm text-gray-400 mb-1">
@@ -103,7 +98,7 @@ export default function ProjectWorkspace() {
           </div>
         </div>
 
-        {/* ปุ่มจัดการทีม (เปิด Modal) */}
+        {/* ปุ่มจัดการทีม */}
         <button
           onClick={() => setShowMemberModal(true)}
           className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:text-gray-900 transition-colors shadow-sm"
@@ -113,7 +108,7 @@ export default function ProjectWorkspace() {
         </button>
       </div>
 
-      {/* --- 2. Tabs Navigation --- */}
+      {/* Tabs */}
       <div className="flex items-center gap-1 bg-gray-100/80 p-1.5 rounded-xl w-fit mb-6 shadow-inner overflow-x-auto max-w-full">
         <TabButton
           active={activeTab === "board"}
@@ -142,25 +137,23 @@ export default function ProjectWorkspace() {
         />
       </div>
 
-      {/* --- 3. Content Area --- */}
-      {/* เพิ่ม flex flex-col เพื่อให้จัดการความสูงลูกได้ดีขึ้น */}
+      {/* Content */}
       <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden relative flex flex-col">
-        {/* Tab 1: Board (มี Scrollbar แนวนอนในตัวอยู่แล้ว) */}
+        {/* 🔥 แก้ไขตรงนี้: ไม่ต้องส่ง isViewer ไปแล้ว */}
         {activeTab === "board" && <BoardTab projectId={project.id} />}
 
-        {/* Tab 3: Lyrics (มี Scrollbar แนวตั้งในตัวอยู่แล้ว แบ่งครึ่งหน้า) */}
-        {activeTab === "lyrics" && <LyricsTab projectId={project.id} />}
-
-        {/* Tab 2 & 4: Assets และ Settings (ต้องสร้างกล่อง Scrollbar ให้มัน) */}
+        {/* เพิ่ม Scrollbar ให้หน้า Assets & Settings */}
         {(activeTab === "assets" || activeTab === "settings") && (
           <div className="flex-1 overflow-y-auto">
             {activeTab === "assets" && <AssetsTab projectId={project.id} />}
             {activeTab === "settings" && <SettingsTab project={project} />}
           </div>
         )}
+
+        {activeTab === "lyrics" && <LyricsTab projectId={project.id} />}
       </div>
 
-      {/* --- 4. Member Modal (Pop-up) --- */}
+      {/* Modal */}
       {showMemberModal && (
         <MemberModal
           projectId={project.id}
@@ -171,7 +164,6 @@ export default function ProjectWorkspace() {
   );
 }
 
-// Sub-component ปุ่ม Tab
 function TabButton({ active, onClick, icon: Icon, label }: any) {
   return (
     <button

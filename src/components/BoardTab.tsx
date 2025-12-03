@@ -3,10 +3,12 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
   Plus,
-  MoreHorizontal,
   User as UserIcon,
   AlertTriangle,
   Loader2,
+  Trash2,
+  Calendar,
+  Clock,
 } from "lucide-react";
 import {
   DragDropContext,
@@ -16,16 +18,17 @@ import {
 } from "@hello-pangea/dnd";
 import TaskModal from "./TaskModal";
 
-// Interface
+// Update Interface
 interface Task {
   id: number;
   title: string;
+  description?: string;
   status: string;
   project_id: number;
-  assigned_to?: string;
+  assigned_to?: string[]; // 🔥 เปลี่ยนเป็น Array
+  due_date?: string;
 }
 
-// Config ของแต่ละคอลัมน์
 const COLUMNS: any = {
   revision: {
     id: "revision",
@@ -55,77 +58,85 @@ const COLUMNS: any = {
 
 export default function BoardTab({ projectId }: { projectId: number }) {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
-  // 1. ดึงข้อมูล
-  const fetchTasks = useCallback(async () => {
-    const { data, error } = await supabase
+  const fetchData = useCallback(async () => {
+    // A. Fetch Tasks (ไม่ต้อง join profiles แล้ว เพราะเรามี assigned_to เป็น id array)
+    const { data: taskData } = await supabase
       .from("tasks")
       .select("*")
       .eq("project_id", projectId)
-      .order("created_at", { ascending: false }); // เรียงตามเวลาที่สร้าง
+      .order("created_at", { ascending: false });
 
-    if (error) console.error("Error:", error);
-    else setTasks(data || []);
+    // B. Fetch Members
+    const { data: memberData } = await supabase
+      .from("project_members")
+      .select("profiles(id, display_name, avatar_url)")
+      .eq("project_id", projectId);
+
+    const cleanMembers = memberData?.map((m: any) => m.profiles) || [];
+
+    setTasks(taskData || []);
+    setMembers(cleanMembers);
     setLoading(false);
   }, [projectId]);
 
   useEffect(() => {
-    if (projectId) fetchTasks();
-  }, [projectId, fetchTasks]);
+    if (projectId) {
+      fetchData();
+      const channel = supabase
+        .channel(`realtime:project:${projectId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "tasks",
+            filter: `project_id=eq.${projectId}`,
+          },
+          () => fetchData()
+        )
+        .subscribe();
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [projectId, fetchData]);
 
-  // 2. สร้างงานใหม่
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTaskTitle.trim()) return;
-
-    const { error } = await supabase.from("tasks").insert({
-      project_id: projectId,
-      title: newTaskTitle,
-      status: "todo",
-    });
-
-    if (!error) {
-      setNewTaskTitle("");
-      setIsAdding(false);
-      fetchTasks();
-    }
+    await supabase
+      .from("tasks")
+      .insert({
+        project_id: projectId,
+        title: newTaskTitle,
+        status: "todo",
+        assigned_to: [],
+      });
+    setNewTaskTitle("");
+    setIsAdding(false);
   };
 
-  // 3. ฟังก์ชันจบการลาก (On Drag End)
+  const handleDeleteTask = async (taskId: number) => {
+    if (!confirm("ยืนยันที่จะลบงานนี้?")) return;
+    await supabase.from("tasks").delete().eq("id", taskId);
+    if (selectedTask?.id === taskId) setSelectedTask(null);
+  };
+
   const onDragEnd = async (result: DropResult) => {
-    const { destination, source, draggableId } = result;
-
-    // ถ้าลากไปที่ว่าง หรือวางที่เดิม -> ไม่ทำอะไร
+    const { destination, draggableId } = result;
     if (!destination) return;
-    if (
-      destination.droppableId === source.droppableId &&
-      destination.index === source.index
-    )
-      return;
-
     const newStatus = destination.droppableId;
     const taskId = parseInt(draggableId);
-
-    // A. อัปเดตหน้าจอทันที (Optimistic UI) ให้คนใช้รู้สึกว่าเร็ว
-    const updatedTasks = tasks.map((t) =>
-      t.id === taskId ? { ...t, status: newStatus } : t
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
     );
-    setTasks(updatedTasks);
-
-    // B. อัปเดต Database เบื้องหลัง
-    const { error } = await supabase
-      .from("tasks")
-      .update({ status: newStatus })
-      .eq("id", taskId);
-
-    if (error) {
-      alert("ย้ายงานไม่สำเร็จ");
-      fetchTasks(); // โหลดค่าเดิมกลับมาถ้าพัง
-    }
+    await supabase.from("tasks").update({ status: newStatus }).eq("id", taskId);
   };
 
   if (loading)
@@ -138,17 +149,13 @@ export default function BoardTab({ projectId }: { projectId: number }) {
   return (
     <DragDropContext onDragEnd={onDragEnd}>
       <div className="flex h-full min-h-[600px] overflow-x-auto p-6 gap-6 bg-gray-50/50 items-start">
-        {/* วนลูปสร้าง 4 คอลัมน์ (Revision, Todo, Doing, Done) */}
         {Object.values(COLUMNS).map((col: any) => {
-          // กรองงานเฉพาะของคอลัมน์นี้
           const colTasks = tasks.filter((t) => t.status === col.id);
-
           return (
             <div
               key={col.id}
               className={`w-80 flex-shrink-0 flex flex-col rounded-2xl p-3 border ${col.color} bg-opacity-50 h-fit max-h-full`}
             >
-              {/* Header */}
               <div className="flex items-center justify-between mb-3 px-1">
                 <div className="flex items-center gap-2">
                   <span
@@ -161,14 +168,12 @@ export default function BoardTab({ projectId }: { projectId: number }) {
                   </span>
                 </div>
               </div>
-
-              {/* ปุ่มเพิ่มงาน (เฉพาะช่อง Todo) */}
               {col.id === "todo" && (
                 <div className="mb-3">
                   {isAdding ? (
                     <form
                       onSubmit={handleCreateTask}
-                      className="bg-white p-3 rounded-xl shadow-sm border border-gray-200"
+                      className="bg-white p-3 rounded-xl shadow-sm border border-gray-200 animate-in fade-in zoom-in duration-200"
                     >
                       <input
                         autoFocus
@@ -204,8 +209,6 @@ export default function BoardTab({ projectId }: { projectId: number }) {
                   )}
                 </div>
               )}
-
-              {/* พื้นที่รับการลากวาง (Droppable Zone) */}
               <Droppable droppableId={col.id}>
                 {(provided, snapshot) => (
                   <div
@@ -228,30 +231,24 @@ export default function BoardTab({ projectId }: { projectId: number }) {
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             {...provided.dragHandleProps}
-                            onClick={() => setSelectedTask(task)} // คลิกเพื่อเปิด Modal
-                            style={{ ...provided.draggableProps.style }} // จำเป็นสำหรับ Position
-                            className={`
-                              p-4 rounded-xl shadow-sm border cursor-pointer group relative overflow-hidden bg-white
-                              ${
-                                task.status === "revision"
-                                  ? "border-red-200 shadow-red-100 hover:border-red-300"
-                                  : "border-gray-100 hover:border-accent/50"
-                              }
-                              ${
-                                snapshot.isDragging
-                                  ? "shadow-lg rotate-2 scale-105 z-50"
-                                  : "hover:-translate-y-0.5"
-                              }
-                            `}
+                            onClick={() => setSelectedTask(task)}
+                            style={{ ...provided.draggableProps.style }}
+                            className={`p-4 rounded-xl shadow-sm border cursor-pointer group relative overflow-hidden bg-white ${
+                              task.status === "revision"
+                                ? "border-red-200 shadow-red-100 hover:border-red-300"
+                                : "border-gray-100 hover:border-accent/50"
+                            } ${
+                              snapshot.isDragging
+                                ? "shadow-lg rotate-2 scale-105 z-50"
+                                : "hover:-translate-y-0.5"
+                            }`}
                           >
-                            {/* แถบสีแดงถ้างายแก้ */}
                             {task.status === "revision" && (
                               <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-500" />
                             )}
-
                             <div className="flex justify-between items-start gap-2">
                               <h4
-                                className={`text-sm font-medium leading-relaxed ${
+                                className={`text-sm font-medium leading-relaxed pr-6 ${
                                   task.status === "revision"
                                     ? "text-red-700"
                                     : "text-gray-700"
@@ -259,37 +256,84 @@ export default function BoardTab({ projectId }: { projectId: number }) {
                               >
                                 {task.title}
                               </h4>
-                              {task.status === "revision" && (
-                                <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteTask(task.id);
+                                }}
+                                className="absolute top-2 right-2 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                                title="ลบงาน"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
 
+                            {/* 🔥 ส่วนแสดงรูปคนหลายคน (Avatars Stack) */}
                             <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-50">
-                              <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-[10px]">
-                                <UserIcon className="w-3 h-3" />
+                              <div className="flex -space-x-2 overflow-hidden">
+                                {task.assigned_to &&
+                                task.assigned_to.length > 0 ? (
+                                  task.assigned_to.map((userId) => {
+                                    const member = members.find(
+                                      (m) => m.id === userId
+                                    );
+                                    if (!member) return null;
+                                    return (
+                                      <div
+                                        key={userId}
+                                        className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[9px] font-bold border border-white ring-1 ring-gray-100"
+                                        title={member.display_name}
+                                      >
+                                        {member.display_name
+                                          ?.substring(0, 2)
+                                          .toUpperCase()}
+                                      </div>
+                                    );
+                                  })
+                                ) : (
+                                  <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 border border-white">
+                                    <UserIcon className="w-3 h-3" />
+                                  </div>
+                                )}
                               </div>
-                              <span className="text-[10px] text-gray-300 font-mono">
-                                #{task.id}
-                              </span>
+
+                              {task.due_date && (
+                                <div
+                                  className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border ${
+                                    new Date(task.due_date) < new Date() &&
+                                    task.status !== "done"
+                                      ? "bg-red-50 text-red-600 border-red-100"
+                                      : "bg-gray-50 text-gray-400 border-gray-100"
+                                  }`}
+                                >
+                                  <Clock className="w-3 h-3" />
+                                  {new Date(task.due_date).toLocaleDateString(
+                                    "th-TH",
+                                    { day: "numeric", month: "short" }
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}
                       </Draggable>
                     ))}
-                    {provided.placeholder} {/* พื้นที่จองที่ตอนลาก */}
+                    {provided.placeholder}
                   </div>
                 )}
               </Droppable>
             </div>
           );
         })}
-
-        {/* Modal คุยงาน */}
         {selectedTask && (
           <TaskModal
             task={selectedTask}
+            members={members}
             onClose={() => setSelectedTask(null)}
-            onUpdate={fetchTasks}
+            onUpdate={() => {
+              /* Realtime handles */
+            }}
+            onDelete={() => handleDeleteTask(selectedTask.id)}
           />
         )}
       </div>

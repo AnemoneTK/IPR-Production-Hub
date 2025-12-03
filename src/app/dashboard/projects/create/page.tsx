@@ -5,40 +5,37 @@ import { supabase } from "@/lib/supabaseClient";
 import { ArrowLeft, Loader2, Calendar, FileText, Type } from "lucide-react";
 import Link from "next/link";
 
+// ฟังก์ชันสร้าง Slug (ไว้นอก component)
+const generateSlug = (title: string) => {
+  return title.toLowerCase().trim().replace(/ /g, "-");
+  // ถ้าอยากให้รองรับภาษาไทยใน URL ก็ใช้แค่นี้พอครับ
+};
+
 export default function CreateProjectPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  // ข้อมูลฟอร์ม
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     deadline: "",
   });
 
-  const generateSlug = (title: string) => {
-    return title
-      .toLowerCase() // แปลงเป็นตัวเล็ก
-      .trim()
-      .replace(/ /g, "-"); // เปลี่ยนเว้นวรรคเป็นขีด
-    // ถ้าอยากให้รองรับภาษาไทยใน URL ก็ใช้แค่นี้พอครับ Browser สมัยใหม่รองรับ
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      // 1. หา User ID
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("ไม่พบข้อมูลผู้ใช้");
 
-      // +++ สร้าง Slug จากชื่อ +++
-      // (ถ้าซ้ำมันจะ Error ซึ่งเราอาจจะต้องดัก error ว่าชื่อซ้ำภายหลัง)
+      // 2. สร้าง Slug
       const slug = generateSlug(formData.title);
 
-      // Insert ลง Database
+      // 3. Insert Project
       const { data: projectData, error: projectError } = await supabase
         .from("projects")
         .insert({
@@ -49,33 +46,31 @@ export default function CreateProjectPage() {
             : null,
           created_by: user.id,
           status: "planning",
-          slug: slug, // <--- ใส่ Slug ลงไป
+          slug: slug,
         })
-        .select()
+        .select() // ขอข้อมูลกลับมาด้วย
         .single();
 
       if (projectError) {
-        // ดัก Error กรณีชื่อซ้ำ
         if (projectError.code === "23505") {
-          // Code ของ Unique Violation
           throw new Error("ชื่อโปรเจกต์นี้ถูกใช้ไปแล้ว กรุณาเปลี่ยนชื่อใหม่");
         }
         throw projectError;
       }
 
-      // 3. (สำคัญ) เอาคนสร้าง ยัดเข้าไปเป็นสมาชิกคนแรกของโปรเจกต์ด้วย
+      // 4. Add Creator as Member (Producer)
       const { error: memberError } = await supabase
         .from("project_members")
         .insert({
           project_id: projectData.id,
           user_id: user.id,
-          roles: ["producer", "sound"], // ใส่ Role เริ่มต้นให้เขาหน่อย (แก้ทีหลังได้)
+          roles: ["producer", "mixer"], // ใส่ Role เริ่มต้นให้ตัวเอง
         });
 
       if (memberError) throw memberError;
 
-      // 4. เสร็จแล้ว! กลับไปหน้า Dashboard หรือหน้ารวมโปรเจกต์
-      router.push("/dashboard");
+      // 5. ✅ Redirect ไปที่หน้า Workspace ของโปรเจกต์นั้นทันที (แก้ตรงนี้)
+      router.push(`/dashboard/projects/${projectData.slug}`);
     } catch (error: any) {
       alert("เกิดข้อผิดพลาด: " + error.message);
     } finally {
@@ -85,7 +80,6 @@ export default function CreateProjectPage() {
 
   return (
     <div className="max-w-2xl mx-auto py-8">
-      {/* ปุ่มย้อนกลับ */}
       <Link
         href="/dashboard"
         className="inline-flex items-center text-gray-500 hover:text-accent mb-6 transition-colors"
@@ -106,7 +100,6 @@ export default function CreateProjectPage() {
 
         <div className="p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* 1. ชื่อโปรเจกต์ */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                 <Type className="w-4 h-4 text-gray-400" /> ชื่อโปรเจกต์{" "}
@@ -124,7 +117,6 @@ export default function CreateProjectPage() {
               />
             </div>
 
-            {/* 2. รายละเอียด */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                 <FileText className="w-4 h-4 text-gray-400" /> รายละเอียดโดยย่อ
@@ -140,7 +132,6 @@ export default function CreateProjectPage() {
               />
             </div>
 
-            {/* 3. วันกำหนดส่ง (Deadline) */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-gray-400" /> กำหนดส่งงาน

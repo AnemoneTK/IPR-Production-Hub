@@ -9,6 +9,9 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  // เก็บ State ไว้เป็น UI (แต่เบื้องหลัง Supabase จะจำให้อัตโนมัติอยู่แล้ว)
+  const [rememberMe, setRememberMe] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -17,38 +20,28 @@ export default function LoginPage() {
     setErrorMsg("");
 
     try {
-      // 1. ส่งอีเมลและรหัสผ่านไปเช็คกับ Supabase Auth
+      // 1. ล็อกอิน (ใช้ค่า Default ของ Supabase คือจำใน LocalStorage)
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      // --- แก้ไขจุดที่ 1: เช็ค Error ก่อนทำอย่างอื่น ---
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
+      if (!data.user) throw new Error("ไม่พบข้อมูลผู้ใช้");
 
-      // --- แก้ไขจุดที่ 2: เช็คว่ามี User จริงไหม (กัน TypeScript ฟ้อง null) ---
-      if (!data.user) {
-        throw new Error("ไม่พบข้อมูลผู้ใช้");
-      }
-
-      // 2. ดึงข้อมูล Profile เพื่อเช็คว่า Active ไหม
-      // (ถึงตรงนี้ data.user.id จะไม่แดงแล้ว เพราะเราเช็คด้านบนแล้ว)
+      // 2. เช็ค Active
       const { data: profile } = await supabase
         .from("profiles")
         .select("is_active")
         .eq("id", data.user.id)
         .single();
 
-      // เช็คสถานะการระงับบัญชี
       if (profile && profile.is_active === false) {
-        await supabase.auth.signOut(); // เตะออกทันที
-        router.push("/suspended"); // ส่งไปหน้าแจ้งเตือน
+        await supabase.auth.signOut();
+        router.push("/suspended");
         return;
       }
 
-      // 3. ถ้าผ่านทุกด่าน ค่อยไป Dashboard
       router.push("/dashboard");
     } catch (error: any) {
       console.error("Login Error:", error.message);
@@ -63,9 +56,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-primary p-4">
-      {/* การ์ด Login */}
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100">
-        {/* Header */}
         <div className="pt-10 pb-6 px-8 text-center">
           <div className="w-12 h-12 bg-accent/10 rounded-xl flex items-center justify-center mx-auto mb-4 text-accent">
             <LogIn className="w-6 h-6" />
@@ -74,10 +65,8 @@ export default function LoginPage() {
           <p className="text-gray-500 text-sm mt-2">IPR Production Hub</p>
         </div>
 
-        {/* Form */}
         <div className="p-8 pt-2">
           <form onSubmit={handleLogin} className="space-y-5">
-            {/* Email Input */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5 ml-1">
                 Email
@@ -95,7 +84,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Password Input */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5 ml-1">
                 Password
@@ -113,7 +101,34 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Error Message Display */}
+            <div className="flex items-center">
+              <label className="flex items-center gap-2 cursor-pointer group select-none">
+                <div className="relative flex items-center">
+                  <input
+                    type="checkbox"
+                    className="peer h-4 w-4 cursor-pointer appearance-none rounded border border-gray-300 shadow-sm checked:border-accent checked:bg-accent focus:ring-2 focus:ring-accent/20 transition-all"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                  />
+                  <svg
+                    className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 text-white opacity-0 peer-checked:opacity-100 transition-opacity"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </div>
+                <span className="text-xs font-medium text-gray-500 group-hover:text-gray-700 transition-colors">
+                  Remember Me
+                </span>
+              </label>
+            </div>
+
             {errorMsg && (
               <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-sm font-medium animate-pulse">
                 <AlertCircle className="w-4 h-4" />
@@ -121,7 +136,6 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}
@@ -136,14 +150,8 @@ export default function LoginPage() {
           </form>
         </div>
 
-        {/* Footer Text */}
         <div className="bg-gray-50 py-4 text-center border-t border-gray-100">
-          <p className="text-xs text-gray-400">
-            ติดปัญหาการเข้าใช้งาน?{" "}
-            <span className="text-accent cursor-pointer hover:underline">
-              ติดต่อ Admin
-            </span>
-          </p>
+          <p className="text-xs text-gray-400">ระบบภายในสำหรับทีมงาน IPR Hub</p>
         </div>
       </div>
     </div>

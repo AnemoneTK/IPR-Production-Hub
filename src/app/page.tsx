@@ -2,29 +2,36 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { Loader2, AlertCircle, ServerCrash } from "lucide-react";
+import { Loader2, ServerCrash } from "lucide-react";
 
 export default function Home() {
   const router = useRouter();
-  const [status, setStatus] = useState("กำลังตรวจสอบสถานะเซิร์ฟเวอร์...");
+  const [status, setStatus] = useState("กำลังตรวจสอบสถานะระบบ...");
   const [isError, setIsError] = useState(false);
 
   useEffect(() => {
     async function initializeSystem() {
       try {
-        // ลอง ping database ด้วยการดึงข้อมูลง่ายๆ
-        // ใช้ .count() จะเบากว่าการ select * และเร็วกว่า
+        // 1. เช็คว่า Database ปกติไหม
         const { error } = await supabase
           .from("projects")
           .select("id", { count: "exact", head: true });
-
         if (error) throw error;
 
-        // ถ้าผ่านฉลุย ให้ดีดไปหน้า Login ทันที
-        setStatus("ระบบพร้อมใช้งาน! กำลังพาไปหน้า Login...");
-        setTimeout(() => {
-          router.replace("/login"); // ใช้ replace เพื่อไม่ให้กด Back กลับมาหน้านี้ได้
-        }, 800); // หน่วงเวลานิดนึงให้คนเห็นโลโก้ก่อนไป (เพื่อความสมูท)
+        // 2. 🔥 เช็คว่า User ล็อกอินค้างไว้ไหม (Session Check)
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (session) {
+          // ถ้ามี Session (เคยล็อกอินแล้ว) -> ไป Dashboard
+          setStatus("ยินดีต้อนรับกลับ! กำลังเข้าสู่ Dashboard...");
+          setTimeout(() => router.replace("/dashboard"), 800);
+        } else {
+          // ถ้าไม่มี Session -> ไป Login
+          setStatus("ระบบพร้อมใช้งาน! กำลังพาไปหน้า Login...");
+          setTimeout(() => router.replace("/login"), 800);
+        }
       } catch (err: any) {
         console.error("Connection Failed:", err);
         setIsError(true);
@@ -35,7 +42,7 @@ export default function Home() {
     initializeSystem();
   }, [router]);
 
-  // กรณี Error (เซิร์ฟเวอร์ล่ม / เน็ตหลุด)
+  // กรณี Error
   if (isError) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-red-50 p-4 text-center">
@@ -58,11 +65,10 @@ export default function Home() {
     );
   }
 
-  // กรณี Loading (Splash Screen สวยๆ)
+  // กรณี Loading (Splash Screen)
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-primary text-white">
       <div className="flex flex-col items-center animate-in fade-in zoom-in duration-500">
-        {/* โลโก้แอป (ถ้ามีรูปก็ใส่ตรงนี้ได้) */}
         <div className="w-20 h-20 bg-accent/20 rounded-2xl flex items-center justify-center mb-6 backdrop-blur-sm border border-white/10 shadow-2xl shadow-accent/20">
           <div className="w-10 h-10 bg-accent rounded-lg flex items-center justify-center">
             <span className="font-bold text-lg">IPR</span>
@@ -78,7 +84,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Footer เล็กๆ */}
       <div className="absolute bottom-8 text-xs text-gray-500">
         v1.0.0 • Initializing Application
       </div>

@@ -7,12 +7,14 @@ import {
   Trash2,
   Link as LinkIcon,
   Loader2,
-  Mic,
   User,
   MessageSquare,
   X,
   Check,
+  Highlighter,
   MoreHorizontal,
+  AlertTriangle,
+  Send,
 } from "lucide-react";
 
 // --- Interfaces ---
@@ -26,10 +28,21 @@ interface Comment {
 
 interface LyricBlock {
   id: string;
+  name: string;
   singers: string[];
-  text: string;
+  htmlContent: string;
   comments: Comment[];
 }
+
+// สีไฮไลท์
+const HIGHLIGHT_COLORS = [
+  { color: "#fef08a", label: "เหลือง" },
+  { color: "#bbf7d0", label: "เขียว" },
+  { color: "#bfdbfe", label: "ฟ้า" },
+  { color: "#fbcfe8", label: "ชมพู" },
+  { color: "#fed7aa", label: "ส้ม" },
+  { color: "transparent", label: "ล้างสี" },
+];
 
 export default function LyricsTab({ projectId }: { projectId: number }) {
   // Global States
@@ -41,40 +54,36 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
 
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   // 1. Load Data
   useEffect(() => {
     const fetchData = async () => {
-      // 1.1 ดึง Members (Defensive check included)
+      // 1.1 Members
       const { data: memberData } = await supabase
         .from("project_members")
         .select("roles, profiles(id, display_name, avatar_url)")
         .eq("project_id", projectId);
-
       const formattedMembers =
         memberData?.map((m: any) => ({
           ...(m.profiles || {}),
           roles: m.roles || [],
         })) || [];
-
       setMembers(formattedMembers);
 
-      // 1.2 ดึง Lyrics Content
+      // 1.2 Lyrics
       const { data: scriptData } = await supabase
         .from("scripts")
         .select("content, updated_at")
         .eq("project_id", projectId)
         .single();
-
       if (scriptData?.content) {
         try {
           const parsed = JSON.parse(scriptData.content);
           const formatted = Array.isArray(parsed)
             ? parsed.map((b: any) => ({
                 ...b,
-                // ดึงค่า text กลับมา (รองรับทั้งแบบเก่าและแบบ htmlContent)
-                text: b.text || b.htmlContent?.replace(/<[^>]+>/g, "") || "",
+                name: b.name || "",
+                htmlContent: b.htmlContent || b.text || "",
                 comments: b.comments || [],
               }))
             : [];
@@ -84,25 +93,38 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
               : [
                   {
                     id: Date.now().toString(),
+                    name: "",
                     singers: [],
-                    text: "",
+                    htmlContent: "",
                     comments: [],
                   },
                 ]
           );
         } catch {
           setBlocks([
-            { id: Date.now().toString(), singers: [], text: "", comments: [] },
+            {
+              id: Date.now().toString(),
+              name: "",
+              singers: [],
+              htmlContent: "",
+              comments: [],
+            },
           ]);
         }
         setLastSaved(new Date(scriptData.updated_at));
       } else {
         setBlocks([
-          { id: Date.now().toString(), singers: [], text: "", comments: [] },
+          {
+            id: Date.now().toString(),
+            name: "",
+            singers: [],
+            htmlContent: "",
+            comments: [],
+          },
         ]);
       }
 
-      // 1.3 ดึง Links
+      // 1.3 Links
       const { data: linkData } = await supabase
         .from("reference_links")
         .select("*")
@@ -120,7 +142,6 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
       data: { user },
     } = await supabase.auth.getUser();
     const contentToSave = JSON.stringify(blocks);
-
     const { error } = await supabase.from("scripts").upsert(
       {
         project_id: projectId,
@@ -130,7 +151,6 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
       },
       { onConflict: "project_id" }
     );
-
     if (!error) setLastSaved(new Date());
     setIsSaving(false);
   }, [blocks, projectId]);
@@ -146,15 +166,20 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
   const addBlock = () =>
     setBlocks([
       ...blocks,
-      { id: Date.now().toString(), singers: [], text: "", comments: [] },
+      {
+        id: Date.now().toString(),
+        name: "",
+        singers: [],
+        htmlContent: "",
+        comments: [],
+      },
     ]);
   const updateBlock = (id: string, newData: Partial<LyricBlock>) =>
     setBlocks(blocks.map((b) => (b.id === id ? { ...b, ...newData } : b)));
-  const confirmDeleteBlock = () => {
-    if (deleteTargetId) {
-      setBlocks(blocks.filter((b) => b.id !== deleteTargetId));
-      setDeleteTargetId(null);
-    }
+
+  // ฟังก์ชันลบ (ลบจาก State เลย เพราะการยืนยันทำที่ Child แล้ว)
+  const deleteBlockDirectly = (id: string) => {
+    setBlocks(blocks.filter((b) => b.id !== id));
   };
 
   // Links Actions
@@ -182,105 +207,117 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-full min-h-[600px] divide-y md:divide-y-0 md:divide-x divide-gray-100">
+    <div className="flex flex-col md:flex-row h-full min-h-[600px] divide-y md:divide-y-0 md:divide-x divide-gray-100 overflow-hidden">
       {/* Editor Side */}
-      <div className="flex-1 p-6 flex flex-col bg-gray-50/30">
-        <div className="flex justify-between items-center mb-6 sticky top-0 bg-white/80 backdrop-blur z-20 py-2 border-b border-gray-100">
-          <h3 className="font-bold text-gray-800 flex items-center gap-2 text-lg">
-            🎤 เนื้อเพลง & คิวร้อง
-          </h3>
-          <div className="flex items-center gap-3 text-xs">
-            {isSaving ? (
-              <span className="text-accent flex items-center gap-1">
-                <Loader2 className="w-3 h-3 animate-spin" /> บันทึก...
-              </span>
-            ) : (
-              lastSaved && (
-                <span className="text-gray-400">
-                  ล่าสุด {lastSaved.toLocaleTimeString("th-TH")}
+      <div className="flex-1 bg-gray-50/30 overflow-y-auto relative custom-scrollbar">
+        <div className="p-6">
+          <div className="sticky top-0 -mt-6 -mx-6 px-6 py-3 bg-white/90 backdrop-blur-md z-20 border-b border-gray-200/60 flex justify-between items-center shadow-sm">
+            <h3 className="font-bold text-gray-800 flex items-center gap-2 text-lg">
+              🎤 เนื้อเพลง & คิวร้อง
+            </h3>
+            <div className="flex items-center gap-3 text-xs">
+              {isSaving ? (
+                <span className="text-accent flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin" /> บันทึก...
                 </span>
-              )
-            )}
+              ) : (
+                lastSaved && (
+                  <span className="text-gray-400">
+                    ล่าสุด {lastSaved.toLocaleTimeString("th-TH")}
+                  </span>
+                )
+              )}
+              <button
+                onClick={handleSaveScript}
+                className="flex items-center gap-1 px-3 py-1.5 bg-accent/10 hover:bg-accent/20 text-accent rounded-lg transition-colors font-medium"
+              >
+                <Save className="w-4 h-4" /> บันทึก
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-6 pb-20 mt-6">
+            {blocks.map((block, index) => (
+              <BlockItem
+                key={block.id}
+                index={index}
+                block={block}
+                members={members}
+                onUpdate={(newData: Partial<LyricBlock>) =>
+                  updateBlock(block.id, newData)
+                }
+                onDelete={() => deleteBlockDirectly(block.id)}
+              />
+            ))}
             <button
-              onClick={handleSaveScript}
-              className="flex items-center gap-1 px-3 py-1.5 bg-accent/10 hover:bg-accent/20 text-accent rounded-lg transition-colors font-medium"
+              onClick={addBlock}
+              className="w-full py-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:text-accent hover:border-accent/50 hover:bg-white transition-all flex items-center justify-center gap-2 font-medium"
             >
-              <Save className="w-4 h-4" /> บันทึก
+              <Plus className="w-5 h-5" /> เพิ่มท่อนใหม่
             </button>
           </div>
-        </div>
-        <div className="flex-1 space-y-6 pb-20">
-          {blocks.map((block, index) => (
-            <BlockItem
-              key={block.id}
-              index={index}
-              block={block}
-              members={members}
-              onUpdate={(newData: Partial<LyricBlock>) =>
-                updateBlock(block.id, newData)
-              }
-              onDelete={() => setDeleteTargetId(block.id)}
-            />
-          ))}
-          <button
-            onClick={addBlock}
-            className="w-full py-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:text-accent hover:border-accent/50 hover:bg-white transition-all flex items-center justify-center gap-2 font-medium"
-          >
-            <Plus className="w-5 h-5" /> เพิ่มท่อนใหม่
-          </button>
         </div>
       </div>
 
       {/* References Side */}
-      <div className="w-full md:w-80 lg:w-96 p-6 bg-white flex flex-col h-full sticky top-0 border-l border-gray-100">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="font-bold text-gray-800 flex items-center gap-2 text-lg">
-            🔗 References
-          </h3>
-          <button
-            onClick={() => setIsAddingLink(true)}
-            className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500"
-          >
-            <Plus className="w-5 h-5" />
-          </button>
+      <div className="w-full md:w-80 lg:w-96 bg-white flex flex-col h-full border-l border-gray-100 overflow-hidden">
+        <div className="p-6 border-b border-gray-50 flex-shrink-0">
+          <div className="flex justify-between items-center">
+            <h3 className="font-bold text-gray-800 flex items-center gap-2 text-lg">
+              🔗 References
+            </h3>
+            <button
+              onClick={() => setIsAddingLink(true)}
+              className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+          </div>
+          {isAddingLink && (
+            <form
+              onSubmit={handleAddLink}
+              className="mt-4 bg-gray-50 p-4 rounded-xl border border-gray-100 animate-in fade-in slide-in-from-top-2"
+            >
+              <input
+                autoFocus
+                type="text"
+                placeholder="ชื่อลิงก์..."
+                className="w-full text-sm mb-2 px-2 py-1 bg-transparent border-b outline-none"
+                value={newLink.title}
+                onChange={(e) =>
+                  setNewLink({ ...newLink, title: e.target.value })
+                }
+              />
+              <input
+                type="url"
+                placeholder="URL..."
+                className="w-full text-sm mb-3 px-2 py-1 bg-transparent border-b outline-none text-blue-600"
+                value={newLink.url}
+                onChange={(e) =>
+                  setNewLink({ ...newLink, url: e.target.value })
+                }
+              />
+              <div className="flex justify-end gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setIsAddingLink(false)}
+                  className="text-gray-500"
+                >
+                  ยกเลิก
+                </button>
+                <button type="submit" className="text-accent font-bold">
+                  เพิ่ม
+                </button>
+              </div>
+            </form>
+          )}
         </div>
-        {isAddingLink && (
-          <form
-            onSubmit={handleAddLink}
-            className="mb-4 bg-gray-50 p-4 rounded-xl border border-gray-100"
-          >
-            <input
-              autoFocus
-              type="text"
-              placeholder="ชื่อลิงก์..."
-              className="w-full text-sm mb-2 px-2 py-1 bg-transparent border-b outline-none"
-              value={newLink.title}
-              onChange={(e) =>
-                setNewLink({ ...newLink, title: e.target.value })
-              }
-            />
-            <input
-              type="url"
-              placeholder="URL..."
-              className="w-full text-sm mb-3 px-2 py-1 bg-transparent border-b outline-none text-blue-600"
-              value={newLink.url}
-              onChange={(e) => setNewLink({ ...newLink, url: e.target.value })}
-            />
-            <div className="flex justify-end gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => setIsAddingLink(false)}
-                className="text-gray-500"
-              >
-                ยกเลิก
-              </button>
-              <button type="submit" className="text-accent font-bold">
-                เพิ่ม
-              </button>
+        <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-2 custom-scrollbar">
+          {links.length === 0 && !isAddingLink && (
+            <div className="text-center py-10 text-gray-400 text-sm border-2 border-dashed border-gray-100 rounded-xl">
+              ยังไม่มีลิงก์อ้างอิง
             </div>
-          </form>
-        )}
-        <div className="flex-1 overflow-y-auto space-y-2">
+          )}
           {links.map((link) => (
             <div
               key={link.id}
@@ -309,37 +346,6 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
           ))}
         </div>
       </div>
-
-      {/* Delete Confirmation Modal */}
-      {deleteTargetId && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-red-100 scale-100 animate-in zoom-in-95 duration-200">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-center text-gray-900">
-              ลบท่อนนี้?
-            </h3>
-            <p className="text-sm text-center text-gray-500 mt-2 mb-6">
-              คุณแน่ใจหรือไม่ที่จะลบท่อนเนื้อเพลงนี้
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteTargetId(null)}
-                className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={confirmDeleteBlock}
-                className="flex-1 py-2.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-all shadow-lg shadow-red-500/30"
-              >
-                ยืนยันลบ
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -347,12 +353,14 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
 // --- Sub-Component: Block Item ---
 function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
   const [showMemberSelect, setShowMemberSelect] = useState(false);
+  const [showHighlighter, setShowHighlighter] = useState(false);
   const [showComments, setShowComments] = useState(
     (block.comments || []).length > 0
   );
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [commentInput, setCommentInput] = useState("");
+  const contentRef = useRef<HTMLDivElement>(null);
 
-  // 1. กรองเฉพาะคนที่มี Role 'singer' (Safety Check included)
   const singerMembers = members.filter((m: any) =>
     (m.roles || []).includes("singer")
   );
@@ -365,7 +373,25 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
     onUpdate({ singers: newSingers });
   };
 
-  // Comment functions
+  const applyHighlight = (color: string) => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    if (!contentRef.current?.contains(selection.anchorNode)) {
+      contentRef.current?.focus();
+      return;
+    }
+    document.execCommand("styleWithCSS", false, "true");
+    document.execCommand("hiliteColor", false, color);
+    if (contentRef.current)
+      onUpdate({ htmlContent: contentRef.current.innerHTML });
+    setShowHighlighter(false);
+  };
+
+  const handleContentChange = () => {
+    if (contentRef.current)
+      onUpdate({ htmlContent: contentRef.current.innerHTML });
+  };
+
   const addComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!commentInput.trim()) return;
@@ -396,21 +422,22 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
     });
   };
 
-  // --- ส่วนที่แก้ไขเพื่อแก้ Error ---
-  // ใช้ (block.text || '') เพื่อกัน undefined ก่อน split
-  const rowCount = Math.max(2, (block.text || "").split("\n").length);
-
   return (
     <div className="group relative rounded-xl border border-gray-200 shadow-sm bg-white transition-all duration-300 hover:shadow-md">
       {/* Header */}
-      <div className="flex justify-between items-start p-3 pb-0 border-b border-gray-50 bg-gray-50/50 rounded-t-xl h-12">
-        <div className="relative flex items-center gap-2">
-          <span className="text-xs font-bold text-gray-400 mr-1 select-none">
-            #{index + 1}
-          </span>
+      <div className="flex justify-between items-center p-3 pb-2 border-b border-gray-50 bg-gray-50/50 rounded-t-xl">
+        <div className="relative flex items-center gap-2 flex-1">
+          <input
+            type="text"
+            placeholder={`ท่อนที่ ${index + 1}`}
+            className="bg-transparent font-bold text-gray-700 text-sm w-32 outline-none placeholder:text-gray-400 focus:text-accent focus:placeholder:text-accent/50"
+            value={block.name || ""}
+            onChange={(e) => onUpdate({ name: e.target.value })}
+          />
+          <div className="h-4 w-px bg-gray-300 mx-1"></div>
           <button
             onClick={() => setShowMemberSelect(!showMemberSelect)}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 bg-white border border-gray-200 rounded-full hover:border-accent hover:text-accent transition-colors shadow-sm"
+            className={`flex items-center gap-1 px-2 py-1 text-xs text-gray-600 bg-white border border-gray-200 rounded-full hover:border-accent hover:text-accent transition-colors shadow-sm`}
           >
             <User className="w-3 h-3" />
             {block.singers?.length > 0
@@ -432,7 +459,7 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
             })}
           </div>
           {showMemberSelect && (
-            <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-10 overflow-hidden p-1">
+            <div className="absolute top-full left-20 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-10 overflow-hidden p-1">
               <div className="text-[10px] uppercase font-bold text-gray-400 px-3 py-2 bg-gray-50 mb-1">
                 เลือกนักร้อง (Singers Only)
               </div>
@@ -467,26 +494,93 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
           )}
         </div>
 
-        {/* ปุ่มลบ */}
-        <button
-          onClick={onDelete}
-          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+        <div className="flex gap-1 relative">
+          <div className="relative">
+            <button
+              onClick={() => setShowHighlighter(!showHighlighter)}
+              className="p-1.5 text-gray-400 hover:text-accent hover:bg-accent/10 rounded-lg transition-colors"
+              title="ไฮไลท์ข้อความ"
+            >
+              <Highlighter className="w-4 h-4" />
+            </button>
+            {showHighlighter && (
+              <div className="absolute top-full right-0 mt-2 p-2 bg-white rounded-xl shadow-xl border border-gray-100 z-10 flex gap-2">
+                {HIGHLIGHT_COLORS.map((c) => (
+                  <button
+                    key={c.color}
+                    className="w-6 h-6 rounded-full border shadow-sm hover:scale-110 transition-transform"
+                    style={{ backgroundColor: c.color }}
+                    title={c.label}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      applyHighlight(c.color);
+                    }}
+                  />
+                ))}
+                <div
+                  className="fixed inset-0 z-[-1]"
+                  onClick={() => setShowHighlighter(false)}
+                ></div>
+              </div>
+            )}
+          </div>
+          <div className="relative">
+            <button
+              onClick={() => setShowDeleteConfirm(!showDeleteConfirm)}
+              className={`p-1.5 rounded-lg transition-colors ${
+                showDeleteConfirm
+                  ? "bg-red-50 text-red-500"
+                  : "text-gray-400 hover:text-red-500 hover:bg-red-50"
+              }`}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+            {showDeleteConfirm && (
+              <>
+                <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-red-100 z-20 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                  <div className="p-3 text-center border-b border-gray-50">
+                    <p className="text-xs font-bold text-gray-800">
+                      ยืนยันลบท่อนนี้?
+                    </p>
+                  </div>
+                  <div className="flex">
+                    <button
+                      onClick={onDelete}
+                      className="flex-1 py-2 text-xs font-bold text-white bg-red-500 hover:bg-red-600 transition-colors"
+                    >
+                      ลบ
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="flex-1 py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 transition-colors"
+                    >
+                      ยกเลิก
+                    </button>
+                  </div>
+                </div>
+                <div
+                  className="fixed inset-0 z-10 cursor-default"
+                  onClick={() => setShowDeleteConfirm(false)}
+                ></div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Content: Textarea (แก้ปัญหาพิมพ์แล้วเด้งหน้าสุด + แก้ Error split) */}
-      <textarea
-        className="w-full p-4 text-base leading-relaxed text-gray-800 placeholder:text-gray-400/70 outline-none resize-none min-h-[80px] bg-transparent"
-        placeholder="พิมพ์เนื้อเพลงที่นี่..."
-        // ใส่ logic คำนวณบรรทัดที่แก้แล้ว
-        rows={rowCount}
-        value={block.text || ""} // กัน undefined
-        onChange={(e) => onUpdate({ text: e.target.value })}
+      {/* Content */}
+      <div
+        ref={contentRef}
+        contentEditable
+        className="w-full p-4 text-base leading-relaxed text-gray-800 outline-none min-h-[80px] empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400 cursor-text whitespace-pre-wrap break-words"
+        data-placeholder="พิมพ์เนื้อเพลงที่นี่..."
+        onInput={handleContentChange}
+        onBlur={handleContentChange}
+        dangerouslySetInnerHTML={{ __html: block.htmlContent || "" }}
+        style={{ lineHeight: "1.8" }}
       />
 
-      {/* Footer: Comments */}
+      {/* Footer */}
       <div className="px-4 pb-3 border-t border-dashed border-gray-100 pt-2">
         <button
           onClick={() => setShowComments(!showComments)}
@@ -531,7 +625,7 @@ function BlockItem({ index, block, members, onUpdate, onDelete }: any) {
                 disabled={!commentInput.trim()}
                 className="text-accent hover:text-accent-hover disabled:opacity-50"
               >
-                <Mic className="w-4 h-4" />
+                <Send className="w-4 h-4" />
               </button>
             </form>
           </div>

@@ -172,15 +172,17 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const { error } = await supabase.from("scripts").upsert(
-      {
-        project_id: projectId,
-        content: JSON.stringify(blocks),
-        updated_by: user?.id,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "project_id" }
-    );
+    const { error } = await supabase
+      .from("scripts")
+      .upsert(
+        {
+          project_id: projectId,
+          content: JSON.stringify(blocks),
+          updated_by: user?.id,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "project_id" }
+      );
     if (!error) setLastSaved(new Date());
     setIsSaving(false);
   }, [blocks, projectId]);
@@ -201,6 +203,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
     comments: [],
   });
 
+  // Actions
   const addBlock = (type: "lyrics" | "interlude", index?: number) => {
     const newBlock = createBlock(type);
     if (typeof index === "number") {
@@ -302,7 +305,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
                 <div
                   {...provided.droppableProps}
                   ref={provided.innerRef}
-                  className="space-y-4 pb-20 mt-6"
+                  className="space-y-0 pb-20 mt-6"
                 >
                   {blocks.map((block, index) => (
                     <Draggable
@@ -314,54 +317,48 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
                         <div
                           ref={provided.innerRef}
                           {...provided.draggableProps}
-                          className="relative transition-all"
-                          style={{
-                            ...provided.draggableProps.style, // สำคัญ: ต้องใช้ style จาก library
-                            marginBottom: "10px",
-                            opacity: snapshot.isDragging ? 0.8 : 1,
-                            zIndex: snapshot.isDragging ? 100 : "auto",
-                            transform: snapshot.isDragging
-                              ? provided.draggableProps.style?.transform
-                              : "none", // บังคับ transform ให้ถูก
-                          }}
+                          className="relative"
                         >
-                          <BlockItem
-                            index={index}
-                            block={block}
-                            members={members}
-                            onUpdate={(newData: Partial<LyricBlock>) =>
-                              updateBlock(block.id, newData)
-                            }
-                            onDelete={() => deleteBlock(block.id)}
-                            onDuplicate={() => duplicateBlock(block)}
-                            onMoveUp={() => moveBlock(index, "up")}
-                            onMoveDown={() => moveBlock(index, "down")}
-                            dragHandleProps={provided.dragHandleProps}
-                          />
+                          <div
+                            style={{
+                              ...provided.draggableProps.style,
+                              opacity: snapshot.isDragging ? 0.8 : 1,
+                              marginBottom: "10px",
+                            }}
+                          >
+                            <BlockItem
+                              index={index}
+                              block={block}
+                              members={members}
+                              onUpdate={(newData: Partial<LyricBlock>) =>
+                                updateBlock(block.id, newData)
+                              }
+                              onDelete={() => deleteBlock(block.id)}
+                              onDuplicate={() => duplicateBlock(block)}
+                              onMoveUp={() => moveBlock(index, "up")}
+                              onMoveDown={() => moveBlock(index, "down")}
+                              dragHandleProps={provided.dragHandleProps}
+                            />
+                          </div>
 
-                          {/* Insert Between Zone (ซ่อนตอนลาก) */}
-                          {!snapshot.isDragging && (
-                            <div className="h-4 -mt-2 mb-2 relative group/insert z-0 flex items-center justify-center opacity-0 hover:opacity-100 hover:h-10 transition-all duration-200">
-                              <div className="absolute inset-0 flex items-center justify-center gap-2 transform scale-y-0 group-hover/insert:scale-y-100 transition-transform">
-                                <div className="h-px bg-blue-200 flex-1"></div>
-                                <button
-                                  onClick={() => addBlock("lyrics", index + 1)}
-                                  className="flex items-center gap-1 px-3 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded-full text-xs font-bold hover:bg-blue-100 shadow-sm transition-colors"
-                                >
-                                  <PlusCircle className="w-3 h-3" /> เนื้อร้อง
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    addBlock("interlude", index + 1)
-                                  }
-                                  className="flex items-center gap-1 px-3 py-1 bg-purple-50 border border-purple-200 text-purple-600 rounded-full text-xs font-bold hover:bg-purple-100 shadow-sm transition-colors"
-                                >
-                                  <Music className="w-3 h-3" /> ดนตรี
-                                </button>
-                                <div className="h-px bg-blue-200 flex-1"></div>
-                              </div>
+                          <div className="h-4 -mt-2 mb-2 relative group/insert z-10 flex items-center justify-center opacity-0 hover:opacity-100 hover:h-10 transition-all duration-200">
+                            <div className="absolute inset-0 flex items-center justify-center gap-2 transform scale-y-0 group-hover/insert:scale-y-100 transition-transform">
+                              <div className="h-px bg-blue-200 flex-1"></div>
+                              <button
+                                onClick={() => addBlock("lyrics", index + 1)}
+                                className="flex items-center gap-1 px-3 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded-full text-xs font-bold hover:bg-blue-100 shadow-sm transition-colors"
+                              >
+                                <PlusCircle className="w-3 h-3" /> เนื้อร้อง
+                              </button>
+                              <button
+                                onClick={() => addBlock("interlude", index + 1)}
+                                className="flex items-center gap-1 px-3 py-1 bg-purple-50 border border-purple-200 text-purple-600 rounded-full text-xs font-bold hover:bg-purple-100 shadow-sm transition-colors"
+                              >
+                                <Music className="w-3 h-3" /> ดนตรี
+                              </button>
+                              <div className="h-px bg-blue-200 flex-1"></div>
                             </div>
-                          )}
+                          </div>
                         </div>
                       )}
                     </Draggable>
@@ -389,7 +386,6 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
         </div>
       </div>
 
-      {/* Right Side */}
       <div className="w-full md:w-80 lg:w-96 bg-white flex flex-col h-full border-l border-gray-100 overflow-hidden">
         <div className="p-6 border-b border-gray-50 flex-shrink-0">
           <div className="flex justify-between items-center">
@@ -647,17 +643,16 @@ function BlockItem({
     setQuoteText(null);
   };
 
+  // 🔥 แก้ไขจุดที่ Build Error (เพิ่มตัวแปร textToFind)
   const deleteComment = (comment: Comment) => {
     if (editor && comment.quoted_text) {
+      const textToFind = comment.quoted_text; // ดึงค่าออกมาเก็บไว้ก่อน
       const { doc } = editor.state;
+
       doc.descendants((node, pos) => {
-        if (
-          node.isText &&
-          node.text &&
-          node.text.includes(comment.quoted_text!)
-        ) {
-          const start = pos + node.text.indexOf(comment.quoted_text!);
-          const end = start + comment.quoted_text.length;
+        if (node.isText && node.text && node.text.includes(textToFind)) {
+          const start = pos + node.text.indexOf(textToFind);
+          const end = start + textToFind.length; // ใช้ตัวแปรที่เก็บไว้ (ปลอดภัยหายห่วง)
           editor
             .chain()
             .setTextSelection({ from: start, to: end })
@@ -674,7 +669,7 @@ function BlockItem({
     });
   };
 
-  const singerMembers = members; // ใช้ทุกคนในทีมได้ (ตามที่แก้ไปก่อนหน้า)
+  const singerMembers = members; // แสดงทุกคน
 
   return (
     <div
@@ -693,7 +688,7 @@ function BlockItem({
         }`}
       >
         <div className="relative flex items-center gap-2 flex-1 flex-wrap">
-          {/* Drag Handle (Apply Props Here) */}
+          {/* Drag Handle */}
           <div
             {...dragHandleProps}
             className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1.5 rounded hover:bg-black/5"
@@ -726,8 +721,6 @@ function BlockItem({
                   ? `${block.singers.length} คน`
                   : "เลือกคนร้อง"}
               </button>
-
-              {/* Singer Badges */}
               <div className="flex gap-2 flex-wrap">
                 {(block.singers || []).map((s: any) => {
                   const member = members.find((m: any) => m.id === s.user_id);
@@ -759,7 +752,7 @@ function BlockItem({
           {showMemberSelect && !isInterlude && (
             <div className="absolute top-full left-28 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden p-1">
               <div className="text-[10px] uppercase font-bold text-gray-400 px-3 py-2 bg-gray-50 mb-1">
-                สมาชิกในโปรเจกต์
+                เลือกนักร้อง
               </div>
               {singerMembers.map((m: any) => (
                 <button
@@ -800,7 +793,7 @@ function BlockItem({
             </button>
           )}
 
-          <div className="flex flex-col gap-0.5 mr-2 opacity-80 group-hover:opacity-100 transition-opacity">
+          <div className="flex flex-col gap-0.5 mr-2 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
               onClick={onMoveUp}
               className="text-gray-400 hover:text-gray-600"
@@ -909,7 +902,6 @@ function BlockItem({
                     ยังไม่เลือกคนร้อง
                   </div>
                 )}
-
                 <div className="h-px bg-gray-100 my-1"></div>
                 <div className="flex items-center justify-between px-1 pt-1">
                   <button

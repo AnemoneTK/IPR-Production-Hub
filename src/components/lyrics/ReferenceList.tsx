@@ -17,6 +17,15 @@ interface ReferenceListProps {
   type: "youtube" | "general";
 }
 
+export interface ReferenceLink {
+  id: number;
+  script_id: number;
+  url: string;
+  title: string;
+  project_id?: number | null;
+  created_at: string;
+}
+
 // 🔥 สร้าง Component ย่อยเพื่อจัดการ State ของตัวเอง
 function ReferenceItem({
   link,

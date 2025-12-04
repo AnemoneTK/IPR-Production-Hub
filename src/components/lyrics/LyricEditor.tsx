@@ -17,6 +17,7 @@ import {
   ArrowUp,
   ArrowDown,
   X,
+  Plus,
   Trash2,
 } from "lucide-react";
 import { DraggableProvidedDragHandleProps } from "@hello-pangea/dnd";
@@ -53,6 +54,14 @@ export interface LyricBlock {
   comments: Comment[];
 }
 
+export interface Member {
+  id: string;
+  display_name: string;
+  avatar_url?: string;
+  assigned_color: string;
+  roles: string[];
+}
+
 export interface ReferenceLink {
   id: number;
   script_id: number;
@@ -60,14 +69,6 @@ export interface ReferenceLink {
   title: string;
   project_id?: number | null;
   created_at: string;
-}
-
-export interface Member {
-  id: string;
-  display_name: string;
-  avatar_url?: string;
-  assigned_color: string;
-  roles: string[];
 }
 
 // Custom Tiptap Extension
@@ -125,7 +126,9 @@ export default function LyricEditor({
   const [quoteText, setQuoteText] = useState<string | null>(null);
 
   const isInterlude = block.type === "interlude";
-  const singerMembers = members.filter((m) => m.roles?.includes("singer"));
+
+  // 🔥 แก้ไข: กรองเฉพาะคนที่มี Role "singer" เท่านั้น
+  const singerMembers = members.filter((m) => m.roles.includes("singer"));
 
   const editor = useEditor({
     extensions: [
@@ -163,7 +166,7 @@ export default function LyricEditor({
     ) {
       editor.commands.setContent(block.htmlContent);
     }
-  }, [block.id, editor, block.htmlContent]); // Added dependencies for safety
+  }, [block.id, editor, block.htmlContent]);
 
   const toggleSinger = (userId: string) => {
     const currentSingers = block.singers || [];
@@ -351,30 +354,40 @@ export default function LyricEditor({
           )}
 
           {showMemberSelect && !isInterlude && (
-            <div className="absolute top-full left-28 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden p-1">
+            <div className="absolute top-full left-28 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden p-1 animate-in fade-in zoom-in-95">
               <div className="text-[10px] uppercase font-bold text-gray-400 px-3 py-2 bg-gray-50 mb-1">
                 เลือกนักร้อง
               </div>
-              {singerMembers.map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => toggleSinger(m.id)}
-                  className="w-full flex items-center justify-between px-3 py-2 text-sm text-left hover:bg-blue-50 rounded-lg transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] shadow-sm border border-white"
-                      style={{ backgroundColor: m.assigned_color || "#bfdbfe" }}
-                    >
-                      {m.display_name?.substring(0, 2)}
+              {singerMembers.length === 0 ? (
+                <div className="px-3 py-2 text-xs text-gray-400 text-center">
+                  ไม่มีสมาชิกตำแหน่ง Singer
+                </div>
+              ) : (
+                singerMembers.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => toggleSinger(m.id)}
+                    className="w-full flex items-center justify-between px-3 py-2 text-sm text-left hover:bg-blue-50 rounded-lg transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] shadow-sm border border-white"
+                        style={{
+                          backgroundColor: m.assigned_color || "#bfdbfe",
+                        }}
+                      >
+                        {m.display_name?.substring(0, 2).toUpperCase()}
+                      </div>
+                      <span className="truncate max-w-[120px]">
+                        {m.display_name}
+                      </span>
                     </div>
-                    <span className="truncate">{m.display_name}</span>
-                  </div>
-                  {block.singers?.some((s) => s.user_id === m.id) && (
-                    <Check className="w-3 h-3 text-accent" />
-                  )}
-                </button>
-              ))}
+                    {block.singers?.some((s) => s.user_id === m.id) && (
+                      <Check className="w-3 h-3 text-accent" />
+                    )}
+                  </button>
+                ))
+              )}
               <div
                 className="fixed inset-0 z-[-1]"
                 onClick={() => setShowMemberSelect(false)}
@@ -383,6 +396,7 @@ export default function LyricEditor({
           )}
         </div>
 
+        {/* Actions */}
         <div className="flex gap-1 items-center">
           {!isInterlude && (
             <button
@@ -460,6 +474,7 @@ export default function LyricEditor({
         </div>
       </div>
 
+      {/* Editor Body */}
       <div className="relative">
         {isInterlude ? (
           <div className="w-full h-16 flex items-center justify-center bg-gray-50 text-gray-400 text-sm font-medium">

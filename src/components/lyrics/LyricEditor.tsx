@@ -53,6 +53,15 @@ export interface LyricBlock {
   comments: Comment[];
 }
 
+export interface ReferenceLink {
+  id: number;
+  script_id: number;
+  url: string;
+  title: string;
+  project_id?: number | null;
+  created_at: string;
+}
+
 export interface Member {
   id: string;
   display_name: string;

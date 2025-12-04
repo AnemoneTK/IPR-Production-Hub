@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import { ReferenceLink } from "../LyricsTab";
+// ✅ แก้ไขบรรทัดนี้: ดึงจาก ./LyricEditor แทน ../LyricsTab
+import { ReferenceLink } from "./LyricEditor";
 import { ExternalLink, Link as LinkIcon, Trash2 } from "lucide-react";
 
 const getYouTubeID = (url: string): string | null => {
@@ -17,16 +18,6 @@ interface ReferenceListProps {
   type: "youtube" | "general";
 }
 
-export interface ReferenceLink {
-  id: number;
-  script_id: number;
-  url: string;
-  title: string;
-  project_id?: number | null;
-  created_at: string;
-}
-
-// 🔥 สร้าง Component ย่อยเพื่อจัดการ State ของตัวเอง
 function ReferenceItem({
   link,
   onDelete,
@@ -42,7 +33,8 @@ function ReferenceItem({
   const youtubeId = getYouTubeID(link.url);
 
   return (
-    <div className="group bg-white p-3 rounded-xl border border-gray-100 hover:border-red-200 hover:shadow-sm transition-all relative">
+    // 🔥 Fix: เพิ่ม overflow-hidden และ max-w-full เพื่อไม่ให้ล้น
+    <div className="group bg-white p-3 rounded-xl border border-gray-100 hover:border-red-200 hover:shadow-sm transition-all w-full overflow-hidden max-w-full relative">
       <div className="flex justify-between items-start mb-2">
         {type === "youtube" ? (
           <div className="min-w-0 flex-1 mr-2">
@@ -86,35 +78,31 @@ function ReferenceItem({
             </a>
           )}
 
-          {/* 🔥 ปุ่มลบพร้อม Popover */}
+          {/* ปุ่มลบพร้อม Popover */}
           <div className="relative">
             <button
               onClick={() => setShowConfirm(!showConfirm)}
-              className={`p-2 rounded-lg transition-all ${
+              className={`p-1 rounded-lg transition-all ${
                 showConfirm
-                  ? "bg-red-50 text-red-500"
+                  ? "text-red-600 bg-red-50"
                   : "text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100"
               }`}
             >
               <Trash2 className="w-4 h-4" />
             </button>
 
-            {/* Popover ยืนยันการลบ */}
             {showConfirm && (
               <>
                 <div
                   className="fixed inset-0 z-10"
                   onClick={() => setShowConfirm(false)}
                 ></div>
-                <div className="absolute right-0 top-full mt-2 w-32 bg-white rounded-lg shadow-xl border border-red-100 z-20 overflow-hidden animate-in fade-in slide-in-from-top-1">
-                  <div className="p-2 text-center text-[10px] text-gray-500 border-b border-gray-50">
-                    ยืนยันลบ?
-                  </div>
+                <div className="absolute right-0 top-full mt-2 w-24 bg-white rounded-lg shadow-xl border border-red-100 z-20 overflow-hidden animate-in fade-in slide-in-from-top-1">
                   <button
                     onClick={() => onDelete(link.id)}
-                    className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 font-bold transition-colors"
+                    className="w-full text-center px-2 py-1.5 text-xs text-red-600 hover:bg-red-50 font-bold transition-colors"
                   >
-                    ลบเลย
+                    ยืนยันลบ
                   </button>
                 </div>
               </>
@@ -124,7 +112,7 @@ function ReferenceItem({
       </div>
 
       {type === "youtube" && youtubeId && (
-        <div className="mt-1 rounded-lg overflow-hidden bg-black aspect-video relative group/video shadow-sm">
+        <div className="mt-1 rounded-lg overflow-hidden bg-black aspect-video relative group/video shadow-sm w-full">
           <iframe
             src={`https://www.youtube.com/embed/${youtubeId}`}
             title="YouTube video player"

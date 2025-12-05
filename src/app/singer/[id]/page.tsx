@@ -191,7 +191,8 @@ export default function SingerViewPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          fileName: fileName, // ชื่อไฟล์ที่ตั้งใหม่จากขั้นตอนที่ 1
+          fileName: fileName, // ชื่อไฟล์ใน R2 (Unique)
+          originalName: file.name, // 🔥 เพิ่มบรรทัดนี้: ส่งชื่อไฟล์เดิมไปด้วย
           fileType: file.type,
           fileSize: file.size,
           scriptId: id,
@@ -641,7 +642,7 @@ export default function SingerViewPage() {
                 </div>
               ) : (
                 <div
-                  className={`leading-relaxed whitespace-pre-wrap outline-none [&_mark]:!text-gray-900 [&_mark]:!bg-opacity-100`}
+                  className={`leading-relaxed whitespace-pre-wrap outline-none [&_*]:!text-inherit [&_mark]:!text-gray-900 [&_mark]:!bg-opacity-100`}
                   style={{ fontSize: `${fontSize}px` }}
                   dangerouslySetInnerHTML={{ __html: block.htmlContent }}
                 />

@@ -165,24 +165,45 @@ export default function SingerViewPage() {
     }
 
     setIsUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("scriptId", id);
 
     try {
-      const res = await fetch("/api/singer-upload", {
+      // 1. ขอ Signed URL (ใช้ API กลางที่มีอยู่แล้ว)
+      const uploadRes = await fetch("/api/upload", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, type: file.type }),
       });
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Upload failed");
-      }
+      if (!uploadRes.ok) throw new Error("Get upload URL failed");
+      const { url, fileName } = await uploadRes.json();
+
+      // 2. อัปโหลดไฟล์ขึ้น R2 โดยตรง (ไม่ผ่าน Vercel Server)
+      const r2Res = await fetch(url, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type },
+      });
+
+      if (!r2Res.ok) throw new Error("Upload to R2 failed");
+
+      // 3. ส่งข้อมูลไปบันทึกลง Database (ผ่าน API เฉพาะของ Singer เพื่อข้าม RLS)
+      const saveRes = await fetch("/api/singer-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: fileName, // ชื่อไฟล์ที่ตั้งใหม่จากขั้นตอนที่ 1
+          fileType: file.type,
+          fileSize: file.size,
+          scriptId: id,
+        }),
+      });
+
+      if (!saveRes.ok) throw new Error("Save database failed");
 
       showAlert("สำเร็จ", "อัปโหลดไฟล์เสียงเรียบร้อย", "success");
-      fetchData();
+      fetchData(); // รีโหลดข้อมูล
     } catch (error: any) {
+      console.error(error);
       showAlert("ผิดพลาด", "อัปโหลดไม่สำเร็จ: " + error.message, "error");
     } finally {
       setIsUploading(false);

@@ -219,17 +219,24 @@ export default function SingerViewPage() {
   const confirmDeleteFile = async () => {
     if (!deleteTarget) return;
 
-    const { error } = await supabase
-      .from("files")
-      .delete()
-      .eq("id", deleteTarget.id);
-    if (error) {
-      showAlert("ผิดพลาด", "ลบไฟล์ไม่สำเร็จ", "error");
-    } else {
+    try {
+      // เรียก API ลบไฟล์ (ทั้ง R2 และ DB)
+      const res = await fetch("/api/singer-delete-file", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileUrl: deleteTarget.file_url,
+          fileId: deleteTarget.id,
+        }),
+      });
+
+      if (!res.ok) throw new Error("ลบไฟล์ไม่สำเร็จ");
+
+      // อัปเดตหน้าจอ
       const updatedFiles = audioFiles.filter((f) => f.id !== deleteTarget.id);
       setAudioFiles(updatedFiles);
 
-      // ถ้าลบไฟล์ที่กำลังเล่นอยู่ ให้เปลี่ยนไปเล่นไฟล์อื่น หรือหยุดเล่น
+      // ถ้าไฟล์ที่ลบคือไฟล์ที่กำลังเล่นอยู่ ให้เคลียร์ Player
       if (selectedAudio === deleteTarget.file_url) {
         setSelectedAudio(
           updatedFiles.length > 0 ? updatedFiles[0].file_url : ""
@@ -237,10 +244,11 @@ export default function SingerViewPage() {
       }
 
       showAlert("สำเร็จ", "ลบไฟล์เรียบร้อยแล้ว", "success");
+    } catch (error: any) {
+      showAlert("ผิดพลาด", error.message, "error");
     }
     setDeleteTarget(null);
   };
-
   const handleCloseTab = () => {
     window.close();
   };
@@ -654,10 +662,11 @@ export default function SingerViewPage() {
           }`}
         >
           <div className="max-w-3xl mx-auto">
-            {/* 🔥 ใช้ key เพื่อบังคับ re-render เมื่อ URL เปลี่ยน */}
             <audio
-              key={playableUrl}
+              key={playableUrl} // ใส่ key เพื่อให้ Player รีเซ็ตเมื่อเปลี่ยนเพลง
               controls
+              preload="auto" // 🔥 โหลดไฟล์ล่วงหน้า แก้ปัญหากระตุก
+              playsInline // เล่นในหน้าเว็บเลย (ไม่เด้ง Fullscreen ในมือถือ)
               className="w-full h-10 rounded-lg"
               controlsList="nodownload"
             >

@@ -16,9 +16,9 @@ import {
   Languages,
   Eye,
   Briefcase,
-  Check,
   AlertTriangle,
   Loader2,
+  Filter,
 } from "lucide-react";
 
 // สีสำหรับเลือก (Pastel Palette)
@@ -103,7 +103,9 @@ export default function MemberModal({
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // States สำหรับ Modal ลบ
+  // 🔥 New Filter State
+  const [filterRole, setFilterRole] = useState("all");
+
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -128,18 +130,52 @@ export default function MemberModal({
     fetchData();
   }, [projectId]);
 
+  // 🔥 Update logic: Filter & Sort
   const getAvailableUsers = () => {
+    // 1. กรองคนที่เป็นสมาชิกแล้วออก
     const nonMembers = allUsers.filter(
       (user) => !members.some((m) => m.user_id === user.id)
     );
-    if (!searchTerm.trim()) return nonMembers;
-    const lowerTerm = searchTerm.toLowerCase();
-    return nonMembers.filter(
-      (user) =>
-        user.display_name?.toLowerCase().includes(lowerTerm) ||
-        user.email?.toLowerCase().includes(lowerTerm)
-    );
+
+    let filtered = nonMembers;
+
+    // 2. กรองตามคำค้นหา
+    if (searchTerm.trim()) {
+      const lowerTerm = searchTerm.toLowerCase();
+      filtered = filtered.filter(
+        (user) =>
+          user.display_name?.toLowerCase().includes(lowerTerm) ||
+          user.email?.toLowerCase().includes(lowerTerm)
+      );
+    }
+
+    // 3. กรองตาม Role
+    if (filterRole !== "all") {
+      filtered = filtered.filter(
+        (u) => (u.main_role || "member") === filterRole
+      );
+    }
+
+    // 4. จัดเรียงตามความสำคัญ (Singer, Mixer, Producer ขึ้นก่อน)
+    const priority: any = {
+      singer: 1,
+      mixer: 2,
+      producer: 3,
+      artist: 4,
+      member: 99,
+    };
+
+    return filtered.sort((a, b) => {
+      const roleA = a.main_role || "member";
+      const roleB = b.main_role || "member";
+      const pA = priority[roleA] || 50;
+      const pB = priority[roleB] || 50;
+
+      if (pA !== pB) return pA - pB;
+      return (a.display_name || "").localeCompare(b.display_name || "");
+    });
   };
+
   const availableUsers = getAvailableUsers();
 
   const handleAddMember = async (user: any) => {
@@ -153,12 +189,10 @@ export default function MemberModal({
     else fetchData();
   };
 
-  // เปิด Modal ยืนยันลบ
   const promptDeleteMember = (member: any) => {
     setDeleteTarget(member);
   };
 
-  // ยืนยันการลบ
   const confirmDeleteMember = async () => {
     if (!deleteTarget) return;
     setIsDeleting(true);
@@ -234,7 +268,7 @@ export default function MemberModal({
               key={m.id + roleKey}
               m={m}
               toggleRole={toggleRole}
-              onDeleteClick={() => promptDeleteMember(m)} // ส่งฟังก์ชันเปิด Modal ไปแทน
+              onDeleteClick={() => promptDeleteMember(m)}
               changeMemberColor={changeMemberColor}
             />
           ))}
@@ -265,21 +299,41 @@ export default function MemberModal({
         <div className="flex flex-col md:flex-row h-full overflow-hidden">
           {/* Left: Available Users */}
           <div className="w-full md:w-80 bg-white border-r border-gray-100 flex flex-col z-10">
-            <div className="p-4 border-b border-gray-100 bg-gray-50/50">
-              <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">
+            <div className="p-4 border-b border-gray-100 bg-gray-50/50 space-y-3">
+              <label className="text-xs font-bold text-gray-500 uppercase block">
                 รายชื่อในระบบ
               </label>
+
+              {/* Search */}
               <div className="relative">
                 <Search className="absolute left-3 top-2.5 text-gray-400 w-4 h-4" />
                 <input
                   type="text"
                   placeholder="ค้นหาชื่อ..."
-                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-all"
+                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
+
+              {/* 🔥 Filter Dropdown */}
+              <div className="relative">
+                <Filter className="absolute left-3 top-2.5 text-gray-400 w-4 h-4" />
+                <select
+                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none appearance-none bg-white"
+                  value={filterRole}
+                  onChange={(e) => setFilterRole(e.target.value)}
+                >
+                  <option value="all">ทุกตำแหน่ง</option>
+                  <option value="singer">🎤 นักร้อง (Singer)</option>
+                  <option value="mixer">🎧 มิกซ์ (Mixer)</option>
+                  <option value="producer">🛡️ โปรดิวเซอร์ (Producer)</option>
+                  <option value="artist">🎨 อาร์ต (Artist)</option>
+                  <option value="member">👤 ทั่วไป (Member)</option>
+                </select>
+              </div>
             </div>
+
             <div className="flex-1 overflow-y-auto p-2 bg-gray-50/30">
               {loading ? (
                 <div className="text-center py-8 text-gray-400 text-xs">
@@ -315,9 +369,6 @@ export default function MemberModal({
                             className={`uppercase px-1.5 py-0.5 rounded border font-bold tracking-wide ${config.bg} ${config.color}`}
                           >
                             {config.label}
-                          </span>
-                          <span className="text-gray-400 truncate ml-1 opacity-60">
-                            {user.email}
                           </span>
                         </div>
                       </div>
@@ -378,7 +429,7 @@ export default function MemberModal({
         </div>
       </div>
 
-      {/* --- Delete Confirmation Modal --- */}
+      {/* Delete Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-red-100 scale-100 animate-in zoom-in-95 duration-200 text-center">
@@ -424,18 +475,12 @@ export default function MemberModal({
 }
 
 // Sub-component MemberCard
-function MemberCard({
-  m,
-  toggleRole,
-  onDeleteClick, // รับ prop ใหม่ชื่อ onDeleteClick
-  changeMemberColor,
-}: any) {
+function MemberCard({ m, toggleRole, onDeleteClick, changeMemberColor }: any) {
   const [showColorPicker, setShowColorPicker] = useState(false);
 
   return (
     <div className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl shadow-sm hover:border-accent/30 transition-all group">
       <div className="flex items-center gap-3">
-        {/* Avatar & Color Picker */}
         <div className="relative">
           <button
             onClick={() => setShowColorPicker(!showColorPicker)}
@@ -445,8 +490,6 @@ function MemberCard({
           >
             {m.profiles?.display_name?.substring(0, 2).toUpperCase()}
           </button>
-
-          {/* Color Popup */}
           {showColorPicker && (
             <>
               <div className="absolute top-full left-0 mt-2 bg-white p-2 rounded-xl shadow-xl border border-gray-100 grid grid-cols-3 gap-1 z-50 w-24 animate-in fade-in zoom-in-95">
@@ -469,7 +512,6 @@ function MemberCard({
             </>
           )}
         </div>
-
         <div>
           <p className="text-sm font-semibold text-gray-800">
             {m.profiles?.display_name}
@@ -497,10 +539,9 @@ function MemberCard({
           </div>
         </div>
       </div>
-
       {!m.roles?.includes("producer") && (
         <button
-          onClick={onDeleteClick} // เรียกใช้ onDeleteClick
+          onClick={onDeleteClick}
           className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
         >
           <Trash2 className="w-4 h-4" />

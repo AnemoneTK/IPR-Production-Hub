@@ -18,7 +18,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   X,
+  Mic2,
   PlusCircle,
+  UploadCloud,
 } from "lucide-react";
 import {
   DragDropContext,
@@ -64,6 +66,7 @@ function ReferenceItem({
   isResizing: boolean;
 }) {
   const [showConfirm, setShowConfirm] = useState(false);
+
   const youtubeId = getYouTubeID(link.url);
 
   return (
@@ -520,6 +523,14 @@ export default function ScriptEditPage() {
               >
                 <LinkIcon className="w-4 h-4" /> ลิงก์ทั่วไป
               </button>
+              <Link
+                href={`/singer/${id}`}
+                target="_blank"
+                className="flex items-center gap-2 px-3 py-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-all font-bold"
+              >
+                <Mic2 className="w-4 h-4" />
+                <span className="hidden sm:inline">โหมดนักร้อง</span>
+              </Link>
             </div>
           </div>
 

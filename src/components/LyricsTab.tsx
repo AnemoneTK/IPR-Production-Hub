@@ -1,33 +1,24 @@
 "use client";
+import Link from "next/link";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
   Save,
   Plus,
-  Trash2,
   Link as LinkIcon,
   Loader2,
-  User,
-  MessageSquare,
-  Check,
-  Send,
-  Quote,
-  CheckCircle2,
-  Mic,
-  Eraser,
-  Wind,
-  Music,
-  GripVertical,
-  Copy,
-  ArrowUp,
-  ArrowDown,
-  PlusCircle,
+  FileText,
   RotateCcw,
   Youtube,
-  FileText,
+  Music,
+  PlusCircle,
   ExternalLink,
-  X,
+  Trash2,
+  CheckCircle2,
   AlertTriangle,
+  X,
+  Mic2,
+  UploadCloud,
 } from "lucide-react";
 import {
   DragDropContext,
@@ -45,7 +36,7 @@ import LyricEditor, {
 } from "./lyrics/LyricEditor";
 import ReferenceList from "./lyrics/ReferenceList";
 
-// --- Interfaces ---
+// --- Interface for Raw Data (Supabase) ---
 interface ProjectMemberResponse {
   user_id: string;
   roles: string[];
@@ -92,6 +83,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Sidebar
   const [sidebarWidth, setSidebarWidth] = useState(400);
@@ -123,87 +115,147 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
   const youtubeLinks = links.filter((l) => getYouTubeID(l.url));
   const generalLinks = links.filter((l) => !getYouTubeID(l.url));
 
-  // --- Fetch Data ---
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
+  // --- 🔥 1. ย้าย fetchData เป็น useCallback เพื่อให้เรียกซ้ำได้ ---
+  const fetchData = useCallback(async () => {
+    // โหลด Members
+    const { data: memberData } = await supabase
+      .from("project_members")
+      .select(
+        "user_id, roles, assigned_color, profiles(id, display_name, avatar_url)"
+      )
+      .eq("project_id", projectId);
 
-      const { data: memberData } = await supabase
-        .from("project_members")
-        .select(
-          "user_id, roles, assigned_color, profiles(id, display_name, avatar_url)"
-        )
-        .eq("project_id", projectId);
+    const rawMembers = (memberData || []) as unknown as ProjectMemberResponse[];
+    setMembers(
+      rawMembers.map((m) => ({
+        id: m.profiles?.id || "unknown",
+        display_name: m.profiles?.display_name || "Unknown Member",
+        avatar_url: m.profiles?.avatar_url || undefined,
+        roles: m.roles || [],
+        assigned_color: m.assigned_color || "#bfdbfe",
+      }))
+    );
 
-      const rawMembers = (memberData ||
-        []) as unknown as ProjectMemberResponse[];
-      setMembers(
-        rawMembers.map((m) => ({
-          id: m.profiles?.id || "unknown",
-          display_name: m.profiles?.display_name || "Unknown",
-          avatar_url: m.profiles?.avatar_url || undefined,
-          roles: m.roles || [],
-          assigned_color: m.assigned_color || "#bfdbfe",
-        }))
-      );
+    // โหลด Script
+    const { data: scriptData } = await supabase
+      .from("scripts")
+      .select("id, content, updated_at")
+      .eq("project_id", projectId)
+      .maybeSingle();
 
-      const { data: scriptData } = await supabase
-        .from("scripts")
-        .select("id, content, updated_at")
-        .eq("project_id", projectId)
-        .maybeSingle();
+    let currentScriptId = null;
 
-      let currentScriptId = null;
-
-      if (scriptData) {
-        currentScriptId = scriptData.id;
-        setScriptId(scriptData.id);
-        if (scriptData.content) {
-          try {
-            const parsed = JSON.parse(scriptData.content);
-            const formatted: LyricBlock[] = Array.isArray(parsed)
-              ? parsed.map((b: any) => ({
-                  ...b,
-                  type: b.type || "lyrics",
-                  singers: b.singers || [],
-                  htmlContent: b.htmlContent || b.text || "",
-                  comments: b.comments || [],
-                }))
-              : [];
-            setBlocks(
-              formatted.length > 0 ? formatted : [createBlock("lyrics")]
-            );
-          } catch {
-            setBlocks([createBlock("lyrics")]);
-          }
-        } else {
+    if (scriptData) {
+      currentScriptId = scriptData.id;
+      setScriptId(scriptData.id);
+      if (scriptData.content) {
+        try {
+          const parsed = JSON.parse(scriptData.content);
+          const formatted: LyricBlock[] = Array.isArray(parsed)
+            ? parsed.map((b: any) => ({
+                ...b,
+                type: b.type || "lyrics",
+                singers: b.singers || [],
+                htmlContent: b.htmlContent || b.text || "",
+                comments: b.comments || [],
+              }))
+            : [];
+          setBlocks(formatted.length > 0 ? formatted : [createBlock("lyrics")]);
+        } catch {
           setBlocks([createBlock("lyrics")]);
         }
-        setLastSaved(new Date(scriptData.updated_at));
       } else {
         setBlocks([createBlock("lyrics")]);
       }
+      setLastSaved(new Date(scriptData.updated_at));
+    } else {
+      setBlocks([createBlock("lyrics")]);
+    }
 
-      if (currentScriptId) {
-        const { data: linkData } = await supabase
-          .from("reference_links")
-          .select("*")
-          .eq("script_id", currentScriptId)
-          .order("created_at", { ascending: false });
-        setLinks((linkData as ReferenceLink[]) || []);
-      } else {
-        setLinks([]);
-      }
+    // โหลด Links
+    if (currentScriptId) {
+      const { data: linkData } = await supabase
+        .from("reference_links")
+        .select("*")
+        .eq("script_id", currentScriptId)
+        .order("created_at", { ascending: false });
+      setLinks((linkData as ReferenceLink[]) || []);
+    } else {
+      setLinks([]);
+    }
 
-      setLoading(false);
-    };
-    fetchData();
+    setLoading(false);
   }, [projectId]);
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("audio/")) {
+      showAlert(
+        "ไฟล์ไม่ถูกต้อง",
+        "กรุณาอัปโหลดเฉพาะไฟล์เสียง (MP3, WAV, etc.)",
+        "error"
+      );
+      return;
+    }
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("projectId", projectId.toString());
+    // formData.append("folderId", ...); // ถ้ามี Folder Audio เฉพาะ
+
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error("Upload failed");
+
+      showAlert("สำเร็จ", "อัปโหลดไฟล์เสียงเรียบร้อย", "success");
+    } catch (error: any) {
+      showAlert("ผิดพลาด", "อัปโหลดไม่สำเร็จ: " + error.message, "error");
+    } finally {
+      setIsUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  // --- 🔥 2. Setup Realtime Subscription ---
+  useEffect(() => {
+    fetchData(); // โหลดครั้งแรก
+
+    // Subscribe to Project Members changes
+    const memberChannel = supabase
+      .channel(`realtime:members:${projectId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "project_members",
+          filter: `project_id=eq.${projectId}`,
+        },
+        () => {
+          console.log("Members updated, refreshing...");
+          fetchData(); // โหลดใหม่เมื่อมีการเปลี่ยนแปลงสมาชิก
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(memberChannel);
+    };
+  }, [projectId, fetchData]);
+
+  // --- 3. Sidebar Init ---
   useEffect(() => {
     requestAnimationFrame(() => setSidebarWidth(calculateMaxWidth()));
   }, []);
 
+  // --- 4. Auto Save Logic ---
   const handleSaveScript = useCallback(async () => {
     setIsSaving(true);
     const {
@@ -266,6 +318,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
     return () => clearTimeout(timeout);
   }, [blocks, handleSaveScript]);
 
+  // --- 5. Resizing Logic ---
   const startResizing = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setIsResizing(true);
@@ -299,6 +352,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
     };
   }, [isResizing, resize, stopResizing]);
 
+  // --- 6. Block Actions ---
   const addBlock = (type: "lyrics" | "interlude", index?: number) => {
     const newBlock = createBlock(type);
     const newBlocks = [...blocks];
@@ -350,6 +404,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
     setBlocks(items);
   };
 
+  // --- 7. Link Actions ---
   const handleAddLink = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newLink.url) return;
@@ -388,11 +443,11 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
       setLinks([data as ReferenceLink, ...links]);
       setNewLink({ title: "", url: "" });
       setIsAddingLink(false);
+      showAlert("สำเร็จ", "เพิ่มลิงก์เรียบร้อยแล้ว", "success");
     }
   };
 
   const handleDeleteLink = async (id: number) => {
-    // ฟังก์ชันนี้จะถูกเรียกจาก ReferenceList ที่มี Popover ยืนยันแล้ว
     const { error } = await supabase
       .from("reference_links")
       .delete()
@@ -462,6 +517,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col bg-gray-50/30 overflow-hidden relative">
+        {/* Top Bar */}
         <div className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-200/60 px-6 py-3 flex justify-between items-center shadow-sm">
           <div className="flex gap-2">
             <button
@@ -484,6 +540,18 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
             >
               <LinkIcon className="w-4 h-4" /> General References
             </button>
+            <Link
+              href={`/singer/${scriptId}`} // ลิงก์ไปหน้าใหม่โดยใช้ scriptId
+              target="_blank" // เปิดแท็บใหม่
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                !scriptId
+                  ? "pointer-events-none opacity-50 bg-gray-100 text-gray-400"
+                  : "bg-purple-50 text-purple-600 hover:bg-purple-100"
+              }`}
+            >
+              <Mic2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Singer View</span>
+            </Link>
           </div>
           <div className="flex items-center gap-3 text-xs">
             {isSaving ? (
@@ -506,6 +574,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
           </div>
         </div>
 
+        {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
           {activeSubTab === "script" ? (
             <div className="max-w-3xl mx-auto w-full pb-20">
@@ -531,7 +600,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
                                 ...provided.draggableProps.style,
                                 opacity: snapshot.isDragging ? 0.8 : 1,
                               }}
-                              className="group/block relative hover:z-20" // ✅ ใช้ group/block เพื่อให้สัมพันธ์กับ group-hover/block
+                              className="group/block relative hover:z-20"
                             >
                               <LyricEditor
                                 index={index}
@@ -545,14 +614,14 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
                                 dragHandleProps={provided.dragHandleProps}
                               />
 
-                              {/* 🔥 Insert Buttons (Hover Effect) */}
+                              {/* Insert Buttons */}
                               <div className="absolute left-0 right-0 -bottom-6 h-8 z-10 flex items-center justify-center opacity-0 group-hover/block:opacity-100 transition-all duration-200 pointer-events-none group-hover/block:pointer-events-auto">
-                                <div className="flex items-center gap-2 transform scale-75 hover:scale-100 transition-transform">
+                                <div className="flex items-center gap-2 transform scale-75 hover:scale-100 transition-transform bg-gray-50/80 px-3 py-1 rounded-full backdrop-blur-sm border border-gray-200 shadow-sm">
                                   <button
                                     onClick={() =>
                                       addBlock("lyrics", index + 1)
                                     }
-                                    className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-600 rounded-full text-xs font-bold hover:bg-blue-100 shadow-sm transition-colors"
+                                    className="flex items-center gap-1 px-3 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded-full text-xs font-bold hover:bg-blue-100 shadow-sm transition-colors"
                                     title="แทรกเนื้อร้อง"
                                   >
                                     <PlusCircle className="w-3 h-3" /> เนื้อร้อง
@@ -561,7 +630,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
                                     onClick={() =>
                                       addBlock("interlude", index + 1)
                                     }
-                                    className="flex items-center gap-1 px-3 py-1.5 bg-orange-50 border border-orange-200 text-orange-600 rounded-full text-xs font-bold hover:bg-orange-100 shadow-sm transition-colors"
+                                    className="flex items-center gap-1 px-3 py-1 bg-orange-50 border border-orange-200 text-orange-600 rounded-full text-xs font-bold hover:bg-orange-100 shadow-sm transition-colors"
                                     title="แทรกดนตรี"
                                   >
                                     <Music className="w-3 h-3" /> ดนตรี
@@ -598,7 +667,6 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
             </div>
           ) : (
             <div className="max-w-4xl mx-auto space-y-6">
-              {/* Reference Links Content */}
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-bold text-gray-800 flex gap-2">
                   <LinkIcon className="w-5 h-5 text-purple-500" />{" "}
@@ -692,6 +760,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
             </button>
           </div>
         </div>
+
         {isAddingLink && activeSubTab === "script" && (
           <form
             onSubmit={handleAddLink}
@@ -728,7 +797,8 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
             </div>
           </form>
         )}
-        <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-3 custom-scrollbar bg-gray-50/50">
+        {/* Fix: p-4 to fit video better */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-gray-50/50">
           <ReferenceList
             links={youtubeLinks}
             onDelete={handleDeleteLink}

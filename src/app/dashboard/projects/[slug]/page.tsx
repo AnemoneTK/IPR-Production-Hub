@@ -32,11 +32,13 @@ export default function ProjectWorkspace() {
   const [activeTab, setActiveTab] = useState("board");
   const [showMemberModal, setShowMemberModal] = useState(false);
 
+  // 🔥 เพิ่มตัวแปรสำหรับสั่งรีเฟรช Component
+  const [refreshKey, setRefreshKey] = useState(0);
+
   useEffect(() => {
     if (!slug) return;
 
     const fetchProjectDetails = async () => {
-      // ดึงข้อมูลโปรเจกต์
       const { data, error } = await supabase
         .from("projects")
         .select("*")
@@ -55,6 +57,12 @@ export default function ProjectWorkspace() {
 
     fetchProjectDetails();
   }, [slug, router]);
+
+  // 🔥 ฟังก์ชันปิด Modal แล้วสั่งรีเฟรชหน้า Tab
+  const handleCloseModal = () => {
+    setShowMemberModal(false);
+    setRefreshKey((prev) => prev + 1); // เปลี่ยนค่า key เพื่อบังคับโหลดใหม่
+  };
 
   if (loading)
     return (
@@ -139,25 +147,33 @@ export default function ProjectWorkspace() {
 
       {/* Content */}
       <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden relative flex flex-col">
-        {/* 🔥 แก้ไขตรงนี้: ไม่ต้องส่ง isViewer ไปแล้ว */}
-        {activeTab === "board" && <BoardTab projectId={project.id} />}
+        {/* ใส่ key={refreshKey} เพื่อให้โหลดใหม่เมื่อมีการเปลี่ยนแปลง */}
+        {activeTab === "board" && (
+          <BoardTab key={refreshKey} projectId={project.id} />
+        )}
 
-        {/* เพิ่ม Scrollbar ให้หน้า Assets & Settings */}
         {(activeTab === "assets" || activeTab === "settings") && (
           <div className="flex-1 overflow-y-auto">
-            {activeTab === "assets" && <AssetsTab projectId={project.id} />}
-            {activeTab === "settings" && <SettingsTab project={project} />}
+            {activeTab === "assets" && (
+              <AssetsTab key={refreshKey} projectId={project.id} />
+            )}
+            {activeTab === "settings" && (
+              <SettingsTab key={refreshKey} project={project} />
+            )}
           </div>
         )}
 
-        {activeTab === "lyrics" && <LyricsTab projectId={project.id} />}
+        {/* 🔥 LyricsTab จะถูกรีโหลดเมื่อปิด Modal */}
+        {activeTab === "lyrics" && (
+          <LyricsTab key={refreshKey} projectId={project.id} />
+        )}
       </div>
 
       {/* Modal */}
       {showMemberModal && (
         <MemberModal
           projectId={project.id}
-          onClose={() => setShowMemberModal(false)}
+          onClose={handleCloseModal} // ใช้ฟังก์ชันใหม่ที่สั่งรีเฟรชด้วย
         />
       )}
     </div>

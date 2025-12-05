@@ -3,11 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
   Folder,
-  FileAudio,
-  FileImage,
   File as FileIcon,
-  Plus,
-  ArrowLeft,
   Loader2,
   Download,
   UploadCloud,
@@ -22,7 +18,21 @@ import {
   Disc,
   Music4,
   Wand2,
+  Eye,
 } from "lucide-react";
+
+// Interface
+interface FileData {
+  id: number;
+  name: string;
+  file_url: string;
+  file_type: string;
+  size: number;
+  created_at: string;
+  folder_id: number | null;
+  parent_id?: number | null;
+  profiles?: { display_name: string };
+}
 
 export default function AssetsTab({ projectId }: { projectId: number }) {
   // --- States ---
@@ -31,15 +41,26 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
 
   // Data States
   const [folders, setFolders] = useState<any[]>([]);
-  const [files, setFiles] = useState<any[]>([]);
+  const [files, setFiles] = useState<FileData[]>([]);
   const [allFoldersRaw, setAllFoldersRaw] = useState<any[]>([]);
-  const [allFilesRaw, setAllFilesRaw] = useState<any[]>([]);
+  const [allFilesRaw, setAllFilesRaw] = useState<FileData[]>([]);
 
   const [loading, setLoading] = useState(true);
 
   // UI States
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [isDragging, setIsDragging] = useState(false);
+
+  // Preview States
+  const [previewImage, setPreviewImage] = useState<{
+    url: string;
+    name: string;
+  } | null>(null);
+  const [previewAudio, setPreviewAudio] = useState<{
+    url: string;
+    name: string;
+  } | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
 
   // Actions States
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
@@ -182,17 +203,15 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
           body: file,
           headers: { "Content-Type": file.type },
         });
-        await supabase
-          .from("files")
-          .insert({
-            project_id: projectId,
-            folder_id: currentFolderId,
-            name: file.name,
-            file_url: fileName,
-            file_type: file.type,
-            size: file.size,
-            uploaded_by: user.id,
-          });
+        await supabase.from("files").insert({
+          project_id: projectId,
+          folder_id: currentFolderId,
+          name: file.name,
+          file_url: fileName,
+          file_type: file.type,
+          size: file.size,
+          uploaded_by: user.id,
+        });
       }
       fetchData();
     } catch (error: any) {
@@ -222,7 +241,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
     }
   };
 
-  // --- Other Actions ---
+  // --- Rename Logic ---
   const handleRename = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!editingItem || !editingItem.name.trim()) return;
@@ -248,6 +267,59 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
       setEditingItem(null);
     } catch (error) {
       alert("Rename failed");
+    }
+  };
+
+  // --- File Click / Preview ---
+  const handleFileClick = async (file: FileData) => {
+    // 🖼️ รูปภาพ
+    if (file.file_type.includes("image")) {
+      setIsPreviewLoading(true);
+      setPreviewImage({ url: "", name: file.name });
+
+      try {
+        const response = await fetch("/api/download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileKey: file.file_url,
+            originalName: file.name,
+          }),
+        });
+        const { url } = await response.json();
+        if (url) setPreviewImage({ url, name: file.name });
+      } catch (error) {
+        console.error("Preview failed", error);
+        alert("เปิดรูปภาพไม่สำเร็จ");
+        setPreviewImage(null);
+      } finally {
+        setIsPreviewLoading(false);
+      }
+    }
+    // 🎵 เสียง
+    else if (file.file_type.includes("audio")) {
+      setIsPreviewLoading(true);
+      setPreviewAudio({ url: "", name: file.name });
+
+      try {
+        const response = await fetch("/api/get-signed-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileUrl: file.file_url }),
+        });
+        const { signedUrl } = await response.json();
+
+        if (signedUrl) setPreviewAudio({ url: signedUrl, name: file.name });
+        else throw new Error("No signed URL");
+      } catch (error) {
+        console.error("Preview failed", error);
+        alert("เปิดไฟล์เสียงไม่สำเร็จ");
+        setPreviewAudio(null);
+      } finally {
+        setIsPreviewLoading(false);
+      }
+    } else {
+      handleDownload(file.file_url, file.name);
     }
   };
 
@@ -342,6 +414,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      {/* Upload Overlay */}
       {isDragging && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-blue-100/80 border-4 border-blue-400 border-dashed rounded-xl m-4 backdrop-blur-sm pointer-events-none">
           <div className="text-center text-blue-600 animate-bounce">
@@ -359,7 +432,126 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
         multiple
       />
 
-      {/* Toolbar (Responsive Stack) */}
+      {/* 🔥 Preview Image */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div
+            className="absolute top-4 right-4 flex items-center gap-2 z-50"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {previewImage.url && (
+              <a
+                href={previewImage.url}
+                download={previewImage.name}
+                className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+                title="ดาวน์โหลดต้นฉบับ"
+              >
+                <Download className="w-6 h-6" />
+              </a>
+            )}
+            <button
+              className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+              onClick={() => setPreviewImage(null)}
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+          <div className="relative w-full h-full flex items-center justify-center pointer-events-none">
+            {isPreviewLoading && !previewImage.url ? (
+              <Loader2 className="w-12 h-12 text-white animate-spin" />
+            ) : (
+              <img
+                src={previewImage.url}
+                alt={previewImage.name}
+                className="max-w-full max-h-[90vh] object-contain shadow-2xl pointer-events-auto rounded-lg"
+                onClick={(e) => e.stopPropagation()}
+              />
+            )}
+          </div>
+          <div className="absolute bottom-8 text-white font-medium text-lg drop-shadow-md bg-black/60 px-4 py-2 rounded-full max-w-[80%] truncate pointer-events-none">
+            {previewImage.name}
+          </div>
+        </div>
+      )}
+
+      {/* 🔥 Preview Audio */}
+      {previewAudio && (
+        <div
+          className="fixed inset-0 z-[100] h-screen w-screen bg-black flex flex-col items-center justify-center p-6 animate-in slide-in-from-bottom-10 duration-300"
+          onClick={() => setPreviewAudio(null)}
+        >
+          <div
+            className="absolute top-6 right-6 flex items-center gap-3 z-50"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {previewAudio.url && (
+              <a
+                href={previewAudio.url}
+                download={previewAudio.name}
+                className="p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+              >
+                <Download className="w-6 h-6" />
+              </a>
+            )}
+            <button
+              onClick={() => setPreviewAudio(null)}
+              className="p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          <div
+            className="flex flex-col items-center w-full max-w-lg text-center space-y-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className={`w-48 h-48 md:w-72 md:h-72 rounded-full bg-gradient-to-br from-gray-800 to-black border-4 border-gray-700 shadow-2xl flex items-center justify-center relative ${
+                isPreviewLoading ? "" : "animate-spin-slow"
+              }`}
+            >
+              <div className="absolute inset-0 rounded-full border-2 border-white/10 m-4"></div>
+              <div className="absolute inset-0 rounded-full border border-white/5 m-8"></div>
+              <div className="w-20 h-20 bg-accent rounded-full flex items-center justify-center shadow-inner">
+                <Music className="w-10 h-10 text-white" />
+              </div>
+            </div>
+            <div className="space-y-2 w-full px-4">
+              {isPreviewLoading && !previewAudio.url ? (
+                <div className="flex justify-center">
+                  <Loader2 className="w-8 h-8 text-accent animate-spin" />
+                </div>
+              ) : (
+                <>
+                  <h2 className="text-2xl md:text-3xl font-bold text-white truncate">
+                    {previewAudio.name}
+                  </h2>
+                  <p className="text-gray-400 text-sm">Audio Preview</p>
+                </>
+              )}
+            </div>
+            {previewAudio.url && (
+              <div className="w-full bg-white/10 p-4 rounded-2xl backdrop-blur-md border border-white/5">
+                <audio
+                  key={previewAudio.url}
+                  controls
+                  autoPlay
+                  className="w-full h-12"
+                  src={previewAudio.url}
+                  controlsList="nodownload"
+                >
+                  Browser ของคุณไม่รองรับการเล่นเสียง
+                </audio>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Toolbar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
           {currentFolderId && (
@@ -541,7 +733,6 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                     )}
                   </div>
 
-                  {/* Desktop Overlay */}
                   <div className="absolute top-1 right-1 hidden md:flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
                     <button
                       onClick={(e) => {
@@ -571,7 +762,6 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                     </button>
                   </div>
 
-                  {/* Mobile Actions (Visible) */}
                   <div className="md:hidden flex justify-center mt-1 gap-3">
                     <button
                       onClick={(e) => {
@@ -613,11 +803,17 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                   key={file.id}
                   className="group relative bg-white border border-gray-100 rounded-xl overflow-hidden hover:shadow-md transition-all"
                 >
-                  <div className="aspect-square bg-gray-50 flex items-center justify-center relative overflow-hidden">
+                  <div
+                    className="aspect-square bg-gray-50 flex items-center justify-center relative overflow-hidden cursor-pointer"
+                    onClick={() => handleFileClick(file)} // 🔥 เปิด Preview
+                  >
                     <FileThumbnail file={file} />
 
-                    {/* Desktop Overlay */}
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex items-center justify-center gap-2 backdrop-blur-sm">
+                    <div
+                      className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex items-center justify-center gap-2 backdrop-blur-sm"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {/* 🔥 เปลี่ยนปุ่มตาเป็น Download */}
                       <button
                         onClick={() => handleDownload(file.file_url, file.name)}
                         className="p-2 bg-white rounded-full text-gray-700 hover:bg-gray-100"
@@ -625,6 +821,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                       >
                         <Download className="w-4 h-4" />
                       </button>
+
                       <button
                         onClick={() =>
                           setEditingItem({
@@ -678,8 +875,9 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                     ) : (
                       <div className="flex items-start justify-between gap-2">
                         <span
-                          className="text-sm font-medium text-gray-700 truncate"
+                          className="text-sm font-medium text-gray-700 truncate cursor-pointer hover:text-accent"
                           title={file.name}
+                          onClick={() => handleFileClick(file)} // 🔥 เปิด Preview
                         >
                           {file.name}
                         </span>
@@ -692,7 +890,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                       </span>
                     </div>
 
-                    {/* Mobile Actions (Visible) */}
+                    {/* Mobile Actions */}
                     <div className="md:hidden flex justify-between items-center mt-3 pt-2 border-t border-gray-50">
                       <button
                         onClick={() => handleDownload(file.file_url, file.name)}
@@ -732,13 +930,11 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
             </div>
           )}
 
-          {/* 🔥 LIST MODE (Scrollable) */}
+          {/* 🔥 LIST MODE */}
           {viewMode === "list" && files.length > 0 && (
             <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left min-w-[600px]">
-                  {" "}
-                  {/* Set min-width */}
                   <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-100">
                     <tr>
                       <th className="px-4 py-3 w-10"></th>
@@ -753,7 +949,8 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                     {files.map((file) => (
                       <tr
                         key={file.id}
-                        className="hover:bg-gray-50 group transition-colors"
+                        className="hover:bg-gray-50 group transition-colors cursor-pointer"
+                        onClick={() => handleFileClick(file)} // 🔥 เปิด Preview
                       >
                         <td className="px-4 py-3 text-gray-400">
                           {getFileIcon(file)}
@@ -764,6 +961,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                             <form
                               onSubmit={handleRename}
                               className="flex items-center gap-2"
+                              onClick={(e) => e.stopPropagation()}
                             >
                               <input
                                 autoFocus
@@ -803,7 +1001,10 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                         <td className="px-4 py-3 text-gray-400">
                           {new Date(file.created_at).toLocaleDateString()}
                         </td>
-                        <td className="px-4 py-3 text-right flex justify-end gap-1">
+                        <td
+                          className="px-4 py-3 text-right flex justify-end gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <button
                             onClick={() =>
                               handleDownload(file.file_url, file.name)
@@ -813,7 +1014,6 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                           >
                             <Download className="w-4 h-4" />
                           </button>
-                          {/* Always show edit/delete on List view for simplicity, or use hover on desktop */}
                           <button
                             onClick={() =>
                               setEditingItem({
@@ -873,36 +1073,28 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
               <AlertTriangle className="w-6 h-6" />
             </div>
             <h3 className="text-lg font-bold text-center text-gray-900">
-              {deleteTarget.type === "folder" ? "ลบโฟลเดอร์?" : "ลบไฟล์?"}
+              ยืนยันการลบไฟล์?
             </h3>
-            <div className="text-sm text-center text-gray-500 mt-2 mb-4 leading-relaxed">
+            <p className="text-sm text-center text-gray-500 mt-2 mb-6 leading-relaxed">
               คุณกำลังจะลบ{" "}
-              <span className="font-medium text-gray-800 bg-gray-100 px-1.5 py-0.5 rounded mx-1 break-all">
+              <span className="font-bold text-gray-800">
                 "{deleteTarget.name}"
-              </span>
+              </span>{" "}
               <br />
-              {deleteTarget.type === "folder" && getDeleteCount() > 0 ? (
-                <span className="text-red-600 font-bold block mt-1">
-                  ⚠️ โฟลเดอร์นี้มี {getDeleteCount()} ไฟล์ข้างใน
-                  <br />
-                  ทั้งหมดจะถูกลบถาวร!
-                </span>
-              ) : (
-                "การกระทำนี้ไม่สามารถย้อนกลับได้"
-              )}
-            </div>
-            <div className="flex gap-3 mt-6">
+              การกระทำนี้ไม่สามารถย้อนกลับได้
+            </p>
+            <div className="flex gap-3">
               <button
                 onClick={() => setDeleteTarget(null)}
                 disabled={isDeleting}
-                className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50"
+                className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200"
               >
                 ยกเลิก
               </button>
               <button
                 onClick={executeDelete}
                 disabled={isDeleting}
-                className="flex-1 py-2.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-500/30 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                className="flex-1 py-2.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-500/30 flex items-center justify-center gap-2"
               >
                 {isDeleting ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -922,17 +1114,17 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
 // Helpers
 const getFileIcon = (file: any) => {
   if (file.file_type.includes("image"))
-    return <FileImage className="w-5 h-5 text-purple-400" />;
+    return <ImageIcon className="w-6 h-6 text-purple-500" />;
   const isMix =
     file.name.toLowerCase().includes("mix") ||
     file.name.toLowerCase().includes("master");
   if (file.file_type.includes("audio"))
     return isMix ? (
-      <Disc className="w-5 h-5 text-orange-500" />
+      <Disc className="w-6 h-6 text-orange-500" />
     ) : (
-      <Music4 className="w-5 h-5 text-blue-500" />
+      <Music4 className="w-6 h-6 text-blue-500" />
     );
-  return <FileIcon className="w-5 h-5 text-gray-400" />;
+  return <FileIcon className="w-6 h-6 text-gray-400" />;
 };
 
 const FileThumbnail = ({ file }: { file: any }) => {
@@ -954,6 +1146,7 @@ const FileThumbnail = ({ file }: { file: any }) => {
         .catch((err) => console.error(err));
     }
   }, [file]);
+
   if (file.file_type.includes("image") && imageUrl)
     return (
       <img
@@ -962,6 +1155,7 @@ const FileThumbnail = ({ file }: { file: any }) => {
         className="w-full h-full object-cover transform hover:scale-110 transition-transform duration-500"
       />
     );
+
   const isMix =
     file.name.toLowerCase().includes("mix") ||
     file.name.toLowerCase().includes("master");

@@ -1,12 +1,10 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
   Search,
   Filter,
   Download,
-  FileAudio,
-  FileImage,
   File as FileIcon,
   Loader2,
   Music4,
@@ -19,6 +17,9 @@ import {
   Check,
   X,
   AlertTriangle,
+  Eye,
+  UploadCloud,
+  Music,
 } from "lucide-react";
 
 // Interface
@@ -58,6 +59,22 @@ export default function GlobalAssetsPage() {
     name: string;
   } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Preview States
+  const [previewImage, setPreviewImage] = useState<{
+    url: string;
+    name: string;
+  } | null>(null);
+  const [previewAudio, setPreviewAudio] = useState<{
+    url: string;
+    name: string;
+  } | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+
+  // Upload State
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -113,7 +130,73 @@ export default function GlobalAssetsPage() {
     return () => clearTimeout(timeoutId);
   }, [searchTerm, selectedProject, activeTab]);
 
-  // --- 3. Rename Logic ---
+  // --- 3. Upload Logic ---
+  const uploadFiles = async (fileList: FileList | File[]) => {
+    if (!fileList || fileList.length === 0) return;
+    setIsUploading(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Login required");
+
+      for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i];
+
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: JSON.stringify({ name: file.name, type: file.type }),
+        });
+        const { url, fileName } = await response.json();
+
+        await fetch(url, {
+          method: "PUT",
+          body: file,
+          headers: { "Content-Type": file.type },
+        });
+
+        const targetProjectId =
+          selectedProject === "all" ? null : parseInt(selectedProject);
+
+        await supabase.from("files").insert({
+          project_id: targetProjectId,
+          folder_id: null,
+          name: file.name,
+          file_url: fileName,
+          file_type: file.type,
+          size: file.size,
+          uploaded_by: user.id,
+        });
+      }
+      fetchFiles();
+    } catch (error: any) {
+      alert("Upload failed: " + error.message);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) uploadFiles(e.target.files);
+  };
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files) {
+      uploadFiles(e.dataTransfer.files);
+    }
+  };
+
+  // --- 4. Rename Logic ---
   const handleRename = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!editingItem || !editingItem.name.trim()) return;
@@ -135,7 +218,7 @@ export default function GlobalAssetsPage() {
     }
   };
 
-  // --- 4. Delete Logic ---
+  // --- 5. Delete Logic ---
   const executeDelete = async () => {
     if (!deleteTarget) return;
     setIsDeleting(true);
@@ -159,7 +242,7 @@ export default function GlobalAssetsPage() {
     }
   };
 
-  // --- 5. Download ---
+  // --- 6. Download ---
   const handleDownload = async (fileKey: string, originalName: string) => {
     try {
       const response = await fetch("/api/download", {
@@ -181,6 +264,59 @@ export default function GlobalAssetsPage() {
     }
   };
 
+  // --- 7. Click/Preview Logic ---
+  const handleFileClick = async (file: FileData) => {
+    // 🖼️ รูปภาพ
+    if (file.file_type.includes("image")) {
+      setIsPreviewLoading(true);
+      setPreviewImage({ url: "", name: file.name });
+
+      try {
+        const response = await fetch("/api/download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileKey: file.file_url,
+            originalName: file.name,
+          }),
+        });
+        const { url } = await response.json();
+        if (url) setPreviewImage({ url, name: file.name });
+      } catch (error) {
+        console.error("Preview failed", error);
+        alert("เปิดรูปภาพไม่สำเร็จ");
+        setPreviewImage(null);
+      } finally {
+        setIsPreviewLoading(false);
+      }
+    }
+    // 🎵 เสียง
+    else if (file.file_type.includes("audio")) {
+      setIsPreviewLoading(true);
+      setPreviewAudio({ url: "", name: file.name });
+
+      try {
+        const response = await fetch("/api/get-signed-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileUrl: file.file_url }),
+        });
+        const { signedUrl } = await response.json();
+
+        if (signedUrl) setPreviewAudio({ url: signedUrl, name: file.name });
+        else throw new Error("No signed URL");
+      } catch (error) {
+        console.error("Preview failed", error);
+        alert("เปิดไฟล์เสียงไม่สำเร็จ");
+        setPreviewAudio(null);
+      } finally {
+        setIsPreviewLoading(false);
+      }
+    } else {
+      handleDownload(file.file_url, file.name);
+    }
+  };
+
   const formatSize = (bytes: number) => {
     if (bytes === 0) return "0 B";
     const k = 1024;
@@ -190,7 +326,162 @@ export default function GlobalAssetsPage() {
   };
 
   return (
-    <div className="space-y-6 pb-10">
+    <div
+      className={`space-y-6 pb-10 min-h-screen relative ${
+        isDragging ? "bg-blue-50/50" : ""
+      }`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Upload Drag Overlay */}
+      {isDragging && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-blue-100/80 border-4 border-blue-400 border-dashed m-4 rounded-xl backdrop-blur-sm pointer-events-none">
+          <div className="text-center text-blue-600 animate-bounce">
+            <UploadCloud className="w-16 h-16 mx-auto mb-2" />
+            <h3 className="text-2xl font-bold">วางไฟล์เพื่ออัปโหลด</h3>
+          </div>
+        </div>
+      )}
+
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileInputChange}
+        className="hidden"
+        multiple
+      />
+
+      {/* 🔥 Image Preview Modal (Full Screen Fix) */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-[100] h-screen w-screen bg-black flex flex-col items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setPreviewImage(null)}
+        >
+          {/* ปุ่มรวมกันที่ขวาบน */}
+          <div
+            className="absolute top-4 right-4 flex items-center gap-2 z-50"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {previewImage.url && (
+              <a
+                href={previewImage.url}
+                download={previewImage.name}
+                className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+                title="ดาวน์โหลดต้นฉบับ"
+              >
+                <Download className="w-6 h-6" />
+              </a>
+            )}
+            <button
+              className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+              onClick={() => setPreviewImage(null)}
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          <div className="relative w-full h-full flex items-center justify-center pointer-events-none">
+            {isPreviewLoading && !previewImage.url ? (
+              <Loader2 className="w-12 h-12 text-white animate-spin" />
+            ) : (
+              <img
+                src={previewImage.url}
+                alt={previewImage.name}
+                className="max-w-full max-h-[90vh] object-contain shadow-2xl pointer-events-auto"
+                onClick={(e) => e.stopPropagation()}
+              />
+            )}
+          </div>
+
+          {/* ชื่อไฟล์ */}
+          <div className="absolute bottom-8 text-white font-medium text-lg drop-shadow-md bg-black/60 px-4 py-2 rounded-full max-w-[80%] truncate pointer-events-none">
+            {previewImage.name}
+          </div>
+        </div>
+      )}
+
+      {/* 🔥 Audio Player Page */}
+      {previewAudio && (
+        <div
+          className="fixed inset-0 z-[100] h-screen w-screen bg-black flex flex-col items-center justify-center p-6 animate-in slide-in-from-bottom-10 duration-300"
+          onClick={() => setPreviewAudio(null)}
+        >
+          {/* ปุ่มรวมกันที่ขวาบน */}
+          <div
+            className="absolute top-6 right-6 flex items-center gap-3 z-50"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {previewAudio.url && (
+              <a
+                href={previewAudio.url}
+                download={previewAudio.name}
+                className="p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+              >
+                <Download className="w-6 h-6" />
+              </a>
+            )}
+            <button
+              onClick={() => setPreviewAudio(null)}
+              className="p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          {/* Player Content */}
+          <div
+            className="flex flex-col items-center w-full max-w-lg text-center space-y-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Spinning Disc Animation */}
+            <div
+              className={`w-48 h-48 md:w-72 md:h-72 rounded-full bg-gradient-to-br from-gray-800 to-black border-4 border-gray-700 shadow-2xl flex items-center justify-center relative ${
+                isPreviewLoading ? "" : "animate-spin-slow"
+              }`}
+            >
+              <div className="absolute inset-0 rounded-full border-2 border-white/10 m-4"></div>
+              <div className="absolute inset-0 rounded-full border border-white/5 m-8"></div>
+              <div className="w-20 h-20 bg-accent rounded-full flex items-center justify-center shadow-inner">
+                <Music className="w-10 h-10 text-white" />
+              </div>
+            </div>
+
+            {/* Track Info */}
+            <div className="space-y-2 w-full px-4">
+              {isPreviewLoading && !previewAudio.url ? (
+                <div className="flex justify-center">
+                  <Loader2 className="w-8 h-8 text-accent animate-spin" />
+                </div>
+              ) : (
+                <>
+                  <h2 className="text-2xl md:text-3xl font-bold text-white truncate">
+                    {previewAudio.name}
+                  </h2>
+                  <p className="text-gray-400 text-sm">Audio Preview</p>
+                </>
+              )}
+            </div>
+
+            {/* Audio Controls */}
+            {previewAudio.url && (
+              <div className="w-full bg-white/10 p-4 rounded-2xl backdrop-blur-md border border-white/5">
+                <audio
+                  key={previewAudio.url}
+                  controls
+                  autoPlay
+                  className="w-full h-12"
+                  src={previewAudio.url}
+                  controlsList="nodownload"
+                >
+                  Browser ของคุณไม่รองรับการเล่นเสียง
+                </audio>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -202,12 +493,24 @@ export default function GlobalAssetsPage() {
             รวมไฟล์ทั้งหมดจากทุกโปรเจกต์ไว้ที่นี่
           </p>
         </div>
+
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isUploading}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-accent hover:bg-accent-hover text-white font-bold rounded-xl shadow-sm disabled:opacity-50 transition-all active:scale-95"
+        >
+          {isUploading ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <UploadCloud className="w-5 h-5" />
+          )}
+          <span>{isUploading ? "กำลังอัปโหลด..." : "อัปโหลดไฟล์"}</span>
+        </button>
       </div>
 
-      {/* --- Filter Bar (Responsive) --- */}
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col xl:flex-row gap-4 items-center justify-between">
-        {/* Tabs (Scrollable) */}
-        <div className="flex bg-gray-100 p-1 rounded-xl w-full xl:w-auto overflow-x-auto pb-1 xl:pb-1">
+      {/* --- Filter Bar --- */}
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col xl:flex-row gap-4 items-center justify-between sticky top-2 z-20">
+        <div className="flex bg-gray-100 p-1 rounded-xl w-full xl:w-auto overflow-x-auto pb-1 xl:pb-1 no-scrollbar">
           {[
             { id: "all", label: "ทั้งหมด", icon: FileIcon },
             { id: "image", label: "รูปภาพ", icon: ImageIcon },
@@ -229,7 +532,6 @@ export default function GlobalAssetsPage() {
           ))}
         </div>
 
-        {/* Filters & Toggles */}
         <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto items-center">
           <select
             className="w-full sm:w-auto px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:border-accent outline-none text-gray-700"
@@ -278,7 +580,7 @@ export default function GlobalAssetsPage() {
         </div>
       </div>
 
-      {/* Content Area */}
+      {/* Content */}
       {loading ? (
         <div className="h-64 flex items-center justify-center text-gray-400">
           <Loader2 className="w-8 h-8 animate-spin" />
@@ -290,7 +592,7 @@ export default function GlobalAssetsPage() {
         </div>
       ) : (
         <>
-          {/* 🔥 GRID MODE (Mobile Friendly) */}
+          {/* 🔥 GRID MODE */}
           {viewMode === "grid" && (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {files.map((file) => (
@@ -298,11 +600,19 @@ export default function GlobalAssetsPage() {
                   key={file.id}
                   className="group bg-white p-3 md:p-4 rounded-xl border border-gray-100 hover:border-accent/50 hover:shadow-md transition-all flex flex-col relative"
                 >
-                  <div className="h-32 md:h-40 bg-gray-50 rounded-lg mb-3 flex items-center justify-center overflow-hidden relative border border-gray-100">
+                  {/* Thumbnail */}
+                  <div
+                    className="h-32 md:h-40 bg-gray-50 rounded-lg mb-3 flex items-center justify-center overflow-hidden relative border border-gray-100 cursor-pointer"
+                    onClick={() => handleFileClick(file)}
+                  >
                     <FileThumbnail file={file} />
 
                     {/* Desktop Overlay */}
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex items-center justify-center gap-2 backdrop-blur-sm">
+                    <div
+                      className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex items-center justify-center gap-2 backdrop-blur-sm"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {/* 🔥 เปลี่ยนปุ่มตาเป็น Download */}
                       <button
                         onClick={() => handleDownload(file.file_url, file.name)}
                         className="p-2 bg-white rounded-full text-gray-700 hover:bg-gray-100"
@@ -310,6 +620,7 @@ export default function GlobalAssetsPage() {
                       >
                         <Download className="w-4 h-4" />
                       </button>
+
                       <button
                         onClick={() =>
                           setEditingItem({ id: file.id, name: file.name })
@@ -335,6 +646,7 @@ export default function GlobalAssetsPage() {
                     </div>
                   </div>
 
+                  {/* File Info */}
                   <div className="flex-1 min-w-0">
                     {editingItem?.id === file.id ? (
                       <form
@@ -358,8 +670,9 @@ export default function GlobalAssetsPage() {
                     ) : (
                       <div className="flex items-start justify-between gap-2 mb-1">
                         <h3
-                          className="font-semibold text-gray-800 text-sm truncate"
+                          className="font-semibold text-gray-800 text-sm truncate cursor-pointer hover:text-accent"
                           title={file.name}
+                          onClick={() => handleFileClick(file)}
                         >
                           {file.name}
                         </h3>
@@ -371,18 +684,15 @@ export default function GlobalAssetsPage() {
                     <p className="text-xs text-gray-500 truncate mb-1 flex items-center gap-1">
                       📁 {file.projects?.title}
                     </p>
-
-                    {/* Desktop Info */}
                     <div className="hidden md:flex items-center justify-between text-[10px] text-gray-400 border-t border-gray-50 pt-2 mt-auto">
                       <span>{file.profiles?.display_name}</span>
                       <span>{formatSize(file.size)}</span>
                     </div>
-
-                    {/* Mobile Actions (Visible) */}
+                    {/* Mobile Actions */}
                     <div className="md:hidden flex justify-between items-center mt-2 pt-2 border-t border-gray-50">
                       <button
                         onClick={() => handleDownload(file.file_url, file.name)}
-                        className="text-gray-600 p-1"
+                        className="text-gray-600 p-2 hover:bg-gray-100 rounded"
                       >
                         <Download className="w-4 h-4" />
                       </button>
@@ -390,7 +700,7 @@ export default function GlobalAssetsPage() {
                         onClick={() =>
                           setEditingItem({ id: file.id, name: file.name })
                         }
-                        className="text-blue-600 p-1"
+                        className="text-blue-600 p-2 hover:bg-blue-50 rounded"
                       >
                         <Pencil className="w-4 h-4" />
                       </button>
@@ -402,7 +712,7 @@ export default function GlobalAssetsPage() {
                             key: file.file_url,
                           })
                         }
-                        className="text-red-600 p-1"
+                        className="text-red-600 p-2 hover:bg-red-50 rounded"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -413,7 +723,6 @@ export default function GlobalAssetsPage() {
             </div>
           )}
 
-          {/* 🔥 LIST MODE (Scrollable) */}
           {viewMode === "list" && (
             <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
@@ -433,16 +742,18 @@ export default function GlobalAssetsPage() {
                     {files.map((file) => (
                       <tr
                         key={file.id}
-                        className="hover:bg-gray-50 transition-colors group"
+                        className="hover:bg-gray-50 group transition-colors cursor-pointer"
+                        onClick={() => handleFileClick(file)}
                       >
                         <td className="px-4 py-3 text-gray-400">
-                          {getFileIcon(file, "w-5 h-5")}
+                          {getFileIcon(file)}
                         </td>
                         <td className="px-4 py-3 font-medium text-gray-700 max-w-[200px]">
                           {editingItem?.id === file.id ? (
                             <form
                               onSubmit={handleRename}
                               className="flex items-center gap-2"
+                              onClick={(e) => e.stopPropagation()}
                             >
                               <input
                                 autoFocus
@@ -487,41 +798,41 @@ export default function GlobalAssetsPage() {
                             "th-TH"
                           )}
                         </td>
-                        <td className="px-4 py-3 text-right flex justify-end gap-1">
-                          {/* Mobile: Show Always / Desktop: Show on Hover */}
-                          <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={() =>
-                                setEditingItem({ id: file.id, name: file.name })
-                              }
-                              className="p-1.5 text-gray-400 hover:text-blue-500 rounded-lg hover:bg-blue-50"
-                              title="เปลี่ยนชื่อ"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleDownload(file.file_url, file.name)
-                              }
-                              className="p-1.5 text-gray-400 hover:text-accent rounded-lg hover:bg-blue-50"
-                              title="ดาวน์โหลด"
-                            >
-                              <Download className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() =>
-                                setDeleteTarget({
-                                  id: file.id,
-                                  name: file.name,
-                                  key: file.file_url,
-                                })
-                              }
-                              className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50"
-                              title="ลบไฟล์"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
+                        <td
+                          className="px-4 py-3 text-right flex justify-end gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={() =>
+                              handleDownload(file.file_url, file.name)
+                            }
+                            className="p-1.5 text-gray-400 hover:text-accent rounded-lg hover:bg-blue-50"
+                            title="ดาวน์โหลด"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() =>
+                              setEditingItem({ id: file.id, name: file.name })
+                            }
+                            className="p-1.5 text-gray-400 hover:text-blue-500 rounded-lg hover:bg-blue-50"
+                            title="เปลี่ยนชื่อ"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() =>
+                              setDeleteTarget({
+                                id: file.id,
+                                name: file.name,
+                                key: file.file_url,
+                              })
+                            }
+                            className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50"
+                            title="ลบไฟล์"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -533,7 +844,6 @@ export default function GlobalAssetsPage() {
         </>
       )}
 
-      {/* Delete Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-red-100 scale-100 animate-in zoom-in-95 duration-200">
@@ -623,11 +933,10 @@ const FileThumbnail = ({ file }: { file: FileData }) => {
         className="w-full h-full object-cover transform hover:scale-110 transition-transform duration-500"
       />
     );
-
   const isMix =
     file.name.toLowerCase().includes("mix") ||
     file.name.toLowerCase().includes("master");
-  if (file.file_type.includes("audio")) {
+  if (file.file_type.includes("audio"))
     return (
       <div
         className={`w-12 h-12 rounded-full flex items-center justify-center ${
@@ -637,6 +946,5 @@ const FileThumbnail = ({ file }: { file: FileData }) => {
         {isMix ? <Disc className="w-6 h-6" /> : <Music4 className="w-6 h-6" />}
       </div>
     );
-  }
   return <FileIcon className="w-10 h-10 text-gray-300" />;
 };

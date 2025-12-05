@@ -19,6 +19,7 @@ import {
   Music4,
   Wand2,
   Eye,
+  Music,
 } from "lucide-react";
 
 // Interface

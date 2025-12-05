@@ -20,6 +20,7 @@ import {
   Wand2,
   Eye,
   Music,
+  ArrowLeft,
 } from "lucide-react";
 
 // Interface

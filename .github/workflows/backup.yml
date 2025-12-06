@@ -2,9 +2,8 @@ name: Backup Supabase to R2
 
 on:
   schedule:
-    # รันทุกวันเวลาตี 3 (เวลาไทยคือประมาณ 10 โมงเช้า)
-    - cron: "0 3 * * *"
-  workflow_dispatch: # ปุ่มกดรันเองด้วยมือ (เผื่ออยากกด Backup ทันที)
+    - cron: "0 3 * * *" # รันทุกวันตอนตี 3
+  workflow_dispatch:
 
 jobs:
   backup_and_upload:
@@ -14,6 +13,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # 🔥 เพิ่มส่วนนี้: ปิด IPv6 เพื่อบังคับใช้ IPv4 แก้ปัญหา Network unreachable
+      - name: Disable IPv6
+        run: |
+          sudo sysctl -w net.ipv6.conf.all.disable_ipv6=1
+          sudo sysctl -w net.ipv6.conf.default.disable_ipv6=1
+          sudo sysctl -w net.ipv6.conf.lo.disable_ipv6=1
+
       - name: Install PostgreSQL Client
         run: |
           sudo apt-get update
@@ -21,20 +27,18 @@ jobs:
 
       - name: Dump Database
         run: |
-          # ตั้งชื่อไฟล์ตามวันที่และเวลา เช่น backup-2023-10-25-1400.sql
           FILENAME="backup-$(date +'%Y-%m-%d-%H%M').sql"
 
-          # ใช้ pg_dump ดึงข้อมูล (ใช้ตัวแปรลับ SUPABASE_DB_URL)
+          # ใช้ pg_dump
           pg_dump "${{ secrets.SUPABASE_DB_URL }}" -f "$FILENAME"
 
-          # เช็คว่าไฟล์ถูกสร้างจริงไหม
+          # ตรวจสอบไฟล์
           ls -lh "$FILENAME"
 
-          # เก็บชื่อไฟล์ไว้ในตัวแปร environment เพื่อใช้ในขั้นตอนถัดไป
+          # ส่งค่าชื่อไฟล์ไปให้ step ถัดไป
           echo "BACKUP_FILENAME=$FILENAME" >> $GITHUB_ENV
 
       - name: Configure AWS CLI for Cloudflare R2
-        # Cloudflare R2 ใช้โปรโตคอลเดียวกับ AWS S3 เราจึงใช้ AWS CLI ได้เลย
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -43,10 +47,13 @@ jobs:
 
       - name: Upload to R2
         run: |
-          # อัปโหลดไฟล์ไปยัง R2 ในโฟลเดอร์ database-backups/
           aws s3 cp ${{ env.BACKUP_FILENAME }} s3://${{ secrets.R2_BUCKET_NAME }}/database-backups/${{ env.BACKUP_FILENAME }} \
             --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
 
-      - name: Cleanup (Optional)
-        if: always()
-        run: rm ${{ env.BACKUP_FILENAME }}
+      - name: Cleanup
+        if: always() # รันเสมอแม้ข้างบนจะพัง
+        run: |
+          # เช็คก่อนลบ กัน error ว่า missing operand
+          if [ -n "${{ env.BACKUP_FILENAME }}" ]; then
+            rm -f ${{ env.BACKUP_FILENAME }}
+          fi

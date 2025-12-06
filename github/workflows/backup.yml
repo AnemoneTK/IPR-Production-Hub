@@ -1,0 +1,52 @@
+name: Backup Supabase to R2
+
+on:
+  schedule:
+    # รันทุกวันเวลาตี 3 (เวลาไทยคือประมาณ 10 โมงเช้า)
+    - cron: "0 3 * * *"
+  workflow_dispatch: # ปุ่มกดรันเองด้วยมือ (เผื่ออยากกด Backup ทันที)
+
+jobs:
+  backup_and_upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL Client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Dump Database
+        run: |
+          # ตั้งชื่อไฟล์ตามวันที่และเวลา เช่น backup-2023-10-25-1400.sql
+          FILENAME="backup-$(date +'%Y-%m-%d-%H%M').sql"
+
+          # ใช้ pg_dump ดึงข้อมูล (ใช้ตัวแปรลับ SUPABASE_DB_URL)
+          pg_dump "${{ secrets.SUPABASE_DB_URL }}" -f "$FILENAME"
+
+          # เช็คว่าไฟล์ถูกสร้างจริงไหม
+          ls -lh "$FILENAME"
+
+          # เก็บชื่อไฟล์ไว้ในตัวแปร environment เพื่อใช้ในขั้นตอนถัดไป
+          echo "BACKUP_FILENAME=$FILENAME" >> $GITHUB_ENV
+
+      - name: Configure AWS CLI for Cloudflare R2
+        # Cloudflare R2 ใช้โปรโตคอลเดียวกับ AWS S3 เราจึงใช้ AWS CLI ได้เลย
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          aws-region: auto
+
+      - name: Upload to R2
+        run: |
+          # อัปโหลดไฟล์ไปยัง R2 ในโฟลเดอร์ database-backups/
+          aws s3 cp ${{ env.BACKUP_FILENAME }} s3://${{ secrets.R2_BUCKET_NAME }}/database-backups/${{ env.BACKUP_FILENAME }} \
+            --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+
+      - name: Cleanup (Optional)
+        if: always()
+        run: rm ${{ env.BACKUP_FILENAME }}

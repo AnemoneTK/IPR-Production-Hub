@@ -2,8 +2,8 @@ name: Backup Supabase to R2
 
 on:
   schedule:
-    - cron: "0 3 * * *"
-  workflow_dispatch:
+    - cron: "0 3 * * *" # รันทุกวันเวลาตี 3 (ประมาณ 10 โมงเช้าไทย)
+  workflow_dispatch: # ปุ่มกดรันเองได้
 
 jobs:
   backup_and_upload:
@@ -13,6 +13,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # 1. ติดตั้ง PostgreSQL Client เวอร์ชัน 17 (เพื่อให้ตรงกับ Supabase)
       - name: Install PostgreSQL Client 17
         run: |
           sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
@@ -20,29 +21,32 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client-17
 
-      # 2. สั่ง Dump ข้อมูล (โดยระบุ Path ของเวอร์ชัน 17 แบบเจาะจง)
+      # 2. ดึงข้อมูล (Dump)
       - name: Dump Database
         run: |
+          # ตั้งชื่อไฟล์ตามเวลา
           FILENAME="backup-$(date +'%Y-%m-%d-%H%M').sql"
 
-          # 🔥 ใช้ /usr/lib/postgresql/17/bin/pg_dump เพื่อเรียกตัว v17 โดยตรง
+          # ใช้ pg_dump v17 ดึงข้อมูลจาก URL (ต้องใช้ลิงก์ Pooler Port 6543 ใน Secret)
           /usr/lib/postgresql/17/bin/pg_dump "${{ secrets.SUPABASE_DB_URL }}" -f "$FILENAME" --no-owner --no-acl
 
+          # เช็คขนาดไฟล์
           ls -lh "$FILENAME"
+
+          # ส่งชื่อไฟล์ไปขั้นตอนถัดไป
           echo "BACKUP_FILENAME=$FILENAME" >> $GITHUB_ENV
 
-      - name: Configure AWS CLI for Cloudflare R2
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          aws-region: auto
-
+      # 3. อัปโหลดขึ้น R2 (ใช้ env แทน action เพื่อแก้ปัญหาหา region ไม่เจอ)
       - name: Upload to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
         run: |
           aws s3 cp ${{ env.BACKUP_FILENAME }} s3://${{ secrets.R2_BUCKET_NAME }}/database-backups/${{ env.BACKUP_FILENAME }} \
             --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
 
+      # 4. ลบไฟล์ออกจากเครื่อง GitHub (Cleanup)
       - name: Cleanup
         if: always()
         run: |

@@ -13,12 +13,31 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 🔥 เพิ่มส่วนนี้: ปิด IPv6 เพื่อบังคับใช้ IPv4 แก้ปัญหา Network unreachable
-      - name: Disable IPv6
+      # 🔥 ขั้นตอนนี้สำคัญมาก: บังคับให้ใช้ IPv4 เท่านั้น (แก้ปัญหา Cannot assign address)
+      - name: Force IPv4 for Supabase
+        shell: bash
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
-          sudo sysctl -w net.ipv6.conf.all.disable_ipv6=1
-          sudo sysctl -w net.ipv6.conf.default.disable_ipv6=1
-          sudo sysctl -w net.ipv6.conf.lo.disable_ipv6=1
+          # 1. ดึง Hostname ออกมาจาก Connection String (ส่วนที่อยู่ระหว่าง @ กับ :)
+          # เช่น postgres://user:pass@db.xxxx.supabase.co:5432/... -> จะได้ db.xxxx.supabase.co
+          HOST=$(echo $DB_URL | sed -r 's/.*@([^:]+):.*/\1/')
+
+          echo "Detected Host: $HOST"
+
+          # 2. ค้นหาเลข IP ที่เป็น IPv4 (A record) ของ Host นั้น
+          IPV4=$(dig +short A $HOST | head -n 1)
+
+          echo "Resolved IPv4: $IPV4"
+
+          if [ -n "$IPV4" ]; then
+            # 3. เขียนทับลง /etc/hosts เพื่อบังคับให้ Hostname นี้วิ่งไปที่ IPv4 เท่านั้น
+            echo "$IPV4 $HOST" | sudo tee -a /etc/hosts
+            echo "✅ Successfully mapped $HOST to $IPV4"
+          else
+            echo "❌ Failed to resolve IPv4 address"
+            exit 1
+          fi
 
       - name: Install PostgreSQL Client
         run: |
@@ -29,13 +48,10 @@ jobs:
         run: |
           FILENAME="backup-$(date +'%Y-%m-%d-%H%M').sql"
 
-          # ใช้ pg_dump
+          # ตอนนี้ pg_dump จะวิ่งผ่าน IPv4 ที่เราบังคับไว้แน่นอน
           pg_dump "${{ secrets.SUPABASE_DB_URL }}" -f "$FILENAME"
 
-          # ตรวจสอบไฟล์
           ls -lh "$FILENAME"
-
-          # ส่งค่าชื่อไฟล์ไปให้ step ถัดไป
           echo "BACKUP_FILENAME=$FILENAME" >> $GITHUB_ENV
 
       - name: Configure AWS CLI for Cloudflare R2
@@ -51,9 +67,8 @@ jobs:
             --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
 
       - name: Cleanup
-        if: always() # รันเสมอแม้ข้างบนจะพัง
+        if: always()
         run: |
-          # เช็คก่อนลบ กัน error ว่า missing operand
           if [ -n "${{ env.BACKUP_FILENAME }}" ]; then
             rm -f ${{ env.BACKUP_FILENAME }}
           fi

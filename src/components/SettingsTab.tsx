@@ -39,55 +39,61 @@ const PROJECT_STATUSES = [
 
 export default function SettingsTab({ project }: { project: any }) {
   const router = useRouter();
+
   const [loading, setLoading] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteInput, setDeleteInput] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+  // ฟังก์ชันแปลง UTC -> Local Time สำหรับแสดงผลใน input
+  const getLocalDateTime = (utcString: string | null) => {
+    if (!utcString) return "";
+    const date = new Date(utcString);
+    const offset = date.getTimezoneOffset() * 60000;
+    const localDate = new Date(date.getTime() - offset);
+    return localDate.toISOString().slice(0, 16);
+  };
 
   const [formData, setFormData] = useState({
     title: project.title || "",
     description: project.description || "",
     slug: project.slug || "",
-    deadline: project.deadline
-      ? new Date(project.deadline).toISOString().slice(0, 16)
-      : "",
+    deadline: getLocalDateTime(project.deadline),
     status: project.status || "planning",
   });
-
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [deleteInput, setDeleteInput] = useState("");
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  // 🔥 เพิ่ม State สำหรับ Success Modal
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      // แปลงเวลา Local กลับเป็น UTC ก่อนบันทึก
+      const deadlineUTC = formData.deadline
+        ? new Date(formData.deadline).toISOString()
+        : null;
+
       const { data, error } = await supabase
         .from("projects")
         .update({
           title: formData.title,
           description: formData.description,
           slug: formData.slug,
-          deadline: formData.deadline
-            ? new Date(formData.deadline).toISOString()
-            : null,
+          deadline: deadlineUTC,
           status: formData.status,
         })
         .eq("id", project.id)
-        .select(); // <--- 🔥 เพิ่มบรรทัดนี้ เพื่อขอข้อมูลที่อัปเดตกลับมา
+        .select();
 
       if (error) throw error;
 
-      // 🔥 เพิ่มการเช็ค: ถ้า data ว่างเปล่า แปลว่าไม่ได้อัปเดตจริง (ไม่มีสิทธิ์)
       if (!data || data.length === 0) {
         alert(
           "คุณไม่มีสิทธิ์แก้ไขโปรเจกต์นี้ (ต้องเป็น Producer หรือ Manager)"
         );
-        return; // หยุดทำงาน ไม่แสดง Success Modal
+        return;
       }
 
-      // ถ้าผ่าน ถึงจะโชว์ Modal
       setShowSuccessModal(true);
     } catch (error: any) {
       alert("เกิดข้อผิดพลาด: " + error.message);
@@ -96,15 +102,11 @@ export default function SettingsTab({ project }: { project: any }) {
     }
   };
 
-  // 🔥 ฟังก์ชันปิด Modal และรีเฟรชหน้า
   const handleCloseSuccess = () => {
     setShowSuccessModal(false);
-
-    // ถ้าเปลี่ยน Slug ต้องย้าย URL
     if (formData.slug !== project.slug) {
       router.push(`/dashboard/projects/${formData.slug}`);
     } else {
-      // ถ้ารูปแบบเดิม ให้รีโหลดหน้าจอเพื่อให้ Header อัปเดตสถานะใหม่
       window.location.reload();
     }
   };
@@ -139,13 +141,14 @@ export default function SettingsTab({ project }: { project: any }) {
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-8 space-y-8">
-      {/* --- Form --- */}
+    <div className="max-w-2xl mx-auto p-8 space-y-8 pb-20">
+      {/* ตั้งค่าโปรเจกต์ */}
       <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
         <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
           <Settings className="w-5 h-5 text-gray-400" />
-          ตั้งค่าทั่วไป
+          ตั้งค่าโปรเจกต์
         </h3>
+
         <form onSubmit={handleUpdate} className="space-y-5">
           {/* Status Selector */}
           <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
@@ -157,13 +160,13 @@ export default function SettingsTab({ project }: { project: any }) {
                 <label
                   key={status.value}
                   className={`
-                            flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-all
-                            ${
-                              formData.status === status.value
-                                ? `${status.color} border-transparent ring-2 ring-offset-1 ring-blue-200 font-bold shadow-sm`
-                                : "bg-white border-gray-200 text-gray-600 hover:bg-gray-100"
-                            }
-                        `}
+                    flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-all
+                    ${
+                      formData.status === status.value
+                        ? `${status.color} border-transparent ring-2 ring-offset-1 ring-blue-200 font-bold shadow-sm`
+                        : "bg-white border-gray-200 text-gray-600 hover:bg-gray-100"
+                    }
+                  `}
                 >
                   <input
                     type="radio"
@@ -187,7 +190,7 @@ export default function SettingsTab({ project }: { project: any }) {
             </label>
             <input
               type="text"
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-accent focus:outline-none transition-colors"
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
               value={formData.title}
               onChange={(e) =>
                 setFormData({ ...formData, title: e.target.value })
@@ -201,7 +204,7 @@ export default function SettingsTab({ project }: { project: any }) {
             </label>
             <input
               type="text"
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-accent focus:outline-none text-gray-500 font-mono text-sm bg-gray-50"
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-gray-500 font-mono text-sm bg-gray-50"
               value={formData.slug}
               onChange={(e) =>
                 setFormData({ ...formData, slug: e.target.value })
@@ -215,7 +218,7 @@ export default function SettingsTab({ project }: { project: any }) {
             </label>
             <textarea
               rows={3}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-accent focus:outline-none resize-none transition-colors"
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none resize-none transition-colors"
               value={formData.description}
               onChange={(e) =>
                 setFormData({ ...formData, description: e.target.value })
@@ -229,7 +232,7 @@ export default function SettingsTab({ project }: { project: any }) {
             </label>
             <input
               type="datetime-local"
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-accent focus:outline-none transition-colors"
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
               value={formData.deadline}
               onChange={(e) =>
                 setFormData({ ...formData, deadline: e.target.value })
@@ -241,7 +244,7 @@ export default function SettingsTab({ project }: { project: any }) {
             <button
               type="submit"
               disabled={loading}
-              className="bg-accent hover:bg-accent-hover text-white px-6 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50 shadow-sm"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50 shadow-sm"
             >
               {loading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -331,7 +334,7 @@ export default function SettingsTab({ project }: { project: any }) {
         </div>
       )}
 
-      {/* 🔥 Success Modal (New!) */}
+      {/* Success Modal */}
       {showSuccessModal && (
         <div className="fixed inset-0 bg-black/60 z-[80] flex items-center justify-center p-4 backdrop-blur-sm animate-in zoom-in-95 duration-300">
           <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-8 text-center border-t-4 border-green-500 relative">

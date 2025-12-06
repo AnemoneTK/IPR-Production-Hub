@@ -21,14 +21,21 @@ export default function TaskModal({
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState("");
 
-  // Form States
   const [title, setTitle] = useState(task.title || "");
   const [description, setDescription] = useState(task.description || "");
-  const [dueDate, setDueDate] = useState(
-    task.due_date ? new Date(task.due_date).toISOString().slice(0, 16) : ""
-  );
 
-  // 🔥 เปลี่ยนจาก string เป็น array
+  // 🔥 แก้ไข 1: แปลงวันที่จาก UTC (DB) เป็น Local Time สำหรับ input
+  const formatToLocalDatetime = (isoString: string) => {
+    if (!isoString) return "";
+    const date = new Date(isoString);
+    const offsetMs = date.getTimezoneOffset() * 60000;
+    const localISOTime = new Date(date.getTime() - offsetMs)
+      .toISOString()
+      .slice(0, 16);
+    return localISOTime;
+  };
+
+  const [dueDate, setDueDate] = useState(formatToLocalDatetime(task.due_date));
   const [assignedTo, setAssignedTo] = useState<string[]>(
     task.assigned_to || []
   );
@@ -47,32 +54,35 @@ export default function TaskModal({
     fetchComments();
   }, [task.id]);
 
-  // 2. บันทึกการแก้ไข
+  // 2. บันทึกการแก้ไข (Auto Save)
   const handleUpdateTask = async (field: string, value: any) => {
     if (field === "title") setTitle(value);
     if (field === "description") setDescription(value);
-    if (field === "due_date") setDueDate(value);
 
-    // ส่งไป Database
-    await supabase
-      .from("tasks")
-      .update({ [field]: value || null })
-      .eq("id", task.id);
-    onUpdate();
-  };
-
-  // 🔥 3. ฟังก์ชัน Toggle คนรับผิดชอบ (เลือก/เอาออก)
-  const toggleAssignee = async (userId: string) => {
-    let newAssignees = [...assignedTo];
-
-    if (newAssignees.includes(userId)) {
-      // ถ้ามีอยู่แล้ว ให้เอาออก
-      newAssignees = newAssignees.filter((id) => id !== userId);
-    } else {
-      // ถ้ายังไม่มี ให้เพิ่มเข้า
-      newAssignees.push(userId);
+    // 🔥 แก้ไข 2: แปลงค่าจาก Input กลับเป็น UTC ISO String ก่อนส่ง DB
+    if (field === "due_date") {
+      setDueDate(value);
+      if (value) {
+        value = new Date(value).toISOString(); // แปลงกลับเป็น UTC
+      } else {
+        value = null;
+      }
     }
 
+    await supabase
+      .from("tasks")
+      .update({ [field]: value })
+      .eq("id", task.id);
+    onUpdate(); // เรียกให้หน้า Board รีเฟรชข้อมูล
+  };
+
+  const toggleAssignee = async (userId: string) => {
+    let newAssignees = [...assignedTo];
+    if (newAssignees.includes(userId)) {
+      newAssignees = newAssignees.filter((id) => id !== userId);
+    } else {
+      newAssignees.push(userId);
+    }
     setAssignedTo(newAssignees);
     await supabase
       .from("tasks")
@@ -132,7 +142,6 @@ export default function TaskModal({
             <button
               onClick={onDelete}
               className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              title="ลบงานนี้"
             >
               <Trash2 className="w-5 h-5" />
             </button>
@@ -147,7 +156,7 @@ export default function TaskModal({
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Date Picker */}
+            {/* Date Picker (แก้แล้ว) */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1">
                 <Calendar className="w-3 h-3" /> Deadline
@@ -160,14 +169,12 @@ export default function TaskModal({
               />
             </div>
 
-            {/* 🔥 Multiple Assignees Selector */}
+            {/* Assignees */}
             <div className="space-y-2 relative">
               <label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1">
                 <UserIcon className="w-3 h-3" /> ผู้รับผิดชอบ
               </label>
-
               <div className="flex flex-wrap gap-2">
-                {/* แสดงคนที่มีอยู่แล้ว */}
                 {assignedTo.map((id) => {
                   const member = members.find((m: any) => m.id === id);
                   if (!member) return null;
@@ -189,8 +196,6 @@ export default function TaskModal({
                     </div>
                   );
                 })}
-
-                {/* ปุ่มกดเพิ่ม */}
                 <button
                   onClick={() => setShowMemberSelect(!showMemberSelect)}
                   className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-500 border border-gray-200 rounded-full text-xs hover:bg-gray-200 transition-colors"
@@ -199,7 +204,6 @@ export default function TaskModal({
                 </button>
               </div>
 
-              {/* Dropdown เลือกคน */}
               {showMemberSelect && (
                 <div className="absolute top-full left-0 mt-2 w-full bg-white border border-gray-200 rounded-xl shadow-xl z-10 overflow-hidden p-1">
                   {members.map((m: any) => {
@@ -235,7 +239,6 @@ export default function TaskModal({
             </div>
           </div>
 
-          {/* Description */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-gray-500 uppercase">
               รายละเอียด
@@ -249,7 +252,6 @@ export default function TaskModal({
             />
           </div>
 
-          {/* Comments */}
           <div className="border-t border-gray-100 pt-6">
             <h4 className="text-sm font-bold text-gray-800 mb-4">
               💬 ความคิดเห็น
@@ -279,7 +281,6 @@ export default function TaskModal({
                 </div>
               ))}
             </div>
-
             <form onSubmit={handleSendComment} className="flex gap-2">
               <input
                 type="text"

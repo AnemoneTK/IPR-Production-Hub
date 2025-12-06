@@ -2,7 +2,7 @@ name: Backup Supabase to R2
 
 on:
   schedule:
-    - cron: "0 3 * * *" # รันทุกวันตอนตี 3
+    - cron: "0 3 * * *"
   workflow_dispatch:
 
 jobs:
@@ -13,43 +13,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 🔥 ขั้นตอนนี้สำคัญมาก: บังคับให้ใช้ IPv4 เท่านั้น (แก้ปัญหา Cannot assign address)
-      - name: Force IPv4 for Supabase
-        shell: bash
-        env:
-          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      # 🔥 แก้ไขส่วนนี้: ติดตั้ง Client เวอร์ชัน 17
+      - name: Install PostgreSQL Client 17
         run: |
-          # 1. ดึง Hostname ออกมาจาก Connection String (ส่วนที่อยู่ระหว่าง @ กับ :)
-          # เช่น postgres://user:pass@db.xxxx.supabase.co:5432/... -> จะได้ db.xxxx.supabase.co
-          HOST=$(echo $DB_URL | sed -r 's/.*@([^:]+):.*/\1/')
-
-          echo "Detected Host: $HOST"
-
-          # 2. ค้นหาเลข IP ที่เป็น IPv4 (A record) ของ Host นั้น
-          IPV4=$(dig +short A $HOST | head -n 1)
-
-          echo "Resolved IPv4: $IPV4"
-
-          if [ -n "$IPV4" ]; then
-            # 3. เขียนทับลง /etc/hosts เพื่อบังคับให้ Hostname นี้วิ่งไปที่ IPv4 เท่านั้น
-            echo "$IPV4 $HOST" | sudo tee -a /etc/hosts
-            echo "✅ Successfully mapped $HOST to $IPV4"
-          else
-            echo "❌ Failed to resolve IPv4 address"
-            exit 1
-          fi
-
-      - name: Install PostgreSQL Client
-        run: |
+          sudo apt-get install -y wget gnupg2 lsb-release
+          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+          echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
-          sudo apt-get install -y postgresql-client
+          sudo apt-get install -y postgresql-client-17
 
       - name: Dump Database
         run: |
           FILENAME="backup-$(date +'%Y-%m-%d-%H%M').sql"
 
-          # ตอนนี้ pg_dump จะวิ่งผ่าน IPv4 ที่เราบังคับไว้แน่นอน
-          pg_dump "${{ secrets.SUPABASE_DB_URL }}" -f "$FILENAME"
+          # ใช้ URL จาก Secret (Connection Pooler)
+          # เพิ่ม flag --no-owner --no-acl เพื่อลดปัญหาสิทธิ์ตอน Restore
+          pg_dump "${{ secrets.SUPABASE_DB_URL }}" -f "$FILENAME" --no-owner --no-acl
 
           ls -lh "$FILENAME"
           echo "BACKUP_FILENAME=$FILENAME" >> $GITHUB_ENV

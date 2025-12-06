@@ -159,27 +159,75 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
       fetchData();
     }
   };
-
   const handleInitFolders = async () => {
     setIsInitializing(true);
     const defaultFolders = ["🎵 Raw Audio", "🎚️ Mixed & Master", "📸 Artwork"];
 
+    // รายชื่อโฟลเดอร์ย่อยใน Raw Audio
+    const rawAudioSubFolders = [
+      "Batto",
+      "Kook",
+      "Caz",
+      "Mhee",
+      "HaveabadDay_",
+      "Lizz",
+      "Oopz",
+      "Instrumental",
+    ];
+
     try {
       for (const name of defaultFolders) {
-        const exists = allFoldersRaw.some(
+        // 1. หาว่าโฟลเดอร์หลักมีอยู่แล้วหรือไม่
+        let folderId;
+        const existingFolder = allFoldersRaw.find(
           (f) => f.name === name && f.parent_id === null
         );
-        if (!exists) {
-          await supabase.from("folders").insert({
-            project_id: projectId,
-            parent_id: null,
-            name: name,
-          });
+
+        if (existingFolder) {
+          folderId = existingFolder.id;
+        } else {
+          // ถ้าไม่มี ให้สร้างใหม่ และเอา ID มา
+          const { data } = await supabase
+            .from("folders")
+            .insert({
+              project_id: projectId,
+              parent_id: null,
+              name: name,
+            })
+            .select()
+            .single();
+
+          if (data) folderId = data.id;
+        }
+
+        // 2. ถ้าเป็น "Raw Audio" ให้สร้าง Sub-folders ข้างใน
+        if (name === "🎵 Raw Audio" && folderId) {
+          // เช็คก่อนว่าข้างในมีโฟลเดอร์อะไรบ้างแล้ว (กันสร้างซ้ำ)
+          const { data: existingSubs } = await supabase
+            .from("folders")
+            .select("name")
+            .eq("project_id", projectId)
+            .eq("parent_id", folderId);
+
+          const existingSubNames = existingSubs?.map((s) => s.name) || [];
+
+          // วนลูปสร้าง Sub-folders ที่ยังไม่มี
+          for (const subName of rawAudioSubFolders) {
+            if (!existingSubNames.includes(subName)) {
+              await supabase.from("folders").insert({
+                project_id: projectId,
+                parent_id: folderId,
+                name: subName,
+              });
+            }
+          }
         }
       }
+
+      // โหลดข้อมูลใหม่ทั้งหมด
       await fetchData();
-    } catch (error) {
-      alert("Error init folders");
+    } catch (error: any) {
+      alert("Error initializing folders: " + error.message);
     } finally {
       setIsInitializing(false);
     }

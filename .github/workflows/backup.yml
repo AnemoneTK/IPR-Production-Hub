@@ -13,22 +13,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 🔥 แก้ไขส่วนนี้: ติดตั้ง Client เวอร์ชัน 17
       - name: Install PostgreSQL Client 17
         run: |
-          sudo apt-get install -y wget gnupg2 lsb-release
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
           wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
-          echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
           sudo apt-get install -y postgresql-client-17
 
+      # 2. สั่ง Dump ข้อมูล (โดยระบุ Path ของเวอร์ชัน 17 แบบเจาะจง)
       - name: Dump Database
         run: |
           FILENAME="backup-$(date +'%Y-%m-%d-%H%M').sql"
 
-          # ใช้ URL จาก Secret (Connection Pooler)
-          # เพิ่ม flag --no-owner --no-acl เพื่อลดปัญหาสิทธิ์ตอน Restore
-          pg_dump "${{ secrets.SUPABASE_DB_URL }}" -f "$FILENAME" --no-owner --no-acl
+          # 🔥 ใช้ /usr/lib/postgresql/17/bin/pg_dump เพื่อเรียกตัว v17 โดยตรง
+          /usr/lib/postgresql/17/bin/pg_dump "${{ secrets.SUPABASE_DB_URL }}" -f "$FILENAME" --no-owner --no-acl
 
           ls -lh "$FILENAME"
           echo "BACKUP_FILENAME=$FILENAME" >> $GITHUB_ENV

@@ -19,6 +19,7 @@ import {
   X,
   Mic2,
   UploadCloud,
+  Minus,
 } from "lucide-react";
 import {
   DragDropContext,
@@ -56,10 +57,17 @@ const getYouTubeID = (url: string): string | null => {
   return match && match[2].length === 11 ? match[2] : null;
 };
 
-const createBlock = (type: "lyrics" | "interlude"): LyricBlock => ({
+const createBlock = (
+  type: "lyrics" | "interlude" | "separator"
+): LyricBlock => ({
   id: crypto.randomUUID(),
   type,
-  name: type === "interlude" ? "Interlude / Solo" : "",
+  name:
+    type === "interlude"
+      ? "Interlude / Solo"
+      : type === "separator"
+      ? "ชื่อท่อน"
+      : "",
   singers: [],
   htmlContent: "<p></p>",
   comments: [],
@@ -353,7 +361,10 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
   }, [isResizing, resize, stopResizing]);
 
   // --- 6. Block Actions ---
-  const addBlock = (type: "lyrics" | "interlude", index?: number) => {
+  const addBlock = (
+    type: "lyrics" | "interlude" | "separator",
+    index?: number
+  ) => {
     const newBlock = createBlock(type);
     const newBlocks = [...blocks];
     if (typeof index === "number") newBlocks.splice(index, 0, newBlock);
@@ -635,6 +646,15 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
                                   >
                                     <Music className="w-3 h-3" /> ดนตรี
                                   </button>
+                                  <button
+                                    onClick={() =>
+                                      addBlock("separator", index + 1)
+                                    }
+                                    className="flex items-center gap-1 px-3 py-1 bg-gray-100 border border-gray-300 text-gray-600 rounded-full text-xs font-bold hover:bg-gray-200 shadow-sm transition-colors"
+                                    title="แทรกตัวคั่น"
+                                  >
+                                    <Minus className="w-3 h-3" /> ตัวคั่น
+                                  </button>
                                 </div>
                               </div>
                             </div>
@@ -646,7 +666,7 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
                   )}
                 </Droppable>
               </DragDropContext>
-              <div className="grid grid-cols-2 gap-4 mt-8">
+              <div className="grid grid-cols-3 gap-4 mt-8">
                 <button
                   onClick={() => addBlock("lyrics")}
                   className="py-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:text-accent hover:border-accent/50 hover:bg-white transition-all flex flex-col items-center justify-center gap-2"
@@ -662,6 +682,13 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
                 >
                   <Music className="w-6 h-6" />
                   <span className="text-sm font-medium">เพิ่มท่อนดนตรี</span>
+                </button>
+                <button
+                  onClick={() => addBlock("separator")}
+                  className="py-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-400 hover:text-gray-700 hover:border-gray-400 hover:bg-gray-50 transition-all flex flex-col items-center justify-center gap-2"
+                >
+                  <Minus className="w-6 h-6" />
+                  <span className="text-sm font-medium">เพิ่มตัวคั่น</span>
                 </button>
               </div>
             </div>

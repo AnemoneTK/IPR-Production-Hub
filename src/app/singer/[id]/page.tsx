@@ -22,7 +22,7 @@ import {
 // Types
 interface LyricBlock {
   id: string;
-  type: "lyrics" | "interlude";
+  type: "lyrics" | "interlude" | "separator";
   name: string;
   htmlContent: string;
 }
@@ -621,7 +621,8 @@ export default function SingerViewPage() {
         <div style={{ textAlign: textAlign }} className="space-y-8">
           {blocks.map((block) => (
             <div key={block.id} className="space-y-2">
-              {block.name && (
+              {/* ชื่อท่อน (แสดงเฉพาะถ้าไม่ใช่ Separator เพราะ Separator โชว์ชื่อในตัวอยู่แล้ว) */}
+              {block.name && block.type !== "separator" && (
                 <div
                   className={`text-sm font-bold uppercase tracking-wider mb-2 ${
                     theme === "dark" ? "text-gray-500" : "text-gray-400"
@@ -630,7 +631,30 @@ export default function SingerViewPage() {
                   {block.name}
                 </div>
               )}
-              {block.type === "interlude" ? (
+
+              {/* 🔥 Case 1: ตัวคั่น (Separator) */}
+              {block.type === "separator" ? (
+                <div className="flex items-center gap-4 py-6 opacity-60">
+                  <div
+                    className={`h-[2px] flex-1 rounded-full ${
+                      theme === "dark" ? "bg-gray-700" : "bg-gray-200"
+                    }`}
+                  ></div>
+                  <span
+                    className={`text-base font-bold uppercase tracking-widest ${
+                      theme === "dark" ? "text-gray-400" : "text-gray-500"
+                    }`}
+                  >
+                    {block.name}
+                  </span>
+                  <div
+                    className={`h-[2px] flex-1 rounded-full ${
+                      theme === "dark" ? "bg-gray-700" : "bg-gray-200"
+                    }`}
+                  ></div>
+                </div>
+              ) : /* Case 2: ดนตรี (Interlude) */
+              block.type === "interlude" ? (
                 <div
                   className={`py-4 rounded-xl border-2 border-dashed font-medium text-lg italic opacity-70 ${
                     theme === "dark"
@@ -641,6 +665,7 @@ export default function SingerViewPage() {
                   🎵 {block.name || "ดนตรี / Solo"}
                 </div>
               ) : (
+                /* Case 3: เนื้อเพลงปกติ (Lyrics) */
                 <div
                   className={`leading-relaxed whitespace-pre-wrap outline-none [&_*]:!text-inherit [&_mark]:!text-gray-900 [&_mark]:!bg-opacity-100`}
                   style={{ fontSize: `${fontSize}px` }}

@@ -18,7 +18,9 @@ import {
   ArrowDown,
   X,
   Plus,
+  Minus,
   Trash2,
+  Underline as UnderlineIcon,
 } from "lucide-react";
 import { DraggableProvidedDragHandleProps } from "@hello-pangea/dnd";
 
@@ -29,6 +31,7 @@ import Highlight from "@tiptap/extension-highlight";
 import TextStyle from "@tiptap/extension-text-style";
 import { Color } from "@tiptap/extension-color";
 import BubbleMenuExtension from "@tiptap/extension-bubble-menu";
+import Underline from "@tiptap/extension-underline";
 
 // --- Interfaces ---
 export interface Comment {
@@ -47,7 +50,7 @@ export interface SingerData {
 
 export interface LyricBlock {
   id: string;
-  type: "lyrics" | "interlude";
+  type: "lyrics" | "interlude" | "separator";
   name: string;
   singers: SingerData[];
   htmlContent: string;
@@ -126,8 +129,9 @@ export default function LyricEditor({
   const [quoteText, setQuoteText] = useState<string | null>(null);
 
   const isInterlude = block.type === "interlude";
+  const isSeparator = block.type === "separator";
 
-  // 🔥 แก้ไข: กรองเฉพาะคนที่มี Role "singer" เท่านั้น
+  // สำหรับ Dropdown เลือกคนเข้าท่อน (แสดงเฉพาะตำแหน่ง Singer)
   const singerMembers = members.filter((m) => m.roles.includes("singer"));
 
   const editor = useEditor({
@@ -137,6 +141,7 @@ export default function LyricEditor({
       Color,
       CustomHighlight.configure({ multicolor: true }),
       BubbleMenuExtension,
+      Underline,
     ],
     content: block.htmlContent || "<p></p>",
     onUpdate: ({ editor }: { editor: Editor }) => {
@@ -219,7 +224,6 @@ export default function LyricEditor({
     const {
       data: { user },
     } = await supabase.auth.getUser();
-
     let displayName = "Me";
     if (user) {
       const { data: profile } = await supabase
@@ -229,7 +233,6 @@ export default function LyricEditor({
         .single();
       if (profile) displayName = profile.display_name;
     }
-
     const newComment: Comment = {
       id: crypto.randomUUID(),
       user_id: user?.id || "unknown",
@@ -247,7 +250,6 @@ export default function LyricEditor({
     if (editor && comment.quoted_text) {
       const textToFind = comment.quoted_text;
       const { doc } = editor.state;
-
       let found = false;
       doc.descendants((node, pos) => {
         if (
@@ -273,6 +275,58 @@ export default function LyricEditor({
     });
   };
 
+  // --- Render Separator ---
+  if (isSeparator) {
+    return (
+      <div className="group relative flex items-center gap-3 py-4 my-2">
+        <div
+          {...dragHandleProps}
+          className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 p-1"
+        >
+          <GripVertical className="w-4 h-4" />
+        </div>
+
+        <div className="flex-1 flex items-center gap-4">
+          <div className="h-[2px] bg-gray-200 flex-1 rounded-full"></div>
+          <div className="flex items-center gap-2 text-gray-400 font-bold text-sm uppercase tracking-wider">
+            [
+            <input
+              type="text"
+              value={block.name}
+              onChange={(e) => onUpdate({ name: e.target.value })}
+              placeholder="ชื่อท่อน / ชื่อคนร้อง"
+              className="bg-transparent outline-none text-center min-w-[100px] text-gray-600 placeholder:text-gray-300 font-bold"
+            />
+            ]
+          </div>
+          <div className="h-[2px] bg-gray-200 flex-1 rounded-full"></div>
+        </div>
+
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={onMoveUp}
+            className="text-gray-300 hover:text-gray-500 p-1"
+          >
+            <ArrowUp className="w-3 h-3" />
+          </button>
+          <button
+            onClick={onMoveDown}
+            className="text-gray-300 hover:text-gray-500 p-1"
+          >
+            <ArrowDown className="w-3 h-3" />
+          </button>
+          <button
+            onClick={onDelete}
+            className="text-gray-300 hover:text-red-500 p-1"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Render Editor ---
   return (
     <div
       className={`group relative rounded-xl border shadow-sm transition-all duration-300 hover:shadow-md ${
@@ -290,7 +344,6 @@ export default function LyricEditor({
         }`}
       >
         <div className="relative flex items-center gap-2 flex-1 flex-wrap">
-          {/* Drag Handle */}
           {dragHandleProps && (
             <div
               {...dragHandleProps}
@@ -326,6 +379,7 @@ export default function LyricEditor({
                   : "เลือกคนร้อง"}
               </button>
               <div className="flex gap-2 flex-wrap">
+                {/* แสดงคนที่ถูกเลือก (Selected) ใน Header */}
                 {(block.singers || []).map((s) => {
                   const member = members.find((m) => m.id === s.user_id);
                   return (
@@ -356,7 +410,7 @@ export default function LyricEditor({
           {showMemberSelect && !isInterlude && (
             <div className="absolute top-full left-28 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden p-1 animate-in fade-in zoom-in-95">
               <div className="text-[10px] uppercase font-bold text-gray-400 px-3 py-2 bg-gray-50 mb-1">
-                เลือกนักร้อง
+                เลือกนักร้อง (Singer)
               </div>
               {singerMembers.length === 0 ? (
                 <div className="px-3 py-2 text-xs text-gray-400 text-center">
@@ -396,7 +450,7 @@ export default function LyricEditor({
           )}
         </div>
 
-        {/* Actions */}
+        {/* Header Actions */}
         <div className="flex gap-1 items-center">
           {!isInterlude && (
             <button
@@ -474,7 +528,6 @@ export default function LyricEditor({
         </div>
       </div>
 
-      {/* Editor Body */}
       <div className="relative">
         {isInterlude ? (
           <div className="w-full h-16 flex items-center justify-center bg-gray-50 text-gray-400 text-sm font-medium">
@@ -486,40 +539,58 @@ export default function LyricEditor({
               <BubbleMenu
                 editor={editor}
                 tippyOptions={{ duration: 100 }}
-                className="flex flex-col gap-1 p-1.5 bg-white rounded-xl shadow-xl border border-gray-100 min-w-[160px]"
+                className="flex flex-col gap-1 p-1.5 bg-white rounded-xl shadow-xl border border-gray-100 min-w-[160px] z-50"
               >
-                <div className="text-[10px] font-bold text-gray-400 uppercase px-2 pb-1 border-b border-gray-50 mb-1">
-                  ไฮไลท์ตามคนร้อง
-                </div>
-                {block.singers && block.singers.length > 0 ? (
-                  block.singers.map((s) => {
-                    const member = members.find((m) => m.id === s.user_id);
-                    if (!member) return null;
-                    return (
-                      <button
-                        key={s.user_id}
-                        onClick={() =>
-                          highlightWithSingerColor(member.assigned_color)
-                        }
-                        className="flex items-center gap-3 px-2 py-2 hover:bg-gray-50 rounded-lg text-xs text-left w-full transition-colors group/btn"
-                      >
-                        <div
-                          className="w-4 h-4 rounded-full border shadow-sm flex-shrink-0"
-                          style={{ backgroundColor: member.assigned_color }}
-                        />
-                        <span className="truncate font-medium text-gray-700">
-                          {member.display_name}
-                        </span>
-                      </button>
-                    );
-                  })
+                {/* 🔥 ส่วนที่ 1: แสดงรายชื่อคนที่ถูกเลือกในท่อนนี้ (Selected Singers) เพื่อไฮไลท์ */}
+                {block.singers.length > 0 ? (
+                  <div className="flex flex-col gap-1 border-b border-gray-100 pb-1 mb-1">
+                    <span className="text-[10px] font-bold text-gray-400 px-2 uppercase">
+                      ไฮไลท์สี
+                    </span>
+                    {block.singers.map((s) => {
+                      const member = members.find((m) => m.id === s.user_id);
+                      if (!member) return null;
+                      return (
+                        <button
+                          key={s.user_id}
+                          onClick={() =>
+                            highlightWithSingerColor(member.assigned_color)
+                          }
+                          className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded-lg text-xs font-medium text-gray-700 transition-colors text-left"
+                        >
+                          <div
+                            className="w-3 h-3 rounded-full border shadow-sm"
+                            style={{ backgroundColor: member.assigned_color }}
+                          />
+                          <span className="truncate">
+                            {member.display_name}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 ) : (
-                  <div className="text-xs text-gray-400 px-2 py-2 text-center">
-                    ยังไม่เลือกคนร้อง
+                  <div className="px-2 py-2 text-[10px] text-gray-400 text-center border-b border-gray-100 mb-1">
+                    เลือกคนร้องก่อนไฮไลท์
                   </div>
                 )}
-                <div className="h-px bg-gray-100 my-1"></div>
+
+                {/* 🔥 ส่วนที่ 2: เครื่องมือแก้ไข (ขีดเส้นใต้, ล้าง, คอมเมนต์) */}
                 <div className="flex items-center justify-between px-1 pt-1">
+                  <button
+                    onClick={() =>
+                      editor.chain().focus().toggleUnderline().run()
+                    }
+                    className={`p-1.5 rounded-lg transition-colors ${
+                      editor.isActive("underline")
+                        ? "text-blue-600 bg-blue-50"
+                        : "text-gray-500 hover:text-blue-600 hover:bg-blue-50"
+                    }`}
+                    title="ขีดเส้นใต้"
+                  >
+                    <UnderlineIcon className="w-4 h-4" />
+                  </button>
+
                   <button
                     onClick={() =>
                       editor.chain().focus().unsetHighlight().run()

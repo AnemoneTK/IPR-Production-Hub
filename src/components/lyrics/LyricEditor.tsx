@@ -2,25 +2,18 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
-  User,
   MessageSquare,
-  Check,
   Send,
   Quote,
-  CheckCircle2,
-  Mic,
   Eraser,
   Wind,
-  Music,
   GripVertical,
   Copy,
   ArrowUp,
   ArrowDown,
-  X,
-  Plus,
-  Minus,
   Trash2,
   Underline as UnderlineIcon,
+  X,
 } from "lucide-react";
 import { DraggableProvidedDragHandleProps } from "@hello-pangea/dnd";
 
@@ -33,7 +26,7 @@ import { Color } from "@tiptap/extension-color";
 import BubbleMenuExtension from "@tiptap/extension-bubble-menu";
 import Underline from "@tiptap/extension-underline";
 
-// --- Interfaces (Export เพื่อให้ไฟล์อื่นใช้ได้) ---
+// --- Interfaces ---
 export interface Comment {
   id: string;
   user_id: string;
@@ -97,10 +90,11 @@ const CustomHighlight = Highlight.extend({
   },
 });
 
+// 🔥 แก้ไขตรงนี้: เอา members ออกจาก Interface
 interface LyricEditorProps {
   index: number;
   block: LyricBlock;
-  members: Member[];
+  // members: Member[];  <-- ลบทิ้งไปเลย
   onUpdate: (newData: Partial<LyricBlock>) => void;
   onDelete: () => void;
   onDuplicate: () => void;
@@ -112,7 +106,7 @@ interface LyricEditorProps {
 export default function LyricEditor({
   index,
   block,
-  members,
+  // members, <-- ลบทิ้ง
   onUpdate,
   onDelete,
   onDuplicate,
@@ -131,7 +125,6 @@ export default function LyricEditor({
   const isSeparator = block.type === "separator";
 
   const editor = useEditor({
-    // 🔥 แก้ไขตรงนี้จาก immediateRender เป็น immediatelyRender
     immediatelyRender: false,
     extensions: [
       StarterKit,
@@ -252,7 +245,6 @@ export default function LyricEditor({
     });
   };
 
-  // --- Render Separator ---
   if (isSeparator) {
     return (
       <div className="group relative flex items-center gap-3 py-4 my-2">
@@ -303,7 +295,6 @@ export default function LyricEditor({
     );
   }
 
-  // --- Render Editor ---
   return (
     <div
       className={`group relative rounded-xl border shadow-sm transition-all duration-300 hover:shadow-md ${
@@ -312,7 +303,6 @@ export default function LyricEditor({
           : "bg-white border-gray-200"
       }`}
     >
-      {/* Header */}
       <div
         className={`flex justify-between items-center p-2 pl-3 border-b rounded-t-xl ${
           isInterlude
@@ -344,7 +334,6 @@ export default function LyricEditor({
           />
         </div>
 
-        {/* Actions */}
         <div className="flex gap-1 items-center">
           {!isInterlude && (
             <button
@@ -429,7 +418,6 @@ export default function LyricEditor({
           </div>
         ) : (
           <>
-            {/* Bubble Menu */}
             {editor && !editor.isDestroyed && (
               <BubbleMenu
                 editor={editor}

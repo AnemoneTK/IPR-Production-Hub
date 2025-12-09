@@ -498,7 +498,7 @@ export default function ScriptEditPage() {
                                 <LyricEditor
                                   index={index}
                                   block={block}
-                                  // members={members} // ส่ง Members ไปด้วย
+                                  members={members} // ส่ง Members ไปด้วย
                                   onUpdate={(data) => updateBlock(index, data)}
                                   onDelete={() => deleteBlock(index)}
                                   onDuplicate={() => duplicateBlock(index)}

@@ -509,7 +509,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
                                         row={row}
                                         userId={m.id}
                                         memberColor={m.assigned_color}
-                                        onToggle={(type) =>
+                                        onToggle={(type: HarmoType | null) =>
                                           toggleHarmoRole(row.id, m.id, type)
                                         }
                                       />

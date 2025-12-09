@@ -718,7 +718,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
             <Type className="w-12 h-12 mx-auto mb-3 opacity-20" />
             <p>ยังไม่มีข้อมูลการจัดวาง</p>
             <button
-              onClick={handleImportLyrics}
+              onClick={handleImportClick}
               className="mt-2 text-accent hover:underline text-sm font-medium"
             >
               ดึงเนื้อเพลงจาก Tab Lyrics

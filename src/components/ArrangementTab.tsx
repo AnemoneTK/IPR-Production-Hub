@@ -16,6 +16,8 @@ import {
   Check,
   Type,
   X,
+  AlertTriangle, // เพิ่มไอคอน
+  CheckCircle2, // เพิ่มไอคอน
 } from "lucide-react";
 import {
   DragDropContext,
@@ -108,11 +110,34 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
   const [isSaving, setIsSaving] = useState(false);
   const [scriptId, setScriptId] = useState<number | null>(null);
   const [rawContent, setRawContent] = useState<string>("");
-  const [lastSaved, setLastSaved] = useState<Date | null>(null); // เพิ่ม state แสดงเวลาเซฟล่าสุด
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+
+  // 🔥 Alert & Modal States
+  const [alertConfig, setAlertConfig] = useState<{
+    show: boolean;
+    type: "success" | "error";
+    title: string;
+    message: string;
+  }>({ show: false, type: "success", title: "", message: "" });
+
+  const [showImportConfirm, setShowImportConfirm] = useState(false); // สำหรับยืนยันการดึงเนื้อเพลง
 
   const singerMembers = members.filter((m) => m.roles.includes("singer"));
 
-  // --- Fetch Data ---
+  const showAlert = (
+    title: string,
+    message: string,
+    type: "success" | "error"
+  ) => {
+    setAlertConfig({ show: true, title, message, type });
+    if (type === "success") {
+      setTimeout(
+        () => setAlertConfig((prev) => ({ ...prev, show: false })),
+        2000
+      );
+    }
+  };
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     // 1. Members
@@ -139,17 +164,12 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
     if (scriptData) {
       setScriptId(scriptData.id);
       setRawContent(scriptData.content || "");
-
-      // 🔥 ตรวจสอบข้อมูลก่อน set state เพื่อความชัวร์
       if (
         scriptData.arrangement &&
         Array.isArray(scriptData.arrangement) &&
         scriptData.arrangement.length > 0
       ) {
-        // cast type ให้ชัวร์ว่าเป็น ArrangeRow[]
-        setRows(scriptData.arrangement as ArrangeRow[]);
-      } else {
-        setRows([]); // ถ้าไม่มีข้อมูล ให้เป็น array ว่าง
+        setRows(scriptData.arrangement);
       }
       setLastSaved(new Date(scriptData.updated_at));
     }
@@ -160,54 +180,65 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
     fetchData();
   }, [fetchData]);
 
-  // --- 🔥 Auto Save Logic (เพิ่มใหม่) ---
-  const handleSave = useCallback(async () => {
-    if (!scriptId) return;
-    setIsSaving(true);
+  // --- Auto Save ---
+  const handleSave = useCallback(
+    async (manual = false) => {
+      if (!scriptId) return;
+      setIsSaving(true);
+      const { error } = await supabase
+        .from("scripts")
+        .update({ arrangement: rows, updated_at: new Date().toISOString() })
+        .eq("id", scriptId);
 
-    const { error } = await supabase
-      .from("scripts")
-      .update({
-        arrangement: rows, // บันทึก rows ทั้งก้อนลง JSONB
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", scriptId);
+      setIsSaving(false);
+      if (error) {
+        console.error("Save error:", error);
+        if (manual) showAlert("บันทึกไม่สำเร็จ", error.message, "error");
+      } else {
+        setLastSaved(new Date());
+        if (manual)
+          showAlert("บันทึกสำเร็จ", "ข้อมูลถูกบันทึกเรียบร้อยแล้ว", "success");
+      }
+    },
+    [scriptId, rows]
+  );
 
-    setIsSaving(false);
-    if (error) {
-      console.error("Save error:", error);
-    } else {
-      setLastSaved(new Date());
-    }
-  }, [scriptId, rows]);
-
-  // Trigger Auto Save เมื่อ rows เปลี่ยน (Debounce 2 วินาที)
+  // Auto save trigger
   useEffect(() => {
-    if (rows.length === 0) return; // อย่าเพิ่งเซฟถ้ายังไม่มีข้อมูล (กันล้างข้อมูลเก่าตอนโหลดแรกๆ)
-
+    if (rows.length === 0) return;
     const timeout = setTimeout(() => {
       handleSave();
     }, 2000);
-
     return () => clearTimeout(timeout);
   }, [rows, handleSave]);
 
   // --- Actions ---
-  const handleImportLyrics = () => {
-    if (!rawContent) return alert("ไม่พบเนื้อเพลงต้นฉบับในหน้า Lyrics");
-    if (
-      rows.length > 0 &&
-      !confirm("การดึงเนื้อเพลงใหม่จะทับข้อมูลเดิม ยืนยัน?")
-    )
-      return;
 
+  // 1. กดปุ่มดึงเนื้อเพลง (Trigger)
+  const handleImportClick = () => {
+    if (!rawContent) {
+      showAlert("ไม่พบข้อมูล", "ไม่พบเนื้อเพลงต้นฉบับในหน้า Lyrics", "error");
+      return;
+    }
+    // ถ้ามีข้อมูลอยู่แล้ว ให้ถามยืนยันก่อน
+    if (rows.length > 0) {
+      setShowImportConfirm(true);
+    } else {
+      executeImportLyrics(); // ถ้าว่างอยู่ ดึงเลย
+    }
+  };
+
+  // 2. ฟังก์ชันดึงเนื้อเพลงจริง (Execute)
+  const executeImportLyrics = () => {
     try {
       const parsedBlocks = JSON.parse(rawContent);
-      const newRows: ArrangeRow[] = [];
+
+      // 1. สร้างโครงสร้างใหม่
+      const incomingRows: ArrangeRow[] = [];
       if (Array.isArray(parsedBlocks)) {
         parsedBlocks.forEach((block: any) => {
           if (block.name) {
-            newRows.push({
+            incomingRows.push({
               id: crypto.randomUUID(),
               type: "section",
               text: block.name,
@@ -220,14 +251,12 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
               .replace(/<p>/g, "\n")
               .replace(/<br>/g, "\n")
               .replace(/<\/p>/g, "");
-
             const cleanText = tempDiv.innerText || tempDiv.textContent || "";
             const lines = cleanText
               .split(/\r?\n/)
               .filter((line) => line.trim() !== "");
-
             lines.forEach((line) => {
-              newRows.push({
+              incomingRows.push({
                 id: crypto.randomUUID(),
                 type: "line",
                 text: line.trim(),
@@ -237,11 +266,31 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
           }
         });
       }
-      setRows(newRows);
-      // 🔥 หลังจาก Import เสร็จ ให้เซฟทันที 1 ครั้งเพื่อให้ Database จำค่าเริ่มต้น
-      // (จะทำโดย useEffect auto save ก็ได้ แต่เรียกตรงนี้ชัวร์กว่าสำหรับ first load)
+
+      // 2. Merge Logic
+      let remainingOldRows = [...rows];
+      const mergedRows = incomingRows.map((newRow) => {
+        const matchIndex = remainingOldRows.findIndex(
+          (oldRow) => oldRow.type === newRow.type && oldRow.text === newRow.text
+        );
+        if (matchIndex !== -1) {
+          const matchedOldRow = remainingOldRows[matchIndex];
+          remainingOldRows.splice(matchIndex, 1);
+          return {
+            ...newRow,
+            roles: matchedOldRow.roles,
+            note: matchedOldRow.note,
+          };
+        }
+        return newRow;
+      });
+
+      setRows(mergedRows);
+      setShowImportConfirm(false);
+      showAlert("สำเร็จ", "ดึงเนื้อเพลงและผสานข้อมูลเรียบร้อย", "success");
     } catch (e) {
-      alert("Error parsing lyrics");
+      console.error(e);
+      showAlert("ผิดพลาด", "ไม่สามารถอ่านไฟล์เนื้อเพลงได้", "error");
     }
   };
 
@@ -279,6 +328,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
     setRows(items);
   };
 
+  // --- Toggle Logic ---
   const toggleSimpleRole = (
     rowId: string,
     roleKey: "main" | "support" | "adlib",
@@ -322,7 +372,85 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
     );
 
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className="h-full flex flex-col bg-white relative">
+      {/* 🔥 Alert Modal */}
+      {alertConfig.show && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-gray-100 scale-100 animate-in zoom-in-95 duration-200 relative">
+            <button
+              onClick={() =>
+                setAlertConfig((prev) => ({ ...prev, show: false }))
+              }
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div
+              className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${
+                alertConfig.type === "success"
+                  ? "bg-green-100 text-green-600"
+                  : "bg-red-100 text-red-600"
+              }`}
+            >
+              {alertConfig.type === "success" ? (
+                <CheckCircle2 className="w-6 h-6" />
+              ) : (
+                <AlertTriangle className="w-6 h-6" />
+              )}
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">
+              {alertConfig.title}
+            </h3>
+            <p className="text-sm text-gray-500 mb-6">{alertConfig.message}</p>
+            <button
+              onClick={() =>
+                setAlertConfig((prev) => ({ ...prev, show: false }))
+              }
+              className={`w-full py-2.5 rounded-xl font-bold text-white transition-all active:scale-95 ${
+                alertConfig.type === "success"
+                  ? "bg-green-600 hover:bg-green-700"
+                  : "bg-red-600 hover:bg-red-700"
+              }`}
+            >
+              ตกลง
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 🔥 Import Confirmation Modal */}
+      {showImportConfirm && (
+        <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-orange-100 scale-100 animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4 text-orange-600">
+              <RefreshCcw className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900">
+              ดึงเนื้อเพลงใหม่?
+            </h3>
+            <p className="text-sm text-gray-500 mt-2 mb-6 leading-relaxed">
+              ระบบจะพยายาม <strong>"คงการตั้งค่าเดิม"</strong>{" "}
+              ไว้สำหรับบรรทัดที่เนื้อร้องตรงกัน <br />
+              แต่บรรทัดที่เปลี่ยนไปอาจจะต้องตั้งค่าใหม่
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowImportConfirm(false)}
+                className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={executeImportLyrics}
+                className="flex-1 py-2.5 bg-orange-500 text-white font-bold rounded-xl hover:bg-orange-600 shadow-lg shadow-orange-500/30"
+              >
+                ยืนยัน
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="sticky top-0 z-40 bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-3">
@@ -331,7 +459,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
           </h2>
           <div className="h-6 w-px bg-gray-200 hidden md:block"></div>
           <button
-            onClick={handleImportLyrics}
+            onClick={handleImportClick} // 🔥 เปลี่ยนมาเรียก function นี้
             className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 text-sm font-medium transition-colors"
           >
             <RefreshCcw className="w-4 h-4" />{" "}
@@ -345,8 +473,6 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
             <span className="hidden sm:inline">เพิ่ม Section</span>
           </button>
         </div>
-
-        {/* Status Indicator & Save Button */}
         <div className="flex items-center gap-3">
           {lastSaved && (
             <span className="text-xs text-gray-400 hidden sm:inline">
@@ -354,7 +480,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
             </span>
           )}
           <button
-            onClick={handleSave}
+            onClick={() => handleSave(true)}
             disabled={isSaving}
             className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover font-bold shadow-sm transition-all active:scale-95 disabled:opacity-50"
           >
@@ -371,15 +497,16 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
       {/* Main Content (Horizontal Scrollable) */}
       <div className="flex-1 overflow-auto custom-scrollbar bg-white relative">
         <div className="min-w-max pb-20">
-          {/* Table Header */}
+          {/* Table Header (Sticky) */}
           <div className="flex sticky top-0 z-30 bg-white border-b-2 border-gray-200 shadow-sm text-xs font-bold uppercase tracking-wider">
             <div className="w-10 p-3 text-center border-r border-gray-200 sticky left-0 bg-white z-40 text-gray-400">
               #
             </div>
-            <div className="w-[300px] p-3 border-r border-gray-200 sticky left-10 bg-white z-40 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)] text-gray-600">
+            <div className="w-[500px] p-3 border-r border-gray-200 sticky left-10 bg-white z-40 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)] text-gray-600">
               เนื้อร้อง / ท่อน
             </div>
 
+            {/* Role Columns Header */}
             {ROLES.map((role) => (
               <div
                 key={role.key}
@@ -391,6 +518,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
                   <role.icon className="w-4 h-4" /> {role.label}
                 </div>
                 <div className="flex bg-gray-50/50">
+                  {/* 🔥 แสดงเฉพาะ Singer */}
                   {singerMembers.map((m) => (
                     <div
                       key={m.id}
@@ -442,6 +570,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
                               : ""
                           }`}
                         >
+                          {/* Drag Handle */}
                           <div
                             {...provided.dragHandleProps}
                             className={`w-10 flex items-center justify-center text-gray-300 cursor-grab hover:text-gray-500 border-r border-gray-200 sticky left-0 z-10 ${
@@ -453,8 +582,9 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
                             <GripVertical className="w-4 h-4" />
                           </div>
 
+                          {/* Text / Lyric */}
                           <div
-                            className={`w-[300px] p-2 border-r border-gray-200 sticky left-10 z-10 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)] ${
+                            className={`w-[500px] p-2 border-r border-gray-200 sticky left-10 z-10 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)] ${
                               row.type === "section"
                                 ? "bg-gray-100"
                                 : "bg-white"
@@ -493,6 +623,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
                             )}
                           </div>
 
+                          {/* Matrix Cells */}
                           {row.type === "line" ? (
                             ROLES.map((role) => (
                               <div
@@ -509,7 +640,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
                                         row={row}
                                         userId={m.id}
                                         memberColor={m.assigned_color}
-                                        onToggle={(type: HarmoType | null) =>
+                                        onToggle={(type) =>
                                           toggleHarmoRole(row.id, m.id, type)
                                         }
                                       />
@@ -536,6 +667,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
                             <div className="flex-1 bg-gray-100/50 border-r border-gray-200"></div>
                           )}
 
+                          {/* Note Column */}
                           {row.type === "line" && (
                             <div className="w-[200px] p-2 border-l border-gray-200 bg-white">
                               <div className="flex items-center gap-2 h-full bg-gray-50 rounded-lg px-2 border border-transparent hover:border-gray-200 hover:bg-white transition-all">
@@ -555,6 +687,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
                             </div>
                           )}
 
+                          {/* Delete */}
                           <div
                             className={`w-10 flex items-center justify-center border-l border-gray-200 ${
                               row.type === "section"
@@ -579,6 +712,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
             </Droppable>
           </DragDropContext>
         </div>
+
         {rows.length === 0 && (
           <div className="text-center py-20 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl mt-4 mx-4">
             <Type className="w-12 h-12 mx-auto mb-3 opacity-20" />
@@ -596,7 +730,8 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
   );
 }
 
-// ... (Sub Components: SimpleCell, HarmoCell, HarmoOption เหมือนเดิม)
+// --- Sub Components ---
+
 const SimpleCell = ({ isSelected, memberColor, onClick }: any) => (
   <button
     onClick={onClick}

@@ -2,23 +2,16 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
-  User,
   MessageSquare,
-  Check,
   Send,
   Quote,
-  CheckCircle2,
-  Mic,
   Eraser,
   Wind,
-  Music,
   GripVertical,
   Copy,
   ArrowUp,
   ArrowDown,
   X,
-  Plus,
-  Minus,
   Trash2,
   Underline as UnderlineIcon,
 } from "lucide-react";
@@ -100,7 +93,7 @@ const CustomHighlight = Highlight.extend({
 interface LyricEditorProps {
   index: number;
   block: LyricBlock;
-  members: Member[];
+  // members: Member[]; // ❌ ไม่ต้องใช้ members แล้วในหน้านี้
   onUpdate: (newData: Partial<LyricBlock>) => void;
   onDelete: () => void;
   onDuplicate: () => void;
@@ -112,7 +105,7 @@ interface LyricEditorProps {
 export default function LyricEditor({
   index,
   block,
-  members,
+  // members,
   onUpdate,
   onDelete,
   onDuplicate,
@@ -120,7 +113,7 @@ export default function LyricEditor({
   onMoveDown,
   dragHandleProps,
 }: LyricEditorProps) {
-  const [showMemberSelect, setShowMemberSelect] = useState(false);
+  // const [showMemberSelect, setShowMemberSelect] = useState(false); // ❌ เอาออก
   const [showComments, setShowComments] = useState(
     (block.comments || []).length > 0
   );
@@ -131,10 +124,8 @@ export default function LyricEditor({
   const isInterlude = block.type === "interlude";
   const isSeparator = block.type === "separator";
 
-  // สำหรับ Dropdown เลือกคนเข้าท่อน (แสดงเฉพาะตำแหน่ง Singer)
-  const singerMembers = members.filter((m) => m.roles.includes("singer"));
-
   const editor = useEditor({
+    immediateRender: false,
     extensions: [
       StarterKit,
       TextStyle,
@@ -165,6 +156,7 @@ export default function LyricEditor({
   useEffect(() => {
     if (
       editor &&
+      !editor.isDestroyed &&
       block.htmlContent !== editor.getHTML() &&
       editor.isEmpty &&
       block.htmlContent
@@ -173,27 +165,7 @@ export default function LyricEditor({
     }
   }, [block.id, editor, block.htmlContent]);
 
-  const toggleSinger = (userId: string) => {
-    const currentSingers = block.singers || [];
-    const exists = currentSingers.find((s) => s.user_id === userId);
-    let newSingers: SingerData[];
-    if (exists) newSingers = currentSingers.filter((s) => s.user_id !== userId);
-    else
-      newSingers = [...currentSingers, { user_id: userId, is_recorded: false }];
-    onUpdate({ singers: newSingers });
-  };
-
-  const toggleRecorded = (userId: string) => {
-    const newSingers = block.singers.map((s) =>
-      s.user_id === userId ? { ...s, is_recorded: !s.is_recorded } : s
-    );
-    onUpdate({ singers: newSingers });
-  };
-
-  const highlightWithSingerColor = (color: string) => {
-    if (!editor) return;
-    editor.chain().focus().setMark("highlight", { color: color }).run();
-  };
+  // 🔥 เอาฟังก์ชันเกี่ยวกับ Singer ออก (toggleSinger, toggleRecorded, highlightWithSingerColor)
 
   const insertBreathMark = () => {
     if (!editor) return;
@@ -294,7 +266,7 @@ export default function LyricEditor({
               type="text"
               value={block.name}
               onChange={(e) => onUpdate({ name: e.target.value })}
-              placeholder="ชื่อท่อน / ชื่อคนร้อง"
+              placeholder="ชื่อท่อน"
               className="bg-transparent outline-none text-center min-w-[100px] text-gray-600 placeholder:text-gray-300 font-bold"
             />
             ]
@@ -365,92 +337,9 @@ export default function LyricEditor({
             value={block.name || ""}
             onChange={(e) => onUpdate({ name: e.target.value })}
           />
-
-          {!isInterlude && (
-            <>
-              <div className="h-4 w-px bg-gray-300 mx-1"></div>
-              <button
-                onClick={() => setShowMemberSelect(!showMemberSelect)}
-                className={`flex items-center gap-1 px-2 py-1 text-xs text-gray-600 bg-white border border-gray-200 rounded-full hover:border-accent hover:text-accent transition-colors shadow-sm`}
-              >
-                <User className="w-3 h-3" />{" "}
-                {block.singers?.length > 0
-                  ? `${block.singers.length} คน`
-                  : "เลือกคนร้อง"}
-              </button>
-              <div className="flex gap-2 flex-wrap">
-                {/* แสดงคนที่ถูกเลือก (Selected) ใน Header */}
-                {(block.singers || []).map((s) => {
-                  const member = members.find((m) => m.id === s.user_id);
-                  return (
-                    <button
-                      key={s.user_id}
-                      onClick={() => toggleRecorded(s.user_id)}
-                      className={`flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium transition-all shadow-sm`}
-                      style={{
-                        backgroundColor: s.is_recorded
-                          ? "#dcfce7"
-                          : member?.assigned_color || "#e2e8f0",
-                        borderColor: s.is_recorded ? "#86efac" : "transparent",
-                        opacity: s.is_recorded ? 1 : 0.9,
-                      }}
-                      title={s.is_recorded ? "อัดเสร็จแล้ว" : "ยังไม่อัด"}
-                    >
-                      {member?.display_name || "Unknown"}
-                      {s.is_recorded && (
-                        <CheckCircle2 className="w-3.5 h-3.5 ml-1 text-green-600" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          )}
-
-          {showMemberSelect && !isInterlude && (
-            <div className="absolute top-full left-28 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden p-1 animate-in fade-in zoom-in-95">
-              <div className="text-[10px] uppercase font-bold text-gray-400 px-3 py-2 bg-gray-50 mb-1">
-                เลือกนักร้อง (Singer)
-              </div>
-              {singerMembers.length === 0 ? (
-                <div className="px-3 py-2 text-xs text-gray-400 text-center">
-                  ไม่มีสมาชิกตำแหน่ง Singer
-                </div>
-              ) : (
-                singerMembers.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => toggleSinger(m.id)}
-                    className="w-full flex items-center justify-between px-3 py-2 text-sm text-left hover:bg-blue-50 rounded-lg transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] shadow-sm border border-white"
-                        style={{
-                          backgroundColor: m.assigned_color || "#bfdbfe",
-                        }}
-                      >
-                        {m.display_name?.substring(0, 2).toUpperCase()}
-                      </div>
-                      <span className="truncate max-w-[120px]">
-                        {m.display_name}
-                      </span>
-                    </div>
-                    {block.singers?.some((s) => s.user_id === m.id) && (
-                      <Check className="w-3 h-3 text-accent" />
-                    )}
-                  </button>
-                ))
-              )}
-              <div
-                className="fixed inset-0 z-[-1]"
-                onClick={() => setShowMemberSelect(false)}
-              ></div>
-            </div>
-          )}
         </div>
 
-        {/* Header Actions */}
+        {/* Actions */}
         <div className="flex gap-1 items-center">
           {!isInterlude && (
             <button
@@ -535,47 +424,13 @@ export default function LyricEditor({
           </div>
         ) : (
           <>
-            {editor && (
+            {/* Bubble Menu (เหลือแค่ ขีดเส้นใต้, ล้างสี, คอมเมนต์) */}
+            {editor && !editor.isDestroyed && (
               <BubbleMenu
                 editor={editor}
                 tippyOptions={{ duration: 100 }}
-                className="flex flex-col gap-1 p-1.5 bg-white rounded-xl shadow-xl border border-gray-100 min-w-[160px] z-50"
+                className="flex flex-col gap-1 p-1.5 bg-white rounded-xl shadow-xl border border-gray-100 min-w-[160px]"
               >
-                {/* 🔥 ส่วนที่ 1: แสดงรายชื่อคนที่ถูกเลือกในท่อนนี้ (Selected Singers) เพื่อไฮไลท์ */}
-                {block.singers.length > 0 ? (
-                  <div className="flex flex-col gap-1 border-b border-gray-100 pb-1 mb-1">
-                    <span className="text-[10px] font-bold text-gray-400 px-2 uppercase">
-                      ไฮไลท์สี
-                    </span>
-                    {block.singers.map((s) => {
-                      const member = members.find((m) => m.id === s.user_id);
-                      if (!member) return null;
-                      return (
-                        <button
-                          key={s.user_id}
-                          onClick={() =>
-                            highlightWithSingerColor(member.assigned_color)
-                          }
-                          className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded-lg text-xs font-medium text-gray-700 transition-colors text-left"
-                        >
-                          <div
-                            className="w-3 h-3 rounded-full border shadow-sm"
-                            style={{ backgroundColor: member.assigned_color }}
-                          />
-                          <span className="truncate">
-                            {member.display_name}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="px-2 py-2 text-[10px] text-gray-400 text-center border-b border-gray-100 mb-1">
-                    เลือกคนร้องก่อนไฮไลท์
-                  </div>
-                )}
-
-                {/* 🔥 ส่วนที่ 2: เครื่องมือแก้ไข (ขีดเส้นใต้, ล้าง, คอมเมนต์) */}
                 <div className="flex items-center justify-between px-1 pt-1">
                   <button
                     onClick={() =>

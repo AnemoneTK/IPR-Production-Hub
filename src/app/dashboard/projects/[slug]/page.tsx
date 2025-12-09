@@ -11,6 +11,7 @@ import {
   Settings,
   Loader2,
   Users,
+  AudioWaveform, // 🔥 1. เพิ่มไอคอนนี้
 } from "lucide-react";
 
 // Import Components
@@ -19,6 +20,7 @@ import AssetsTab from "@/components/AssetsTab";
 import LyricsTab from "@/components/LyricsTab";
 import SettingsTab from "@/components/SettingsTab";
 import MemberModal from "@/components/MemberModal";
+import ArrangementTab from "@/components/ArrangementTab"; // 🔥 2. Import Component นี้
 
 export default function ProjectWorkspace() {
   const params = useParams();
@@ -32,7 +34,6 @@ export default function ProjectWorkspace() {
   const [activeTab, setActiveTab] = useState("board");
   const [showMemberModal, setShowMemberModal] = useState(false);
 
-  // 🔥 เพิ่มตัวแปรสำหรับสั่งรีเฟรช Component
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -58,10 +59,9 @@ export default function ProjectWorkspace() {
     fetchProjectDetails();
   }, [slug, router]);
 
-  // 🔥 ฟังก์ชันปิด Modal แล้วสั่งรีเฟรชหน้า Tab
   const handleCloseModal = () => {
     setShowMemberModal(false);
-    setRefreshKey((prev) => prev + 1); // เปลี่ยนค่า key เพื่อบังคับโหลดใหม่
+    setRefreshKey((prev) => prev + 1);
   };
 
   if (loading)
@@ -106,7 +106,6 @@ export default function ProjectWorkspace() {
           </div>
         </div>
 
-        {/* ปุ่มจัดการทีม */}
         <button
           onClick={() => setShowMemberModal(true)}
           className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:text-gray-900 transition-colors shadow-sm"
@@ -116,7 +115,7 @@ export default function ProjectWorkspace() {
         </button>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs Navigation */}
       <div className="flex items-center gap-1 bg-gray-100/80 p-1.5 rounded-xl w-fit mb-6 shadow-inner overflow-x-auto max-w-full">
         <TabButton
           active={activeTab === "board"}
@@ -136,6 +135,15 @@ export default function ProjectWorkspace() {
           icon={Music2}
           label="Lyrics"
         />
+
+        {/* 🔥 3. เพิ่มปุ่ม Arrangement ตรงนี้ (ต่อจาก Lyrics) */}
+        <TabButton
+          active={activeTab === "arrange"}
+          onClick={() => setActiveTab("arrange")}
+          icon={AudioWaveform}
+          label="Arrange"
+        />
+
         <div className="w-px h-5 bg-gray-300 mx-2 flex-shrink-0" />
         <TabButton
           active={activeTab === "settings"}
@@ -145,9 +153,8 @@ export default function ProjectWorkspace() {
         />
       </div>
 
-      {/* Content */}
+      {/* Content Area */}
       <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden relative flex flex-col">
-        {/* ใส่ key={refreshKey} เพื่อให้โหลดใหม่เมื่อมีการเปลี่ยนแปลง */}
         {activeTab === "board" && (
           <BoardTab key={refreshKey} projectId={project.id} />
         )}
@@ -163,23 +170,24 @@ export default function ProjectWorkspace() {
           </div>
         )}
 
-        {/* 🔥 LyricsTab จะถูกรีโหลดเมื่อปิด Modal */}
         {activeTab === "lyrics" && (
           <LyricsTab key={refreshKey} projectId={project.id} />
         )}
+
+        {/* 🔥 4. เพิ่มส่วน Render ArrangementTab */}
+        {activeTab === "arrange" && (
+          <ArrangementTab key={refreshKey} projectId={project.id} />
+        )}
       </div>
 
-      {/* Modal */}
       {showMemberModal && (
-        <MemberModal
-          projectId={project.id}
-          onClose={handleCloseModal} // ใช้ฟังก์ชันใหม่ที่สั่งรีเฟรชด้วย
-        />
+        <MemberModal projectId={project.id} onClose={handleCloseModal} />
       )}
     </div>
   );
 }
 
+// Sub-component สำหรับปุ่ม Tab
 function TabButton({ active, onClick, icon: Icon, label }: any) {
   return (
     <button

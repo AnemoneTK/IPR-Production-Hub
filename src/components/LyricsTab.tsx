@@ -616,7 +616,6 @@ export default function LyricsTab({ projectId }: { projectId: number }) {
                               <LyricEditor
                                 index={index}
                                 block={block}
-                                members={members}
                                 onUpdate={(data) => updateBlock(index, data)}
                                 onDelete={() => deleteBlock(block.id)}
                                 onDuplicate={() => duplicateBlock(index)}

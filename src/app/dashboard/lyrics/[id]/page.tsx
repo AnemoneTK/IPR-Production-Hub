@@ -1,748 +1,542 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import Link from "next/link";
 import {
-  ArrowLeft,
-  Save,
-  Plus,
+  MessageSquare,
+  Send,
+  Quote,
+  Eraser,
+  Wind,
+  GripVertical,
+  Copy,
+  ArrowUp,
+  ArrowDown,
   Trash2,
-  Youtube,
-  Loader2,
-  FileText,
-  Link as LinkIcon,
-  RotateCcw,
-  ExternalLink,
-  Music,
-  PlusCircle,
-  Minus, // 🔥 เพิ่มไอคอน Minus
-  CheckCircle2,
-  AlertTriangle,
+  Underline as UnderlineIcon,
   X,
-  Mic2,
 } from "lucide-react";
-import {
-  DragDropContext,
-  Droppable,
-  Draggable,
-  DropResult,
-} from "@hello-pangea/dnd";
+import { DraggableProvidedDragHandleProps } from "@hello-pangea/dnd";
 
-// 🔥 เปลี่ยนมาใช้ LyricEditor ตัวใหม่
-import LyricEditor, {
-  LyricBlock,
-  Member,
-  ReferenceLink,
-} from "@/components/lyrics/LyricEditor";
-import ReferenceList from "@/components/lyrics/ReferenceList";
+// Tiptap Imports
+import { useEditor, EditorContent, BubbleMenu, Editor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Highlight from "@tiptap/extension-highlight";
+import TextStyle from "@tiptap/extension-text-style";
+import { Color } from "@tiptap/extension-color";
+import BubbleMenuExtension from "@tiptap/extension-bubble-menu";
+import Underline from "@tiptap/extension-underline";
 
-// --- Helper Functions ---
-const getYouTubeID = (url: string) => {
-  if (!url) return null;
-  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-  const match = url.match(regExp);
-  return match && match[2].length === 11 ? match[2] : null;
-};
+// --- Interfaces ---
+export interface Comment {
+  id: string;
+  user_id: string;
+  user_name: string;
+  text: string;
+  quoted_text?: string;
+  created_at: string;
+}
 
-const calculateMaxWidth = () => {
-  if (typeof window !== "undefined") {
-    return window.innerWidth / 2 - 100;
-  }
-  return 400;
-};
+export interface SingerData {
+  user_id: string;
+  is_recorded: boolean;
+}
 
-// 🔥 Update createBlock ให้มี separator
-const createBlock = (
-  type: "lyrics" | "interlude" | "separator"
-): LyricBlock => ({
-  id: crypto.randomUUID(),
-  type,
-  name:
-    type === "interlude"
-      ? "Interlude / Solo"
-      : type === "separator"
-      ? "ชื่อท่อน"
-      : "",
-  singers: [],
-  htmlContent: "<p></p>",
-  comments: [],
+export interface LyricBlock {
+  id: string;
+  type: "lyrics" | "interlude" | "separator";
+  name: string;
+  singers: SingerData[];
+  htmlContent: string;
+  comments: Comment[];
+}
+
+export interface Member {
+  id: string;
+  display_name: string;
+  avatar_url?: string;
+  assigned_color: string;
+  roles: string[];
+}
+
+export interface ReferenceLink {
+  id: number;
+  script_id: number;
+  url: string;
+  title: string;
+  project_id?: number | null;
+  created_at: string;
+}
+
+// Custom Tiptap Extension
+const CustomHighlight = Highlight.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      commentId: {
+        default: null,
+        parseHTML: (e) => e.getAttribute("data-comment-id"),
+        renderHTML: (a) =>
+          a.commentId ? { "data-comment-id": a.commentId } : {},
+      },
+      color: {
+        default: null,
+        parseHTML: (e) => e.style.backgroundColor,
+        renderHTML: (a) =>
+          a.color
+            ? { style: `background-color: ${a.color}; color: inherit` }
+            : {},
+      },
+    };
+  },
 });
 
-export default function ScriptEditPage() {
-  const params = useParams();
-  const router = useRouter();
-  const id = params.id as string;
+// 🔥 แก้ไขตรงนี้: เอา members ออกจาก Interface
+interface LyricEditorProps {
+  index: number;
+  block: LyricBlock;
+  // members: Member[];  <-- ลบทิ้งไปเลย
+  onUpdate: (newData: Partial<LyricBlock>) => void;
+  onDelete: () => void;
+  onDuplicate: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  dragHandleProps?: DraggableProvidedDragHandleProps | null;
+}
 
-  // --- States ---
-  const [blocks, setBlocks] = useState<LyricBlock[]>([]);
-  const [title, setTitle] = useState("");
-  const [projectId, setProjectId] = useState<number | null>(null);
-  const [members, setMembers] = useState<Member[]>([]); // 🔥 เพิ่ม state สมาชิก
-  const [isSaving, setIsSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
-
-  const [activeSubTab, setActiveSubTab] = useState<"script" | "refs">("script");
-  const [links, setLinks] = useState<ReferenceLink[]>([]);
-  const [newLink, setNewLink] = useState({ title: "", url: "" });
-  const [isAddingLink, setIsAddingLink] = useState(false);
-
-  // Sidebar
-  const [sidebarWidth, setSidebarWidth] = useState(400);
-  const [isResizing, setIsResizing] = useState(false);
-  const sidebarRef = useRef<HTMLDivElement>(null);
-
-  // Alert State
-  const [alertConfig, setAlertConfig] = useState<{
-    show: boolean;
-    type: "success" | "error";
-    title: string;
-    message: string;
-  }>({ show: false, type: "success", title: "", message: "" });
-
-  const showAlert = (
-    title: string,
-    message: string,
-    type: "success" | "error"
-  ) => {
-    setAlertConfig({ show: true, title, message, type });
-    if (type === "success") {
-      setTimeout(
-        () => setAlertConfig((prev) => ({ ...prev, show: false })),
-        2000
-      );
-    }
-  };
-
-  const youtubeLinks = links.filter((l) => getYouTubeID(l.url));
-  const generalLinks = links.filter((l) => !getYouTubeID(l.url));
-
-  // --- 1. Fetch Data ---
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-
-      // A. Fetch Script
-      const { data: script, error: scriptError } = await supabase
-        .from("scripts")
-        .select("*")
-        .eq("id", id)
-        .single();
-
-      if (scriptError) {
-        console.error(scriptError);
-        router.push("/dashboard/lyrics");
-        return;
-      }
-
-      if (script) {
-        setTitle(script.title);
-        setProjectId(script.project_id);
-        setLastSaved(new Date(script.updated_at));
-        try {
-          const content = JSON.parse(script.content);
-          setBlocks(Array.isArray(content) ? (content as LyricBlock[]) : []);
-        } catch {
-          setBlocks([]);
-        }
-
-        // 🔥 B. Fetch Members (ถ้ามีโปรเจกต์)
-        if (script.project_id) {
-          const { data: memberData } = await supabase
-            .from("project_members")
-            .select(
-              "user_id, roles, assigned_color, profiles(id, display_name, avatar_url)"
-            )
-            .eq("project_id", script.project_id);
-
-          if (memberData) {
-            const formattedMembers = memberData.map((m: any) => ({
-              id: m.profiles?.id || "unknown",
-              display_name: m.profiles?.display_name || "Unknown Member",
-              avatar_url: m.profiles?.avatar_url,
-              roles: m.roles || [],
-              assigned_color: m.assigned_color || "#bfdbfe",
-            }));
-            setMembers(formattedMembers);
-          }
-        }
-      }
-
-      // C. Fetch Links
-      const { data: linkData } = await supabase
-        .from("reference_links")
-        .select("*")
-        .eq("script_id", id)
-        .order("created_at", { ascending: false });
-
-      setLinks((linkData as ReferenceLink[]) || []);
-      setLoading(false);
-    };
-
-    fetchData();
-  }, [id, router]);
-
-  // --- 2. Resize Logic ---
-  useEffect(() => {
-    requestAnimationFrame(() => setSidebarWidth(calculateMaxWidth()));
-  }, []);
-
-  const startResizing = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-  }, []);
-  const stopResizing = useCallback(() => setIsResizing(false), []);
-  const resize = useCallback(
-    (e: MouseEvent) => {
-      if (isResizing) {
-        let newWidth = window.innerWidth - e.clientX;
-        const maxWidth = calculateMaxWidth();
-        if (newWidth < 350) newWidth = 350;
-        if (newWidth > maxWidth) newWidth = maxWidth;
-        setSidebarWidth(newWidth);
-      }
-    },
-    [isResizing]
+export default function LyricEditor({
+  index,
+  block,
+  // members, <-- ลบทิ้ง
+  onUpdate,
+  onDelete,
+  onDuplicate,
+  onMoveUp,
+  onMoveDown,
+  dragHandleProps,
+}: LyricEditorProps) {
+  const [showComments, setShowComments] = useState(
+    (block.comments || []).length > 0
   );
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [commentInput, setCommentInput] = useState("");
+  const [quoteText, setQuoteText] = useState<string | null>(null);
 
-  const handleResetWidth = () => setSidebarWidth(calculateMaxWidth());
+  const isInterlude = block.type === "interlude";
+  const isSeparator = block.type === "separator";
+
+  const editor = useEditor({
+    immediatelyRender: false,
+    extensions: [
+      StarterKit,
+      TextStyle,
+      Color,
+      CustomHighlight.configure({ multicolor: true }),
+      BubbleMenuExtension,
+      Underline,
+    ],
+    content: block.htmlContent || "<p></p>",
+    onUpdate: ({ editor }: { editor: Editor }) => {
+      onUpdate({ htmlContent: editor.getHTML() });
+    },
+    editorProps: {
+      attributes: {
+        class:
+          "prose prose-sm w-full p-4 outline-none min-h-[80px] focus:prose-p:text-gray-900 text-gray-700 max-w-none",
+      },
+      handleKeyDown: (view, event) => {
+        if (event.key === "/") {
+          insertBreathMark();
+          return true;
+        }
+        return false;
+      },
+    },
+  });
 
   useEffect(() => {
-    if (isResizing) {
-      window.addEventListener("mousemove", resize);
-      window.addEventListener("mouseup", stopResizing);
-    }
-    return () => {
-      window.removeEventListener("mousemove", resize);
-      window.removeEventListener("mouseup", stopResizing);
-    };
-  }, [isResizing, resize, stopResizing]);
-
-  // --- 3. Actions ---
-  const handleSave = async () => {
-    setIsSaving(true);
-    const { error } = await supabase
-      .from("scripts")
-      .update({
-        title,
-        content: JSON.stringify(blocks),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id);
-
-    if (error) {
-      showAlert("บันทึกไม่สำเร็จ", error.message, "error");
-    } else {
-      setLastSaved(new Date());
-    }
-    setIsSaving(false);
-  };
-
-  const handleAddLink = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newLink.url) return;
-    const linkTitle =
-      newLink.title ||
-      (getYouTubeID(newLink.url) ? "YouTube Reference" : "Reference Link");
-
-    const { data, error } = await supabase
-      .from("reference_links")
-      .insert({
-        script_id: Number(id),
-        url: newLink.url,
-        title: linkTitle,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      showAlert("เพิ่มลิงก์ไม่สำเร็จ", error.message, "error");
-    } else if (data) {
-      setLinks([data as ReferenceLink, ...links]);
-      setNewLink({ title: "", url: "" });
-      setIsAddingLink(false);
-      showAlert("สำเร็จ", "เพิ่มลิงก์เรียบร้อยแล้ว", "success");
-    }
-  };
-
-  const handleDeleteLink = async (linkId: number) => {
-    const { error } = await supabase
-      .from("reference_links")
-      .delete()
-      .eq("id", linkId);
-    if (error) {
-      showAlert("ลบไม่สำเร็จ", error.message, "error");
-    } else {
-      setLinks(links.filter((l) => l.id !== linkId));
-    }
-  };
-
-  // 🔥 Update addBlock ให้รองรับ separator
-  const addBlock = (
-    type: "lyrics" | "interlude" | "separator",
-    index?: number
-  ) => {
-    const newBlock = createBlock(type);
-    const newBlocks = [...blocks];
-    if (typeof index === "number") newBlocks.splice(index, 0, newBlock);
-    else newBlocks.push(newBlock);
-    setBlocks(newBlocks);
-  };
-
-  const updateBlock = (idx: number, newData: Partial<LyricBlock>) => {
-    const newBlocks = [...blocks];
-    newBlocks[idx] = { ...newBlocks[idx], ...newData };
-    setBlocks(newBlocks);
-  };
-
-  const deleteBlock = (idx: number) => {
-    setBlocks(blocks.filter((_, i) => i !== idx));
-  };
-
-  const duplicateBlock = (idx: number) => {
-    const blockToCopy = blocks[idx];
-    const newBlock = {
-      ...blockToCopy,
-      id: crypto.randomUUID(),
-      comments: [],
-    };
-    const newBlocks = [...blocks];
-    newBlocks.splice(idx + 1, 0, newBlock);
-    setBlocks(newBlocks);
-  };
-
-  const moveBlock = (index: number, direction: "up" | "down") => {
     if (
-      (direction === "up" && index === 0) ||
-      (direction === "down" && index === blocks.length - 1)
-    )
-      return;
-    const newBlocks = [...blocks];
-    const target = direction === "up" ? index - 1 : index + 1;
-    [newBlocks[index], newBlocks[target]] = [
-      newBlocks[target],
-      newBlocks[index],
-    ];
-    setBlocks(newBlocks);
+      editor &&
+      !editor.isDestroyed &&
+      block.htmlContent !== editor.getHTML() &&
+      editor.isEmpty &&
+      block.htmlContent
+    ) {
+      editor.commands.setContent(block.htmlContent);
+    }
+  }, [block.id, editor, block.htmlContent]);
+
+  const insertBreathMark = () => {
+    if (!editor) return;
+    editor
+      .chain()
+      .focus()
+      .insertContent(
+        ' <span style="color: #3b82f6; font-weight: bold;">/</span> '
+      )
+      .run();
   };
 
-  const onDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
-    const items = Array.from(blocks);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reorderedItem);
-    setBlocks(items);
+  const handleQuote = () => {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    if (from === to) return;
+    const text = editor.state.doc.textBetween(from, to, " ");
+    if (text) {
+      setQuoteText(text);
+      setShowComments(true);
+      editor.chain().focus().setMark("highlight", { color: "#fef08a" }).run();
+    }
   };
 
-  if (loading) {
+  const addComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commentInput.trim()) return;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    let displayName = "Me";
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", user.id)
+        .single();
+      if (profile) displayName = profile.display_name;
+    }
+    const newComment: Comment = {
+      id: crypto.randomUUID(),
+      user_id: user?.id || "unknown",
+      user_name: displayName,
+      text: commentInput,
+      quoted_text: quoteText || undefined,
+      created_at: new Date().toISOString(),
+    };
+    onUpdate({ comments: [...(block.comments || []), newComment] });
+    setCommentInput("");
+    setQuoteText(null);
+  };
+
+  const deleteComment = (comment: Comment) => {
+    if (editor && comment.quoted_text) {
+      const textToFind = comment.quoted_text;
+      const { doc } = editor.state;
+      let found = false;
+      doc.descendants((node, pos) => {
+        if (
+          !found &&
+          node.isText &&
+          node.text &&
+          node.text.includes(textToFind)
+        ) {
+          const start = pos + node.text.indexOf(textToFind);
+          const end = start + textToFind.length;
+          editor
+            .chain()
+            .setTextSelection({ from: start, to: end })
+            .unsetHighlight()
+            .run();
+          found = true;
+          return false;
+        }
+      });
+    }
+    onUpdate({
+      comments: (block.comments || []).filter((c) => c.id !== comment.id),
+    });
+  };
+
+  if (isSeparator) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
-        <Loader2 className="animate-spin text-accent w-10 h-10" />
+      <div className="group relative flex items-center gap-3 py-4 my-2">
+        <div
+          {...dragHandleProps}
+          className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 p-1"
+        >
+          <GripVertical className="w-4 h-4" />
+        </div>
+
+        <div className="flex-1 flex items-center gap-4">
+          <div className="h-[2px] bg-gray-200 flex-1 rounded-full"></div>
+          <div className="flex items-center gap-2 text-gray-400 font-bold text-sm uppercase tracking-wider">
+            [
+            <input
+              type="text"
+              value={block.name}
+              onChange={(e) => onUpdate({ name: e.target.value })}
+              placeholder="ชื่อท่อน"
+              className="bg-transparent outline-none text-center min-w-[100px] text-gray-600 placeholder:text-gray-300 font-bold"
+            />
+            ]
+          </div>
+          <div className="h-[2px] bg-gray-200 flex-1 rounded-full"></div>
+        </div>
+
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={onMoveUp}
+            className="text-gray-300 hover:text-gray-500 p-1"
+          >
+            <ArrowUp className="w-3 h-3" />
+          </button>
+          <button
+            onClick={onMoveDown}
+            className="text-gray-300 hover:text-gray-500 p-1"
+          >
+            <ArrowDown className="w-3 h-3" />
+          </button>
+          <button
+            onClick={onDelete}
+            className="text-gray-300 hover:text-red-500 p-1"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-gray-50 relative">
-      {/* Alert Modal */}
-      {alertConfig.show && (
-        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-gray-100 scale-100 animate-in zoom-in-95 duration-200 relative">
-            <button
-              onClick={() =>
-                setAlertConfig((prev) => ({ ...prev, show: false }))
-              }
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-            >
-              <X className="w-5 h-5" />
-            </button>
+    <div
+      className={`group relative rounded-xl border shadow-sm transition-all duration-300 hover:shadow-md ${
+        isInterlude
+          ? "bg-purple-50 border-purple-200"
+          : "bg-white border-gray-200"
+      }`}
+    >
+      <div
+        className={`flex justify-between items-center p-2 pl-3 border-b rounded-t-xl ${
+          isInterlude
+            ? "bg-purple-100 border-purple-200"
+            : "bg-gray-50/50 border-gray-50"
+        }`}
+      >
+        <div className="relative flex items-center gap-2 flex-1 flex-wrap">
+          {dragHandleProps && (
             <div
-              className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${
-                alertConfig.type === "success"
-                  ? "bg-green-100 text-green-600"
-                  : "bg-red-100 text-red-600"
-              }`}
+              {...dragHandleProps}
+              className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1.5 rounded hover:bg-black/5"
+              title="ลากเพื่อย้าย"
             >
-              {alertConfig.type === "success" ? (
-                <CheckCircle2 className="w-6 h-6" />
-              ) : (
-                <AlertTriangle className="w-6 h-6" />
-              )}
+              <GripVertical className="w-4 h-4" />
             </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">
-              {alertConfig.title}
-            </h3>
-            <p className="text-sm text-gray-500 mb-6">{alertConfig.message}</p>
-            <button
-              onClick={() =>
-                setAlertConfig((prev) => ({ ...prev, show: false }))
-              }
-              className={`w-full py-2.5 rounded-xl font-bold text-white transition-all active:scale-95 ${
-                alertConfig.type === "success"
-                  ? "bg-green-600 hover:bg-green-700"
-                  : "bg-red-600 hover:bg-red-700"
-              }`}
-            >
-              ตกลง
-            </button>
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center z-50 shadow-sm flex-shrink-0">
-        <div className="flex items-center gap-4 flex-1">
-          <Link
-            href="/dashboard/lyrics"
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
           <input
             type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="text-xl font-bold text-gray-900 bg-transparent outline-none placeholder:text-gray-300 w-full"
-            placeholder="ตั้งชื่อเพลง..."
-          />
-        </div>
-        <div className="flex items-center gap-3 text-xs">
-          {lastSaved && (
-            <span className="text-gray-400 hidden sm:inline">
-              บันทึกเมื่อ {lastSaved.toLocaleTimeString("th-TH")}
-            </span>
-          )}
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50 transition-all font-bold shadow-sm active:scale-95"
-          >
-            {isSaving ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            <span>บันทึก</span>
-          </button>
-        </div>
-      </header>
-
-      {/* Body Container */}
-      <div className="flex flex-1 overflow-hidden relative">
-        {/* Left Side */}
-        <div className="flex-1 flex flex-col bg-gray-50/50 overflow-hidden relative">
-          {/* Sub Tabs */}
-          <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-sm border-b border-gray-200 px-6 py-2 flex items-center justify-between">
-            <div className="flex gap-1">
-              <button
-                onClick={() => setActiveSubTab("script")}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                  activeSubTab === "script"
-                    ? "bg-white text-gray-900 shadow-sm ring-1 ring-gray-200"
-                    : "text-gray-500 hover:bg-gray-200/50"
-                }`}
-              >
-                <FileText className="w-4 h-4" /> เนื้อเพลง
-              </button>
-              <button
-                onClick={() => setActiveSubTab("refs")}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                  activeSubTab === "refs"
-                    ? "bg-white text-purple-600 shadow-sm ring-1 ring-purple-100"
-                    : "text-gray-500 hover:bg-gray-200/50"
-                }`}
-              >
-                <LinkIcon className="w-4 h-4" /> ลิงก์ทั่วไป
-              </button>
-              <Link
-                href={`/singer/${id}`}
-                target="_blank"
-                className="flex items-center gap-2 px-3 py-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-all font-bold"
-              >
-                <Mic2 className="w-4 h-4" />
-                <span className="hidden sm:inline">โหมดนักร้อง</span>
-              </Link>
-            </div>
-          </div>
-
-          {/* Content Area */}
-          <div className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar">
-            {/* Script View */}
-            {activeSubTab === "script" && (
-              <div className="max-w-3xl mx-auto w-full pb-20">
-                <DragDropContext onDragEnd={onDragEnd}>
-                  <Droppable droppableId="script-blocks">
-                    {(provided) => (
-                      <div
-                        {...provided.droppableProps}
-                        ref={provided.innerRef}
-                        className="space-y-4"
-                      >
-                        {blocks.map((block, index) => (
-                          <Draggable
-                            key={block.id}
-                            draggableId={block.id}
-                            index={index}
-                          >
-                            {(provided, snapshot) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                style={{
-                                  ...provided.draggableProps.style,
-                                  opacity: snapshot.isDragging ? 0.8 : 1,
-                                }}
-                                className="group/block relative hover:z-20"
-                              >
-                                <LyricEditor
-                                  index={index}
-                                  block={block}
-                                  members={members} // ส่ง Members ไปด้วย
-                                  onUpdate={(data) => updateBlock(index, data)}
-                                  onDelete={() => deleteBlock(index)}
-                                  onDuplicate={() => duplicateBlock(index)}
-                                  onMoveUp={() => moveBlock(index, "up")}
-                                  onMoveDown={() => moveBlock(index, "down")}
-                                  dragHandleProps={provided.dragHandleProps}
-                                />
-
-                                {/* Insert Button */}
-                                <div className="absolute left-0 right-0 -bottom-6 h-8 z-10 flex items-center justify-center opacity-0 group-hover/block:opacity-100 transition-all duration-200 pointer-events-none group-hover/block:pointer-events-auto">
-                                  <div className="flex items-center gap-2 transform scale-75 hover:scale-100 transition-transform bg-gray-50/80 px-3 py-1 rounded-full backdrop-blur-sm border border-gray-200 shadow-sm">
-                                    <button
-                                      onClick={() =>
-                                        addBlock("lyrics", index + 1)
-                                      }
-                                      className="flex items-center gap-1 px-3 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded-full text-xs font-bold hover:bg-blue-100 shadow-sm transition-colors"
-                                      title="แทรกเนื้อร้อง"
-                                    >
-                                      <PlusCircle className="w-3 h-3" />{" "}
-                                      เนื้อร้อง
-                                    </button>
-                                    <button
-                                      onClick={() =>
-                                        addBlock("interlude", index + 1)
-                                      }
-                                      className="flex items-center gap-1 px-3 py-1 bg-orange-50 border border-orange-200 text-orange-600 rounded-full text-xs font-bold hover:bg-orange-100 shadow-sm transition-colors"
-                                      title="แทรกดนตรี"
-                                    >
-                                      <Music className="w-3 h-3" /> ดนตรี
-                                    </button>
-                                    {/* 🔥 เพิ่มปุ่มตัวคั่นตรงนี้ */}
-                                    <button
-                                      onClick={() =>
-                                        addBlock("separator", index + 1)
-                                      }
-                                      className="flex items-center gap-1 px-3 py-1 bg-gray-100 border border-gray-300 text-gray-600 rounded-full text-xs font-bold hover:bg-gray-200 shadow-sm transition-colors"
-                                      title="แทรกตัวคั่น"
-                                    >
-                                      <Minus className="w-3 h-3" /> ตัวคั่น
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </Draggable>
-                        ))}
-                        {provided.placeholder}
-                      </div>
-                    )}
-                  </Droppable>
-                </DragDropContext>
-
-                {/* Big Add Buttons */}
-                <div className="grid grid-cols-3 gap-4 mt-8">
-                  <button
-                    onClick={() => addBlock("lyrics")}
-                    className="py-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:text-accent hover:border-accent/50 hover:bg-white transition-all flex flex-col items-center justify-center gap-2"
-                  >
-                    <Plus className="w-6 h-6" />
-                    <span className="text-sm font-medium">
-                      เพิ่มท่อนเนื้อร้อง
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => addBlock("interlude")}
-                    className="py-4 border-2 border-dashed border-purple-200 rounded-xl text-gray-400 hover:text-purple-500 hover:border-purple-200 hover:bg-purple-50 transition-all flex flex-col items-center justify-center gap-2"
-                  >
-                    <Music className="w-6 h-6" />
-                    <span className="text-sm font-medium">เพิ่มท่อนดนตรี</span>
-                  </button>
-                  {/* 🔥 เพิ่มปุ่มตัวคั่นด้านล่าง */}
-                  <button
-                    onClick={() => addBlock("separator")}
-                    className="py-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-400 hover:text-gray-700 hover:border-gray-400 hover:bg-gray-50 transition-all flex flex-col items-center justify-center gap-2"
-                  >
-                    <Minus className="w-6 h-6" />
-                    <span className="text-sm font-medium">เพิ่มตัวคั่น</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* General References View */}
-            {activeSubTab === "refs" && (
-              <div className="max-w-4xl mx-auto space-y-6">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                    <LinkIcon className="w-5 h-5 text-purple-500" />{" "}
-                    ลิงก์อ้างอิงทั่วไป
-                  </h2>
-                  <button
-                    onClick={() => setIsAddingLink(true)}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-900 text-white rounded-lg text-sm font-bold shadow-sm transition-all"
-                  >
-                    <Plus className="w-4 h-4" /> เพิ่มลิงก์
-                  </button>
-                </div>
-
-                {isAddingLink && (
-                  <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-lg animate-in fade-in slide-in-from-top-2">
-                    <form
-                      onSubmit={handleAddLink}
-                      className="flex flex-col gap-3"
-                    >
-                      <input
-                        autoFocus
-                        type="text"
-                        placeholder="ชื่อลิงก์..."
-                        className="px-4 py-2 border border-gray-200 rounded-lg outline-none focus:border-accent text-sm"
-                        value={newLink.title}
-                        onChange={(e) =>
-                          setNewLink({ ...newLink, title: e.target.value })
-                        }
-                      />
-                      <input
-                        type="url"
-                        placeholder="URL (https://...)"
-                        className="px-4 py-2 border border-gray-200 rounded-lg outline-none focus:border-accent text-sm"
-                        value={newLink.url}
-                        onChange={(e) =>
-                          setNewLink({ ...newLink, url: e.target.value })
-                        }
-                      />
-                      <div className="flex justify-end gap-2 pt-2">
-                        <button
-                          type="button"
-                          onClick={() => setIsAddingLink(false)}
-                          className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-lg text-sm"
-                        >
-                          ยกเลิก
-                        </button>
-                        <button
-                          type="submit"
-                          className="px-4 py-2 bg-gray-800 text-white font-bold rounded-lg hover:bg-gray-900 text-sm"
-                        >
-                          เพิ่มลิงก์
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 gap-3">
-                  <ReferenceList
-                    links={generalLinks}
-                    onDelete={handleDeleteLink}
-                    type="general"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Resizer */}
-        <div
-          onMouseDown={startResizing}
-          className={`w-1.5 cursor-col-resize bg-gray-200 hover:bg-blue-300 transition-colors z-40 flex items-center justify-center group ${
-            isResizing ? "bg-accent" : ""
-          }`}
-        >
-          <div
-            className={`h-8 w-1 bg-gray-400 rounded-full transition-colors ${
-              isResizing ? "bg-white" : "group-hover:bg-white"
+            placeholder={
+              isInterlude ? "ชื่อท่อนดนตรี..." : `ท่อนที่ ${index + 1}`
+            }
+            className={`bg-transparent font-bold text-sm w-32 outline-none placeholder:text-gray-400 focus:text-accent ${
+              isInterlude ? "text-purple-700" : "text-gray-700"
             }`}
+            value={block.name || ""}
+            onChange={(e) => onUpdate({ name: e.target.value })}
           />
         </div>
 
-        {/* Right Sidebar (YouTube) */}
-        <div
-          ref={sidebarRef}
-          style={{ width: sidebarWidth }}
-          className="bg-white border-l border-gray-200 flex-shrink-0 flex flex-col shadow-xl z-30 h-full overflow-hidden"
-        >
-          <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center flex-shrink-0">
-            <h3 className="font-bold text-red-600 flex items-center gap-2">
-              <Youtube className="w-5 h-5" /> YouTube
-            </h3>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={handleResetWidth}
-                className="p-1.5 hover:bg-gray-200 rounded-lg text-gray-500"
-                title="รีเซ็ตความกว้าง"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setIsAddingLink(true)}
-                className="p-1.5 hover:bg-red-100 text-red-500 rounded-lg"
-                title="เพิ่มคลิป"
-              >
-                <Plus className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-
-          {isAddingLink && activeSubTab === "script" && (
-            <div className="p-4 border-b border-red-100 bg-red-50 animate-in fade-in">
-              <form onSubmit={handleAddLink} className="flex flex-col gap-2">
-                <input
-                  autoFocus
-                  type="text"
-                  placeholder="ชื่อคลิป..."
-                  className="w-full text-sm px-2 py-1.5 bg-transparent border-b border-red-200 outline-none text-red-900"
-                  value={newLink.title}
-                  onChange={(e) =>
-                    setNewLink({ ...newLink, title: e.target.value })
-                  }
-                />
-                <input
-                  type="url"
-                  placeholder="YouTube URL..."
-                  className="w-full text-sm mb-3 px-2 py-1 bg-transparent border-b border-red-200 outline-none text-red-600"
-                  value={newLink.url}
-                  onChange={(e) =>
-                    setNewLink({ ...newLink, url: e.target.value })
-                  }
-                />
-                <div className="flex justify-end gap-2 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setIsAddingLink(false)}
-                    className="text-red-400 hover:text-red-600"
-                  >
-                    ยกเลิก
-                  </button>
-                  <button type="submit" className="text-red-700 font-bold">
-                    เพิ่มคลิป
-                  </button>
-                </div>
-              </form>
-            </div>
+        <div className="flex gap-1 items-center">
+          {!isInterlude && (
+            <button
+              onClick={insertBreathMark}
+              className="p-1.5 text-blue-400 hover:bg-blue-50 rounded-lg transition-colors mr-1"
+              title="แทรกจุดหายใจ (/)"
+            >
+              <Wind className="w-4 h-4" />
+            </button>
           )}
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-gray-50/30">
-            <ReferenceList
-              links={youtubeLinks}
-              onDelete={handleDeleteLink}
-              isResizing={isResizing}
-              type="youtube"
-            />
+          <div className="flex flex-col gap-0.5 mr-2 opacity-80 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={onMoveUp}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <ArrowUp className="w-3 h-3" />
+            </button>
+            <button
+              onClick={onMoveDown}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <ArrowDown className="w-3 h-3" />
+            </button>
+          </div>
+          <button
+            onClick={onDuplicate}
+            className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg"
+            title="ทำซ้ำ"
+          >
+            <Copy className="w-4 h-4" />
+          </button>
+
+          <div className="relative">
+            <button
+              onClick={() => setShowDeleteConfirm(!showDeleteConfirm)}
+              className={`p-1.5 rounded-lg transition-colors ${
+                showDeleteConfirm
+                  ? "bg-red-50 text-red-500"
+                  : "text-gray-400 hover:text-red-500 hover:bg-red-50"
+              }`}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+            {showDeleteConfirm && (
+              <>
+                <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-red-100 z-20 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                  <div className="p-3 text-center border-b border-gray-50">
+                    <p className="text-xs font-bold text-gray-800">
+                      ยืนยันลบท่อนนี้?
+                    </p>
+                  </div>
+                  <div className="flex">
+                    <button
+                      onClick={onDelete}
+                      className="flex-1 py-2 text-xs font-bold text-white bg-red-500 hover:bg-red-600 transition-colors"
+                    >
+                      ลบ
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="flex-1 py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 transition-colors"
+                    >
+                      ยกเลิก
+                    </button>
+                  </div>
+                </div>
+                <div
+                  className="fixed inset-0 z-10 cursor-default"
+                  onClick={() => setShowDeleteConfirm(false)}
+                ></div>
+              </>
+            )}
           </div>
         </div>
       </div>
+
+      <div className="relative">
+        {isInterlude ? (
+          <div className="w-full h-16 flex items-center justify-center bg-gray-50 text-gray-400 text-sm font-medium">
+            🎵 ท่อนดนตรี (Interlude / Solo)
+          </div>
+        ) : (
+          <>
+            {editor && !editor.isDestroyed && (
+              <BubbleMenu
+                editor={editor}
+                tippyOptions={{ duration: 100 }}
+                className="flex flex-col gap-1 p-1.5 bg-white rounded-xl shadow-xl border border-gray-100 min-w-[160px]"
+              >
+                <div className="flex items-center justify-between px-1 pt-1">
+                  <button
+                    onClick={() =>
+                      editor.chain().focus().toggleUnderline().run()
+                    }
+                    className={`p-1.5 rounded-lg transition-colors ${
+                      editor.isActive("underline")
+                        ? "text-blue-600 bg-blue-50"
+                        : "text-gray-500 hover:text-blue-600 hover:bg-blue-50"
+                    }`}
+                    title="ขีดเส้นใต้"
+                  >
+                    <UnderlineIcon className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      editor.chain().focus().unsetHighlight().run()
+                    }
+                    className="p-1.5 text-gray-500 hover:text-red-500 rounded-lg hover:bg-red-50 flex items-center gap-1 transition-colors"
+                    title="ล้างสีไฮไลท์"
+                  >
+                    <Eraser className="w-4 h-4" />{" "}
+                    <span className="text-[10px] font-bold">ล้าง</span>
+                  </button>
+                  <button
+                    onClick={handleQuote}
+                    className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    title="คอมเมนต์"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                  </button>
+                </div>
+              </BubbleMenu>
+            )}
+            <EditorContent editor={editor} />
+          </>
+        )}
+      </div>
+
+      {!isInterlude && (
+        <div className="px-4 pb-3 border-t border-dashed border-gray-100 pt-2">
+          <button
+            onClick={() => setShowComments(!showComments)}
+            className={`flex items-center gap-1 text-xs font-medium transition-colors ${
+              (block.comments || []).length > 0
+                ? "text-accent"
+                : "text-gray-400 hover:text-gray-600"
+            }`}
+          >
+            <MessageSquare className="w-3 h-3" />{" "}
+            {(block.comments || []).length} Comments
+          </button>
+          {showComments && (
+            <div className="mt-3 space-y-3 animate-in fade-in slide-in-from-top-1">
+              {quoteText && (
+                <div className="flex items-center gap-2 text-sm text-gray-600 bg-yellow-50 p-2.5 rounded-lg border border-yellow-100">
+                  <Quote className="w-4 h-4 text-yellow-600 flex-shrink-0" />{" "}
+                  <span className="italic truncate flex-1">"{quoteText}"</span>
+                  <button
+                    onClick={() => setQuoteText(null)}
+                    className="hover:text-red-500"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+              <form onSubmit={addComment} className="flex gap-2 relative">
+                <input
+                  type="text"
+                  className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-accent outline-none"
+                  placeholder={quoteText ? "แสดงความเห็น..." : "เขียนโน้ต..."}
+                  value={commentInput}
+                  onChange={(e) => setCommentInput(e.target.value)}
+                />
+                <button
+                  type="submit"
+                  disabled={!commentInput.trim()}
+                  className="text-accent hover:text-accent-hover disabled:opacity-50"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </form>
+              {(block.comments || []).map((c: Comment) => (
+                <div
+                  key={c.id}
+                  className="bg-gray-50 p-3 rounded-lg border border-gray-100 text-sm group/comment"
+                >
+                  {c.quoted_text && (
+                    <div className="mb-1.5 pl-2 border-l-2 border-yellow-300 text-gray-500 italic text-xs bg-yellow-50/50 p-1 rounded">
+                      "{c.quoted_text}"
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-2">
+                    <div>
+                      <span className="font-bold text-gray-800 mr-1.5">
+                        {c.user_name}:
+                      </span>
+                      <span className="text-gray-700">{c.text}</span>
+                    </div>
+                    <button
+                      onClick={() => deleteComment(c)}
+                      className="text-gray-300 hover:text-red-500 opacity-0 group-hover/comment:opacity-100 self-start"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -2,16 +2,23 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
+  User,
   MessageSquare,
+  Check,
   Send,
   Quote,
+  CheckCircle2,
+  Mic,
   Eraser,
   Wind,
+  Music,
   GripVertical,
   Copy,
   ArrowUp,
   ArrowDown,
   X,
+  Plus,
+  Minus,
   Trash2,
   Underline as UnderlineIcon,
 } from "lucide-react";
@@ -26,7 +33,7 @@ import { Color } from "@tiptap/extension-color";
 import BubbleMenuExtension from "@tiptap/extension-bubble-menu";
 import Underline from "@tiptap/extension-underline";
 
-// --- Interfaces ---
+// --- Interfaces (Export เพื่อให้ไฟล์อื่นใช้ได้) ---
 export interface Comment {
   id: string;
   user_id: string;
@@ -93,7 +100,7 @@ const CustomHighlight = Highlight.extend({
 interface LyricEditorProps {
   index: number;
   block: LyricBlock;
-  // members: Member[]; // ❌ ไม่ต้องใช้ members แล้วในหน้านี้
+  members: Member[];
   onUpdate: (newData: Partial<LyricBlock>) => void;
   onDelete: () => void;
   onDuplicate: () => void;
@@ -105,7 +112,7 @@ interface LyricEditorProps {
 export default function LyricEditor({
   index,
   block,
-  // members,
+  members,
   onUpdate,
   onDelete,
   onDuplicate,
@@ -113,7 +120,6 @@ export default function LyricEditor({
   onMoveDown,
   dragHandleProps,
 }: LyricEditorProps) {
-  // const [showMemberSelect, setShowMemberSelect] = useState(false); // ❌ เอาออก
   const [showComments, setShowComments] = useState(
     (block.comments || []).length > 0
   );
@@ -125,7 +131,8 @@ export default function LyricEditor({
   const isSeparator = block.type === "separator";
 
   const editor = useEditor({
-    immediateRender: false,
+    // 🔥 แก้ไขตรงนี้จาก immediateRender เป็น immediatelyRender
+    immediatelyRender: false,
     extensions: [
       StarterKit,
       TextStyle,
@@ -164,8 +171,6 @@ export default function LyricEditor({
       editor.commands.setContent(block.htmlContent);
     }
   }, [block.id, editor, block.htmlContent]);
-
-  // 🔥 เอาฟังก์ชันเกี่ยวกับ Singer ออก (toggleSinger, toggleRecorded, highlightWithSingerColor)
 
   const insertBreathMark = () => {
     if (!editor) return;
@@ -424,7 +429,7 @@ export default function LyricEditor({
           </div>
         ) : (
           <>
-            {/* Bubble Menu (เหลือแค่ ขีดเส้นใต้, ล้างสี, คอมเมนต์) */}
+            {/* Bubble Menu */}
             {editor && !editor.isDestroyed && (
               <BubbleMenu
                 editor={editor}

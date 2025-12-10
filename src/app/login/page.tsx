@@ -10,7 +10,6 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // เก็บ State ไว้เป็น UI (แต่เบื้องหลัง Supabase จะจำให้อัตโนมัติอยู่แล้ว)
   const [rememberMe, setRememberMe] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -20,7 +19,6 @@ export default function LoginPage() {
     setErrorMsg("");
 
     try {
-      // 1. ล็อกอิน (ใช้ค่า Default ของ Supabase คือจำใน LocalStorage)
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -29,7 +27,6 @@ export default function LoginPage() {
       if (error) throw error;
       if (!data.user) throw new Error("ไม่พบข้อมูลผู้ใช้");
 
-      // 2. เช็ค Active
       const { data: profile } = await supabase
         .from("profiles")
         .select("is_active")
@@ -55,28 +52,34 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-sidebar p-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden border border-border">
+    // 🔥 ใช้ bg-slate-100 สีพื้นหลังเทาอ่อน สบายตา (ไม่ใช้ bg-sidebar แล้ว)
+    <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
+      {/* 🔥 Card: bg-white, border-slate-200 */}
+      <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
+        {/* Header Section */}
         <div className="pt-10 pb-6 px-8 text-center">
-          <div className="w-12 h-12 bg-accent/10 rounded-xl flex items-center justify-center mx-auto mb-4 text-accent">
+          {/* Logo Circle: สีฟ้าจางๆ */}
+          <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mx-auto mb-4 text-blue-600">
             <LogIn className="w-6 h-6" />
           </div>
-          <h1 className="text-2xl font-bold text-primary">เข้าสู่ระบบ</h1>
-          <p className="text-gray-500 text-sm mt-2">IPR Production Hub</p>
+          {/* Text: Slate-900 (เข้มเกือบดำ) */}
+          <h1 className="text-2xl font-bold text-slate-900">เข้าสู่ระบบ</h1>
+          <p className="text-slate-500 text-sm mt-2">IPR Production Hub</p>
         </div>
 
         <div className="p-8 pt-2">
           <form onSubmit={handleLogin} className="space-y-5">
+            {/* Email Input */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5 ml-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5 ml-1">
                 Email
               </label>
               <div className="relative group">
-                <Mail className="absolute left-3.5 top-3 text-gray-400 w-5 h-5 group-focus-within:text-accent transition-colors" />
+                <Mail className="absolute left-3.5 top-3 text-slate-400 w-5 h-5 group-focus-within:text-blue-600 transition-colors" />
                 <input
                   type="email"
                   required
-                  className="w-full pl-11 pr-4 py-2.5 border-2 border-border rounded-xl focus:border-accent focus:bg-blue-50/30 focus:outline-none transition-all text-primary placeholder:text-gray-300"
+                  className="w-full pl-11 pr-4 py-2.5 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:bg-blue-50/20 focus:outline-none transition-all text-slate-900 placeholder:text-slate-300"
                   placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -84,16 +87,17 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {/* Password Input */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5 ml-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5 ml-1">
                 Password
               </label>
               <div className="relative group">
-                <Lock className="absolute left-3.5 top-3 text-gray-400 w-5 h-5 group-focus-within:text-accent transition-colors" />
+                <Lock className="absolute left-3.5 top-3 text-slate-400 w-5 h-5 group-focus-within:text-blue-600 transition-colors" />
                 <input
                   type="password"
                   required
-                  className="w-full pl-11 pr-4 py-2.5 border-2 border-border rounded-xl focus:border-accent focus:bg-blue-50/30 focus:outline-none transition-all text-primary placeholder:text-gray-300"
+                  className="w-full pl-11 pr-4 py-2.5 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:bg-blue-50/20 focus:outline-none transition-all text-slate-900 placeholder:text-slate-300"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -101,12 +105,13 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {/* Remember Me Checkbox */}
             <div className="flex items-center">
               <label className="flex items-center gap-2 cursor-pointer group select-none">
                 <div className="relative flex items-center">
                   <input
                     type="checkbox"
-                    className="peer h-4 w-4 cursor-pointer appearance-none rounded border border-gray-300 shadow-sm checked:border-accent checked:bg-accent focus:ring-2 focus:ring-accent/20 transition-all"
+                    className="peer h-4 w-4 cursor-pointer appearance-none rounded border border-slate-300 shadow-sm checked:border-blue-600 checked:bg-blue-600 focus:ring-2 focus:ring-blue-200 transition-all"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
                   />
@@ -123,12 +128,13 @@ export default function LoginPage() {
                     <polyline points="20 6 9 17 4 12"></polyline>
                   </svg>
                 </div>
-                <span className="text-xs font-medium text-gray-500 group-hover:text-gray-700 transition-colors">
+                <span className="text-xs font-medium text-slate-500 group-hover:text-slate-700 transition-colors">
                   Remember Me
                 </span>
               </label>
             </div>
 
+            {/* Error Message */}
             {errorMsg && (
               <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-sm font-medium animate-pulse">
                 <AlertCircle className="w-4 h-4" />
@@ -136,10 +142,11 @@ export default function LoginPage() {
               </div>
             )}
 
+            {/* Login Button (สีฟ้าสด) */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-accent hover:bg-accent-hover active:scale-[0.98] text-white font-bold py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 mt-2"
+              className="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-blue-500/30 mt-2"
             >
               {loading ? (
                 <Loader2 className="animate-spin w-5 h-5" />
@@ -150,8 +157,11 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <div className="bg-surface-subtle py-4 text-center border-t border-border">
-          <p className="text-xs text-gray-400">ระบบภายในสำหรับทีมงาน IPR Hub</p>
+        {/* Footer */}
+        <div className="bg-slate-50 py-4 text-center border-t border-slate-200">
+          <p className="text-xs text-slate-400">
+            ระบบภายในสำหรับทีมงาน IPR Hub
+          </p>
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabaseClient";
 import {
   Save,
@@ -16,8 +17,9 @@ import {
   Check,
   Type,
   X,
-  AlertTriangle, // เพิ่มไอคอน
-  CheckCircle2, // เพิ่มไอคอน
+  AlertTriangle,
+  CheckCircle2,
+  Underline as UnderlineIcon,
 } from "lucide-react";
 import {
   DragDropContext,
@@ -55,41 +57,7 @@ interface ArrangeRow {
   };
 }
 
-const ROLES = [
-  {
-    key: "main",
-    label: "Main Vocal",
-    icon: Mic,
-    bg: "bg-blue-100",
-    text: "text-blue-800",
-    border: "border-blue-300",
-  },
-  {
-    key: "support",
-    label: "Support",
-    icon: Users,
-    bg: "bg-teal-100",
-    text: "text-teal-800",
-    border: "border-teal-300",
-  },
-  {
-    key: "harmo",
-    label: "Harmony",
-    icon: ArrowUp,
-    bg: "bg-purple-100",
-    text: "text-purple-800",
-    border: "border-purple-300",
-  },
-  {
-    key: "adlib",
-    label: "Ad-libs",
-    icon: Sparkles,
-    bg: "bg-orange-100",
-    text: "text-orange-800",
-    border: "border-orange-300",
-  },
-];
-
+// Helper Icons
 const DoubleArrowUp = ({ className }: { className?: string }) => (
   <div className={`flex -space-x-1 ${className}`}>
     <ArrowUp className="w-3 h-3 stroke-[3]" />
@@ -103,6 +71,42 @@ const DoubleArrowDown = ({ className }: { className?: string }) => (
   </div>
 );
 
+// Config สี Roles
+const ROLES = [
+  {
+    key: "main",
+    label: "Main Vocal",
+    icon: Mic,
+    bg: "bg-blue-100 dark:bg-blue-900/30",
+    text: "text-blue-800 dark:text-blue-300",
+    border: "border-blue-300 dark:border-blue-800",
+  },
+  {
+    key: "support",
+    label: "Support",
+    icon: Users,
+    bg: "bg-teal-100 dark:bg-teal-900/30",
+    text: "text-teal-800 dark:text-teal-300",
+    border: "border-teal-300 dark:border-teal-800",
+  },
+  {
+    key: "harmo",
+    label: "Harmony",
+    icon: ArrowUp,
+    bg: "bg-purple-100 dark:bg-purple-900/30",
+    text: "text-purple-800 dark:text-purple-300",
+    border: "border-purple-300 dark:border-purple-800",
+  },
+  {
+    key: "adlib",
+    label: "Ad-libs",
+    icon: Sparkles,
+    bg: "bg-orange-100 dark:bg-orange-900/30",
+    text: "text-orange-800 dark:text-orange-300",
+    border: "border-orange-300 dark:border-orange-800",
+  },
+];
+
 export default function ArrangementTab({ projectId }: { projectId: number }) {
   const [rows, setRows] = useState<ArrangeRow[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
@@ -112,7 +116,6 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
   const [rawContent, setRawContent] = useState<string>("");
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
-  // 🔥 Alert & Modal States
   const [alertConfig, setAlertConfig] = useState<{
     show: boolean;
     type: "success" | "error";
@@ -120,7 +123,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
     message: string;
   }>({ show: false, type: "success", title: "", message: "" });
 
-  const [showImportConfirm, setShowImportConfirm] = useState(false); // สำหรับยืนยันการดึงเนื้อเพลง
+  const [showImportConfirm, setShowImportConfirm] = useState(false);
 
   const singerMembers = members.filter((m) => m.roles.includes("singer"));
 
@@ -140,7 +143,6 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    // 1. Members
     const { data: memberData } = await supabase
       .from("project_members")
       .select("profiles(id, display_name), assigned_color, roles")
@@ -154,7 +156,6 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
       })) || [];
     setMembers(cleanMembers);
 
-    // 2. Script
     const { data: scriptData } = await supabase
       .from("scripts")
       .select("id, content, arrangement, updated_at")
@@ -180,7 +181,6 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
     fetchData();
   }, [fetchData]);
 
-  // --- Auto Save ---
   const handleSave = useCallback(
     async (manual = false) => {
       if (!scriptId) return;
@@ -203,7 +203,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
     [scriptId, rows]
   );
 
-  // Auto save trigger
+  // Auto save trigger (Debounce)
   useEffect(() => {
     if (rows.length === 0) return;
     const timeout = setTimeout(() => {
@@ -212,28 +212,21 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
     return () => clearTimeout(timeout);
   }, [rows, handleSave]);
 
-  // --- Actions ---
-
-  // 1. กดปุ่มดึงเนื้อเพลง (Trigger)
   const handleImportClick = () => {
     if (!rawContent) {
       showAlert("ไม่พบข้อมูล", "ไม่พบเนื้อเพลงต้นฉบับในหน้า Lyrics", "error");
       return;
     }
-    // ถ้ามีข้อมูลอยู่แล้ว ให้ถามยืนยันก่อน
     if (rows.length > 0) {
       setShowImportConfirm(true);
     } else {
-      executeImportLyrics(); // ถ้าว่างอยู่ ดึงเลย
+      executeImportLyrics();
     }
   };
 
-  // 2. ฟังก์ชันดึงเนื้อเพลงจริง (Execute)
   const executeImportLyrics = () => {
     try {
       const parsedBlocks = JSON.parse(rawContent);
-
-      // 1. สร้างโครงสร้างใหม่
       const incomingRows: ArrangeRow[] = [];
       if (Array.isArray(parsedBlocks)) {
         parsedBlocks.forEach((block: any) => {
@@ -267,7 +260,6 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
         });
       }
 
-      // 2. Merge Logic
       let remainingOldRows = [...rows];
       const mergedRows = incomingRows.map((newRow) => {
         const matchIndex = remainingOldRows.findIndex(
@@ -306,7 +298,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
     ]);
   };
 
-  const handleTextChange = (
+  const handleRowUpdate = (
     id: string,
     field: "text" | "note",
     value: string
@@ -328,7 +320,6 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
     setRows(items);
   };
 
-  // --- Toggle Logic ---
   const toggleSimpleRole = (
     rowId: string,
     roleKey: "main" | "support" | "adlib",
@@ -372,24 +363,24 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
     );
 
   return (
-    <div className="h-full flex flex-col bg-white relative">
-      {/* 🔥 Alert Modal */}
+    <div className="h-full flex flex-col bg-surface relative">
+      {/* Alert Modal */}
       {alertConfig.show && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-gray-100 scale-100 animate-in zoom-in-95 duration-200 relative">
+          <div className="bg-surface w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-border scale-100 animate-in zoom-in-95 duration-200 relative">
             <button
               onClick={() =>
                 setAlertConfig((prev) => ({ ...prev, show: false }))
               }
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+              className="absolute top-4 right-4 text-primary-light hover:text-primary"
             >
               <X className="w-5 h-5" />
             </button>
             <div
               className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${
                 alertConfig.type === "success"
-                  ? "bg-green-100 text-green-600"
-                  : "bg-red-100 text-red-600"
+                  ? "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400"
+                  : "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
               }`}
             >
               {alertConfig.type === "success" ? (
@@ -398,10 +389,12 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
                 <AlertTriangle className="w-6 h-6" />
               )}
             </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">
+            <h3 className="text-lg font-bold text-primary mb-2">
               {alertConfig.title}
             </h3>
-            <p className="text-sm text-gray-500 mb-6">{alertConfig.message}</p>
+            <p className="text-sm text-primary-light mb-6">
+              {alertConfig.message}
+            </p>
             <button
               onClick={() =>
                 setAlertConfig((prev) => ({ ...prev, show: false }))
@@ -418,17 +411,17 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
         </div>
       )}
 
-      {/* 🔥 Import Confirmation Modal */}
+      {/* Import Confirmation Modal */}
       {showImportConfirm && (
         <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-orange-100 scale-100 animate-in zoom-in-95 duration-200">
-            <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4 text-orange-600">
+          <div className="bg-surface w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-orange-200 dark:border-orange-800 scale-100 animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-orange-600 dark:text-orange-400">
               <RefreshCcw className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-bold text-gray-900">
+            <h3 className="text-lg font-bold text-primary">
               ดึงเนื้อเพลงใหม่?
             </h3>
-            <p className="text-sm text-gray-500 mt-2 mb-6 leading-relaxed">
+            <p className="text-sm text-primary-light mt-2 mb-6 leading-relaxed">
               ระบบจะพยายาม <strong>"คงการตั้งค่าเดิม"</strong>{" "}
               ไว้สำหรับบรรทัดที่เนื้อร้องตรงกัน <br />
               แต่บรรทัดที่เปลี่ยนไปอาจจะต้องตั้งค่าใหม่
@@ -436,7 +429,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowImportConfirm(false)}
-                className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200"
+                className="flex-1 py-2.5 bg-surface-subtle text-primary font-medium rounded-xl hover:bg-border transition-colors"
               >
                 ยกเลิก
               </button>
@@ -452,22 +445,22 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
       )}
 
       {/* Toolbar */}
-      <div className="sticky top-0 z-40 bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center shadow-sm">
+      <div className="sticky top-0 z-40 bg-surface border-b border-border px-6 py-3 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-3">
-          <h2 className="text-lg font-bold text-gray-800 hidden md:block">
+          <h2 className="text-lg font-bold text-primary hidden md:block">
             Arrangement
           </h2>
-          <div className="h-6 w-px bg-gray-200 hidden md:block"></div>
+          <div className="h-6 w-px bg-border hidden md:block"></div>
           <button
-            onClick={handleImportClick} // 🔥 เปลี่ยนมาเรียก function นี้
-            className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 text-sm font-medium transition-colors"
+            onClick={handleImportClick}
+            className="flex items-center gap-2 px-3 py-1.5 bg-surface-subtle text-primary-light rounded-lg hover:bg-border text-sm font-medium transition-colors"
           >
             <RefreshCcw className="w-4 h-4" />{" "}
             <span className="hidden sm:inline">ดึงเนื้อเพลงใหม่</span>
           </button>
           <button
             onClick={handleAddSection}
-            className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 text-sm font-medium transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 bg-surface-subtle text-primary-light rounded-lg hover:bg-border text-sm font-medium transition-colors"
           >
             <Plus className="w-4 h-4" />{" "}
             <span className="hidden sm:inline">เพิ่ม Section</span>
@@ -475,7 +468,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
         </div>
         <div className="flex items-center gap-3">
           {lastSaved && (
-            <span className="text-xs text-gray-400 hidden sm:inline">
+            <span className="text-xs text-primary-light hidden sm:inline">
               บันทึกล่าสุด: {lastSaved.toLocaleTimeString("th-TH")}
             </span>
           )}
@@ -495,18 +488,17 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
       </div>
 
       {/* Main Content (Horizontal Scrollable) */}
-      <div className="flex-1 overflow-auto custom-scrollbar bg-white relative">
+      <div className="flex-1 overflow-auto custom-scrollbar bg-surface relative">
         <div className="min-w-max pb-20">
-          {/* Table Header (Sticky) */}
-          <div className="flex sticky top-0 z-30 bg-white border-b-2 border-gray-200 shadow-sm text-xs font-bold uppercase tracking-wider">
-            <div className="w-10 p-3 text-center border-r border-gray-200 sticky left-0 bg-white z-40 text-gray-400">
+          {/* Table Header */}
+          <div className="flex sticky top-0 z-30 bg-surface border-b-2 border-border shadow-sm text-xs font-bold uppercase tracking-wider">
+            <div className="w-10 p-3 text-center border-r border-border sticky left-0 bg-surface z-40 text-primary-light">
               #
             </div>
-            <div className="w-[500px] p-3 border-r border-gray-200 sticky left-10 bg-white z-40 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)] text-gray-600">
+            <div className="w-[500px] p-3 border-r border-border sticky left-10 bg-surface z-40 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)] text-primary-light">
               เนื้อร้อง / ท่อน
             </div>
 
-            {/* Role Columns Header */}
             {ROLES.map((role) => (
               <div
                 key={role.key}
@@ -517,21 +509,20 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
                 >
                   <role.icon className="w-4 h-4" /> {role.label}
                 </div>
-                <div className="flex bg-gray-50/50">
-                  {/* 🔥 แสดงเฉพาะ Singer */}
+                <div className="flex bg-surface-subtle/50">
                   {singerMembers.map((m) => (
                     <div
                       key={m.id}
                       className={`w-20 p-2 text-center border-r ${role.border} border-opacity-30 last:border-0 flex flex-col items-center gap-1`}
                     >
                       <div
-                        className="w-6 h-6 mx-auto rounded-full text-[9px] flex items-center justify-center text-white font-bold shadow-sm ring-1 ring-white"
+                        className="w-6 h-6 mx-auto rounded-full text-[9px] flex items-center justify-center text-white font-bold shadow-sm ring-1 ring-white dark:ring-0"
                         style={{ backgroundColor: m.assigned_color }}
                       >
                         {m.display_name.substring(0, 2).toUpperCase()}
                       </div>
                       <span
-                        className="truncate w-full text-[10px] font-semibold text-gray-600"
+                        className="truncate w-full text-[10px] font-semibold text-primary-light"
                         title={m.display_name}
                       >
                         {m.display_name}
@@ -542,10 +533,10 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
               </div>
             ))}
 
-            <div className="w-[200px] p-3 text-center bg-gray-50 text-gray-600 border-b border-gray-200">
+            <div className="w-[200px] p-3 text-center bg-surface-subtle text-primary-light border-b border-border">
               หมายเหตุ
             </div>
-            <div className="w-10 bg-gray-50 border-b border-gray-200"></div>
+            <div className="w-10 bg-surface-subtle border-b border-border"></div>
           </div>
 
           {/* Table Body */}
@@ -560,10 +551,10 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
                           ref={provided.innerRef}
                           {...provided.draggableProps}
                           style={{ ...provided.draggableProps.style }}
-                          className={`flex items-stretch border-b border-gray-100 transition-colors ${
+                          className={`flex items-stretch border-b border-border transition-colors ${
                             row.type === "section"
-                              ? "bg-gray-100/80 border-gray-300"
-                              : "bg-white hover:bg-gray-50/50"
+                              ? "bg-surface-subtle border-border"
+                              : "bg-surface hover:bg-surface-subtle/30"
                           } ${
                             snapshot.isDragging
                               ? "shadow-xl z-50 ring-2 ring-accent"
@@ -573,52 +564,46 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
                           {/* Drag Handle */}
                           <div
                             {...provided.dragHandleProps}
-                            className={`w-10 flex items-center justify-center text-gray-300 cursor-grab hover:text-gray-500 border-r border-gray-200 sticky left-0 z-10 ${
+                            className={`w-10 flex items-center justify-center text-primary-light cursor-grab hover:text-primary border-r border-border sticky left-0 z-10 ${
                               row.type === "section"
-                                ? "bg-gray-100"
-                                : "bg-white"
+                                ? "bg-surface-subtle"
+                                : "bg-surface"
                             }`}
                           >
                             <GripVertical className="w-4 h-4" />
                           </div>
 
-                          {/* Text / Lyric */}
+                          {/* Text / Lyric / RichTextCell */}
                           <div
-                            className={`w-[500px] p-2 border-r border-gray-200 sticky left-10 z-10 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)] ${
+                            className={`w-[500px] p-2 border-r border-border sticky left-10 z-10 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)] ${
                               row.type === "section"
-                                ? "bg-gray-100"
-                                : "bg-white"
+                                ? "bg-surface-subtle"
+                                : "bg-surface"
                             }`}
                           >
                             {row.type === "section" ? (
                               <div className="flex items-center gap-2 h-full">
-                                <div className="h-px bg-gray-300 w-4"></div>
+                                <div className="h-px bg-border w-4"></div>
                                 <input
                                   value={row.text}
                                   onChange={(e) =>
-                                    handleTextChange(
+                                    handleRowUpdate(
                                       row.id,
                                       "text",
                                       e.target.value
                                     )
                                   }
-                                  className="font-black text-gray-800 bg-transparent outline-none uppercase tracking-widest text-xs flex-1 text-center"
+                                  className="font-black text-primary bg-transparent outline-none uppercase tracking-widest text-xs flex-1 text-center"
                                 />
-                                <div className="h-px bg-gray-300 w-4"></div>
+                                <div className="h-px bg-border w-4"></div>
                               </div>
                             ) : (
-                              <textarea
-                                value={row.text}
-                                onChange={(e) =>
-                                  handleTextChange(
-                                    row.id,
-                                    "text",
-                                    e.target.value
-                                  )
+                              // 🔥 RichTextCell ที่แก้ไขแล้ว (Fix Selection + Cursor)
+                              <RichTextCell
+                                text={row.text}
+                                onChange={(val) =>
+                                  handleRowUpdate(row.id, "text", val)
                                 }
-                                rows={1}
-                                className="w-full bg-transparent outline-none text-gray-900 text-sm font-medium leading-relaxed resize-none overflow-hidden py-1"
-                                style={{ minHeight: "32px" }}
                               />
                             )}
                           </div>
@@ -628,12 +613,12 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
                             ROLES.map((role) => (
                               <div
                                 key={role.key}
-                                className="flex border-r border-gray-200"
+                                className="flex border-r border-border"
                               >
                                 {singerMembers.map((m) => (
                                   <div
                                     key={m.id}
-                                    className="w-20 flex items-center justify-center border-r border-gray-100 last:border-0 relative group/cell p-1"
+                                    className="w-20 flex items-center justify-center border-r border-border last:border-0 relative group/cell p-1"
                                   >
                                     {role.key === "harmo" ? (
                                       <HarmoCell
@@ -664,23 +649,23 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
                               </div>
                             ))
                           ) : (
-                            <div className="flex-1 bg-gray-100/50 border-r border-gray-200"></div>
+                            <div className="flex-1 bg-gray-100/50 border-r border-border"></div>
                           )}
 
                           {/* Note Column */}
                           {row.type === "line" && (
-                            <div className="w-[200px] p-2 border-l border-gray-200 bg-white">
-                              <div className="flex items-center gap-2 h-full bg-gray-50 rounded-lg px-2 border border-transparent hover:border-gray-200 hover:bg-white transition-all">
+                            <div className="w-[200px] p-2 border-l border-border bg-surface">
+                              <div className="flex items-center gap-2 h-full bg-surface-subtle rounded-lg px-2 border border-transparent hover:border-border hover:bg-surface transition-all">
                                 <input
                                   value={row.note || ""}
                                   onChange={(e) =>
-                                    handleTextChange(
+                                    handleRowUpdate(
                                       row.id,
                                       "note",
                                       e.target.value
                                     )
                                   }
-                                  className="w-full bg-transparent outline-none text-gray-600 text-xs placeholder:text-gray-300"
+                                  className="w-full bg-transparent outline-none text-primary text-xs placeholder:text-primary-light"
                                   placeholder="..."
                                 />
                               </div>
@@ -689,15 +674,15 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
 
                           {/* Delete */}
                           <div
-                            className={`w-10 flex items-center justify-center border-l border-gray-200 ${
+                            className={`w-10 flex items-center justify-center border-l border-border ${
                               row.type === "section"
-                                ? "bg-gray-100"
-                                : "bg-white"
+                                ? "bg-surface-subtle"
+                                : "bg-surface"
                             }`}
                           >
                             <button
                               onClick={() => handleDeleteRow(row.id)}
-                              className="text-gray-300 hover:text-red-500 p-1.5 transition-all hover:bg-red-50 rounded"
+                              className="text-primary-light hover:text-red-500 p-1.5 transition-all hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -714,7 +699,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
         </div>
 
         {rows.length === 0 && (
-          <div className="text-center py-20 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl mt-4 mx-4">
+          <div className="text-center py-20 text-primary-light border-2 border-dashed border-border rounded-xl mt-4 mx-4">
             <Type className="w-12 h-12 mx-auto mb-3 opacity-20" />
             <p>ยังไม่มีข้อมูลการจัดวาง</p>
             <button
@@ -732,13 +717,130 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
 
 // --- Sub Components ---
 
+// 🔥🔥 RichTextCell (ฉบับแก้ไขสมบูรณ์: Portal + Save on Blur + Fix Re-render)
+const RichTextCell = ({
+  text,
+  onChange,
+}: {
+  text: string;
+  onChange: (val: string) => void;
+}) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [showToolbar, setShowToolbar] = useState(false);
+  const [toolbarPos, setToolbarPos] = useState({ top: 0, left: 0 });
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
+    null
+  );
+
+  useEffect(() => {
+    setPortalContainer(document.body);
+  }, []);
+
+  // 1. Initial Load: Put props into DOM
+  useEffect(() => {
+    if (ref.current) {
+      // 🔥 Trick: Only update DOM if it is completely different to prevent cursor jumps
+      // Actually, for contentEditable, we should almost NEVER update it from props while focused.
+      if (
+        document.activeElement !== ref.current &&
+        ref.current.innerHTML !== text
+      ) {
+        ref.current.innerHTML = text;
+      }
+    }
+  }, [text]);
+
+  const handleBlur = () => {
+    if (ref.current) {
+      onChange(ref.current.innerHTML); // Save to parent on blur
+    }
+    setTimeout(() => setShowToolbar(false), 200);
+  };
+
+  const checkSelection = () => {
+    const selection = window.getSelection();
+    if (
+      selection &&
+      selection.toString().length > 0 &&
+      ref.current?.contains(selection.anchorNode)
+    ) {
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+
+      // Smart Position: Flip if too high
+      const HEADER_HEIGHT_OFFSET = 180;
+      let topPos = rect.top - 40 + window.scrollY; // Account for scroll
+
+      // If toolbar is too high up (under header), put it below selection
+      if (rect.top < HEADER_HEIGHT_OFFSET) {
+        topPos = rect.bottom + 10 + window.scrollY;
+      }
+
+      setToolbarPos({
+        top: topPos,
+        left: rect.left + rect.width / 2 - 15 + window.scrollX,
+      });
+      setShowToolbar(true);
+    } else {
+      setShowToolbar(false);
+    }
+  };
+
+  const handleUnderline = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    document.execCommand("underline");
+    // Important: Update internal HTML state immediately so if we blur later it's correct
+    if (ref.current) {
+      // Don't call onChange here to avoid parent re-render killing selection
+      // Just let it stay in DOM until blur
+    }
+  };
+
+  return (
+    <div className="relative w-full h-full">
+      {/* 🔥 Portal: Render toolbar outside of table to avoid overflow/z-index issues */}
+      {showToolbar &&
+        portalContainer &&
+        createPortal(
+          <div
+            className="fixed z-[9999] bg-gray-900 text-white rounded-lg shadow-xl px-2 py-1 flex items-center animate-in fade-in zoom-in-95 pointer-events-auto"
+            style={{ top: toolbarPos.top, left: toolbarPos.left }}
+            onMouseDown={(e) => e.preventDefault()} // Prevent blur when clicking toolbar
+          >
+            <button
+              onMouseDown={handleUnderline}
+              className="hover:bg-gray-700 p-1.5 rounded flex items-center justify-center transition-colors"
+              title="ขีดเส้นใต้"
+            >
+              <UnderlineIcon className="w-4 h-4" />
+            </button>
+          </div>,
+          portalContainer
+        )}
+      <div
+        ref={ref}
+        contentEditable
+        suppressContentEditableWarning
+        // 🔥 Remove dangerouslySetInnerHTML to create uncontrolled component
+        // This prevents React from re-rendering the innerHTML and resetting cursor
+        onMouseDown={(e) => e.stopPropagation()} // Fix Drag Conflict
+        onMouseUp={checkSelection}
+        onKeyUp={checkSelection}
+        onBlur={handleBlur}
+        className="w-full h-full bg-transparent outline-none text-primary text-sm font-medium leading-relaxed py-1 min-h-[32px] break-words whitespace-pre-wrap cursor-text"
+      />
+    </div>
+  );
+};
+
 const SimpleCell = ({ isSelected, memberColor, onClick }: any) => (
   <button
     onClick={onClick}
     className={`w-full h-full rounded-md flex items-center justify-center transition-all duration-200 border ${
       isSelected
         ? "border-transparent shadow-sm scale-95"
-        : "border-transparent hover:border-gray-200 hover:bg-gray-50"
+        : "border-transparent hover:border-border hover:bg-surface-subtle"
     }`}
     style={{
       backgroundColor: isSelected ? memberColor : "transparent",
@@ -775,18 +877,18 @@ const HarmoCell = ({ row, userId, memberColor, onToggle }: any) => {
         className={`w-full h-full rounded-md flex items-center justify-center transition-all duration-200 border ${
           assignment
             ? "border-transparent shadow-sm scale-95"
-            : "border-transparent hover:border-gray-200 hover:bg-gray-50"
+            : "border-transparent hover:border-border hover:bg-surface-subtle"
         }`}
         style={{
           backgroundColor: assignment ? memberColor : "transparent",
         }}
       >
         {assignment ? (
-          <div className="bg-white/90 rounded-full p-0.5 shadow-sm">
+          <div className="bg-white/90 dark:bg-black/50 rounded-full p-0.5 shadow-sm">
             {getIcon(assignment.type)}
           </div>
         ) : (
-          <Plus className="w-3 h-3 text-gray-200 opacity-0 group-hover/cell:opacity-100" />
+          <Plus className="w-3 h-3 text-primary-light opacity-0 group-hover/cell:opacity-100" />
         )}
       </button>
 
@@ -796,8 +898,8 @@ const HarmoCell = ({ row, userId, memberColor, onToggle }: any) => {
             className="fixed inset-0 z-50"
             onClick={() => setIsOpen(false)}
           ></div>
-          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl z-[60] p-1.5 flex flex-col gap-1 w-32 animate-in fade-in zoom-in-95">
-            <div className="text-[10px] text-gray-400 text-center uppercase font-bold py-1 border-b border-gray-100 mb-1">
+          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-surface border border-border rounded-xl shadow-2xl z-[60] p-1.5 flex flex-col gap-1 w-32 animate-in fade-in zoom-in-95">
+            <div className="text-[10px] text-primary-light text-center uppercase font-bold py-1 border-b border-border mb-1">
               Select Harmony
             </div>
             <HarmoOption
@@ -832,13 +934,13 @@ const HarmoCell = ({ row, userId, memberColor, onToggle }: any) => {
                 setIsOpen(false);
               }}
             />
-            <div className="h-px bg-gray-100 my-1"></div>
+            <div className="h-px bg-border my-1"></div>
             <button
               onClick={() => {
                 onToggle(null);
                 setIsOpen(false);
               }}
-              className="text-xs text-red-500 hover:bg-red-50 p-2 rounded-lg flex items-center justify-center gap-1 font-medium transition-colors"
+              className="text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-lg flex items-center justify-center gap-1 font-medium transition-colors"
             >
               <X className="w-3 h-3" /> Clear
             </button>
@@ -852,7 +954,7 @@ const HarmoCell = ({ row, userId, memberColor, onToggle }: any) => {
 const HarmoOption = ({ label, icon, onClick }: any) => (
   <button
     onClick={onClick}
-    className="flex items-center justify-between px-2 py-1.5 text-xs text-gray-700 hover:bg-purple-50 hover:text-purple-700 rounded-lg transition-colors w-full font-medium"
+    className="flex items-center justify-between px-2 py-1.5 text-xs text-primary hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-700 dark:hover:text-purple-300 rounded-lg transition-colors w-full font-medium"
   >
     <span>{label}</span>
     {icon}

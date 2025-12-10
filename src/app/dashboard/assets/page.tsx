@@ -327,8 +327,8 @@ export default function GlobalAssetsPage() {
 
   return (
     <div
-      className={`space-y-6 pb-10 min-h-screen relative ${
-        isDragging ? "bg-blue-50/50" : ""
+      className={`space-y-6 pb-10 min-h-screen relative transition-colors ${
+        isDragging ? "bg-accent/10" : ""
       }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -336,8 +336,8 @@ export default function GlobalAssetsPage() {
     >
       {/* Upload Drag Overlay */}
       {isDragging && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-blue-100/80 border-4 border-blue-400 border-dashed m-4 rounded-xl backdrop-blur-sm pointer-events-none">
-          <div className="text-center text-blue-600 animate-bounce">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-accent/20 border-4 border-accent border-dashed m-4 rounded-xl backdrop-blur-sm pointer-events-none">
+          <div className="text-center text-accent animate-bounce">
             <UploadCloud className="w-16 h-16 mx-auto mb-2" />
             <h3 className="text-2xl font-bold">วางไฟล์เพื่ออัปโหลด</h3>
           </div>
@@ -352,13 +352,12 @@ export default function GlobalAssetsPage() {
         multiple
       />
 
-      {/* 🔥 Image Preview Modal (Full Screen Fix) */}
+      {/* 🔥 Image Preview Modal */}
       {previewImage && (
         <div
-          className="fixed inset-0 z-[100] h-screen w-screen bg-black flex flex-col items-center justify-center p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-[100] h-screen w-screen bg-black/95 flex flex-col items-center justify-center p-4 animate-in fade-in duration-200"
           onClick={() => setPreviewImage(null)}
         >
-          {/* ปุ่มรวมกันที่ขวาบน */}
           <div
             className="absolute top-4 right-4 flex items-center gap-2 z-50"
             onClick={(e) => e.stopPropagation()}
@@ -388,13 +387,12 @@ export default function GlobalAssetsPage() {
               <img
                 src={previewImage.url}
                 alt={previewImage.name}
-                className="max-w-full max-h-[90vh] object-contain shadow-2xl pointer-events-auto"
+                className="max-w-full max-h-[90vh] object-contain shadow-2xl pointer-events-auto rounded-lg"
                 onClick={(e) => e.stopPropagation()}
               />
             )}
           </div>
 
-          {/* ชื่อไฟล์ */}
           <div className="absolute bottom-8 text-white font-medium text-lg drop-shadow-md bg-black/60 px-4 py-2 rounded-full max-w-[80%] truncate pointer-events-none">
             {previewImage.name}
           </div>
@@ -404,10 +402,9 @@ export default function GlobalAssetsPage() {
       {/* 🔥 Audio Player Page */}
       {previewAudio && (
         <div
-          className="fixed inset-0 z-[100] h-screen w-screen bg-black flex flex-col items-center justify-center p-6 animate-in slide-in-from-bottom-10 duration-300"
+          className="fixed inset-0 z-[100] h-screen w-screen bg-black/95 flex flex-col items-center justify-center p-6 animate-in slide-in-from-bottom-10 duration-300"
           onClick={() => setPreviewAudio(null)}
         >
-          {/* ปุ่มรวมกันที่ขวาบน */}
           <div
             className="absolute top-6 right-6 flex items-center gap-3 z-50"
             onClick={(e) => e.stopPropagation()}
@@ -429,12 +426,10 @@ export default function GlobalAssetsPage() {
             </button>
           </div>
 
-          {/* Player Content */}
           <div
             className="flex flex-col items-center w-full max-w-lg text-center space-y-8"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Spinning Disc Animation */}
             <div
               className={`w-48 h-48 md:w-72 md:h-72 rounded-full bg-gradient-to-br from-gray-800 to-black border-4 border-gray-700 shadow-2xl flex items-center justify-center relative ${
                 isPreviewLoading ? "" : "animate-spin-slow"
@@ -447,7 +442,6 @@ export default function GlobalAssetsPage() {
               </div>
             </div>
 
-            {/* Track Info */}
             <div className="space-y-2 w-full px-4">
               {isPreviewLoading && !previewAudio.url ? (
                 <div className="flex justify-center">
@@ -463,7 +457,6 @@ export default function GlobalAssetsPage() {
               )}
             </div>
 
-            {/* Audio Controls */}
             {previewAudio.url && (
               <div className="w-full bg-white/10 p-4 rounded-2xl backdrop-blur-md border border-white/5">
                 <audio
@@ -485,11 +478,11 @@ export default function GlobalAssetsPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
             <Filter className="w-6 h-6 text-primary" /> คลังไฟล์รวม (Global
             Assets)
           </h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <p className="text-primary-light text-sm mt-1">
             รวมไฟล์ทั้งหมดจากทุกโปรเจกต์ไว้ที่นี่
           </p>
         </div>
@@ -509,8 +502,9 @@ export default function GlobalAssetsPage() {
       </div>
 
       {/* --- Filter Bar --- */}
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col xl:flex-row gap-4 items-center justify-between sticky top-2 z-20">
-        <div className="flex bg-gray-100 p-1 rounded-xl w-full xl:w-auto overflow-x-auto pb-1 xl:pb-1 no-scrollbar">
+      {/* 🔥 แก้: bg-white -> bg-surface, border-gray... -> border-border */}
+      <div className="bg-surface p-4 rounded-2xl shadow-sm border border-border flex flex-col xl:flex-row gap-4 items-center justify-between sticky top-2 z-20">
+        <div className="flex bg-surface-subtle border border-border p-1 rounded-xl w-full xl:w-auto overflow-x-auto pb-1 xl:pb-1 no-scrollbar">
           {[
             { id: "all", label: "ทั้งหมด", icon: FileIcon },
             { id: "image", label: "รูปภาพ", icon: ImageIcon },
@@ -522,8 +516,8 @@ export default function GlobalAssetsPage() {
               onClick={() => setActiveTab(tab.id as any)}
               className={`flex-1 xl:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                 activeTab === tab.id
-                  ? "bg-white text-accent shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
+                  ? "bg-surface text-accent shadow-sm"
+                  : "text-primary-light hover:text-primary"
               }`}
             >
               <tab.icon className="w-4 h-4" />
@@ -534,7 +528,7 @@ export default function GlobalAssetsPage() {
 
         <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto items-center">
           <select
-            className="w-full sm:w-auto px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:border-accent outline-none text-gray-700"
+            className="w-full sm:w-auto px-4 py-2.5 bg-surface-subtle border border-border rounded-xl text-sm focus:border-accent outline-none text-primary cursor-pointer"
             value={selectedProject}
             onChange={(e) => setSelectedProject(e.target.value)}
           >
@@ -546,22 +540,22 @@ export default function GlobalAssetsPage() {
             ))}
           </select>
           <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-2.5 text-gray-400 w-4 h-4" />
+            <Search className="absolute left-3 top-2.5 text-primary-light w-4 h-4" />
             <input
               type="text"
               placeholder="ค้นหาชื่อไฟล์..."
-              className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:border-accent outline-none"
+              className="w-full pl-9 pr-4 py-2.5 bg-surface-subtle border border-border rounded-xl text-sm focus:border-accent outline-none text-primary placeholder:text-primary-light/50"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <div className="flex bg-gray-100 p-1 rounded-xl shrink-0">
+          <div className="flex bg-surface-subtle border border-border p-1 rounded-xl shrink-0">
             <button
               onClick={() => setViewMode("grid")}
               className={`p-2 rounded-lg transition-all ${
                 viewMode === "grid"
-                  ? "bg-white text-gray-800 shadow-sm"
-                  : "text-gray-400 hover:text-gray-600"
+                  ? "bg-surface text-primary shadow-sm"
+                  : "text-primary-light hover:text-primary"
               }`}
             >
               <LayoutGrid className="w-5 h-5" />
@@ -570,8 +564,8 @@ export default function GlobalAssetsPage() {
               onClick={() => setViewMode("list")}
               className={`p-2 rounded-lg transition-all ${
                 viewMode === "list"
-                  ? "bg-white text-gray-800 shadow-sm"
-                  : "text-gray-400 hover:text-gray-600"
+                  ? "bg-surface text-primary shadow-sm"
+                  : "text-primary-light hover:text-primary"
               }`}
             >
               <List className="w-5 h-5" />
@@ -582,11 +576,11 @@ export default function GlobalAssetsPage() {
 
       {/* Content */}
       {loading ? (
-        <div className="h-64 flex items-center justify-center text-gray-400">
+        <div className="h-64 flex items-center justify-center text-primary-light">
           <Loader2 className="w-8 h-8 animate-spin" />
         </div>
       ) : files.length === 0 ? (
-        <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200 text-gray-400">
+        <div className="text-center py-20 bg-surface rounded-2xl border border-dashed border-border text-primary-light">
           <FileIcon className="w-12 h-12 mx-auto mb-3 opacity-20" />
           <p>ไม่พบไฟล์ที่ค้นหา</p>
         </div>
@@ -598,11 +592,11 @@ export default function GlobalAssetsPage() {
               {files.map((file) => (
                 <div
                   key={file.id}
-                  className="group bg-white p-3 md:p-4 rounded-xl border border-gray-100 hover:border-accent/50 hover:shadow-md transition-all flex flex-col relative"
+                  className="group bg-surface p-3 md:p-4 rounded-xl border border-border hover:border-accent/50 hover:shadow-md dark:hover:shadow-none transition-all flex flex-col relative"
                 >
                   {/* Thumbnail */}
                   <div
-                    className="h-32 md:h-40 bg-gray-50 rounded-lg mb-3 flex items-center justify-center overflow-hidden relative border border-gray-100 cursor-pointer"
+                    className="h-32 md:h-40 bg-surface-subtle rounded-lg mb-3 flex items-center justify-center overflow-hidden relative border border-border cursor-pointer"
                     onClick={() => handleFileClick(file)}
                   >
                     <FileThumbnail file={file} />
@@ -612,10 +606,9 @@ export default function GlobalAssetsPage() {
                       className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex items-center justify-center gap-2 backdrop-blur-sm"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {/* 🔥 เปลี่ยนปุ่มตาเป็น Download */}
                       <button
                         onClick={() => handleDownload(file.file_url, file.name)}
-                        className="p-2 bg-white rounded-full text-gray-700 hover:bg-gray-100"
+                        className="p-2 bg-surface rounded-full text-primary hover:bg-surface-subtle"
                         title="ดาวน์โหลด"
                       >
                         <Download className="w-4 h-4" />
@@ -625,7 +618,7 @@ export default function GlobalAssetsPage() {
                         onClick={() =>
                           setEditingItem({ id: file.id, name: file.name })
                         }
-                        className="p-2 bg-white rounded-full text-blue-600 hover:bg-blue-50"
+                        className="p-2 bg-surface rounded-full text-accent hover:bg-surface-subtle"
                         title="เปลี่ยนชื่อ"
                       >
                         <Pencil className="w-4 h-4" />
@@ -638,7 +631,7 @@ export default function GlobalAssetsPage() {
                             key: file.file_url,
                           })
                         }
-                        className="p-2 bg-white rounded-full text-red-600 hover:bg-red-50"
+                        className="p-2 bg-surface rounded-full text-red-500 hover:bg-surface-subtle"
                         title="ลบ"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -656,7 +649,7 @@ export default function GlobalAssetsPage() {
                         <input
                           autoFocus
                           type="text"
-                          className="w-full text-xs p-1 border border-accent rounded outline-none"
+                          className="w-full text-xs p-1 border border-accent bg-surface text-primary rounded outline-none"
                           value={editingItem.name}
                           onChange={(e) =>
                             setEditingItem({
@@ -670,29 +663,29 @@ export default function GlobalAssetsPage() {
                     ) : (
                       <div className="flex items-start justify-between gap-2 mb-1">
                         <h3
-                          className="font-semibold text-gray-800 text-sm truncate cursor-pointer hover:text-accent"
+                          className="font-semibold text-primary text-sm truncate cursor-pointer hover:text-accent"
                           title={file.name}
                           onClick={() => handleFileClick(file)}
                         >
                           {file.name}
                         </h3>
-                        <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded uppercase flex-shrink-0 hidden sm:inline">
+                        <span className="text-[10px] bg-surface-subtle text-primary-light border border-border px-1.5 py-0.5 rounded uppercase flex-shrink-0 hidden sm:inline">
                           {file.file_type.split("/")[1] || "FILE"}
                         </span>
                       </div>
                     )}
-                    <p className="text-xs text-gray-500 truncate mb-1 flex items-center gap-1">
+                    <p className="text-xs text-primary-light truncate mb-1 flex items-center gap-1">
                       📁 {file.projects?.title}
                     </p>
-                    <div className="hidden md:flex items-center justify-between text-[10px] text-gray-400 border-t border-gray-50 pt-2 mt-auto">
+                    <div className="hidden md:flex items-center justify-between text-[10px] text-primary-light border-t border-border pt-2 mt-auto">
                       <span>{file.profiles?.display_name}</span>
                       <span>{formatSize(file.size)}</span>
                     </div>
                     {/* Mobile Actions */}
-                    <div className="md:hidden flex justify-between items-center mt-2 pt-2 border-t border-gray-50">
+                    <div className="md:hidden flex justify-between items-center mt-2 pt-2 border-t border-border">
                       <button
                         onClick={() => handleDownload(file.file_url, file.name)}
-                        className="text-gray-600 p-2 hover:bg-gray-100 rounded"
+                        className="text-primary-light p-2 hover:bg-surface-subtle rounded"
                       >
                         <Download className="w-4 h-4" />
                       </button>
@@ -700,7 +693,7 @@ export default function GlobalAssetsPage() {
                         onClick={() =>
                           setEditingItem({ id: file.id, name: file.name })
                         }
-                        className="text-blue-600 p-2 hover:bg-blue-50 rounded"
+                        className="text-accent p-2 hover:bg-surface-subtle rounded"
                       >
                         <Pencil className="w-4 h-4" />
                       </button>
@@ -712,7 +705,7 @@ export default function GlobalAssetsPage() {
                             key: file.file_url,
                           })
                         }
-                        className="text-red-600 p-2 hover:bg-red-50 rounded"
+                        className="text-red-500 p-2 hover:bg-surface-subtle rounded"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -724,10 +717,10 @@ export default function GlobalAssetsPage() {
           )}
 
           {viewMode === "list" && (
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
+            <div className="bg-surface rounded-xl border border-border overflow-hidden shadow-sm dark:shadow-none">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left min-w-[700px]">
-                  <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-100">
+                  <thead className="bg-surface-subtle text-primary-light font-medium border-b border-border">
                     <tr>
                       <th className="px-4 py-3 w-12"></th>
                       <th className="px-4 py-3">ชื่อไฟล์</th>
@@ -738,17 +731,17 @@ export default function GlobalAssetsPage() {
                       <th className="px-4 py-3 w-32 text-right"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-border">
                     {files.map((file) => (
                       <tr
                         key={file.id}
-                        className="hover:bg-gray-50 group transition-colors cursor-pointer"
+                        className="hover:bg-surface-subtle group transition-colors cursor-pointer"
                         onClick={() => handleFileClick(file)}
                       >
-                        <td className="px-4 py-3 text-gray-400">
+                        <td className="px-4 py-3 text-primary-light">
                           {getFileIcon(file)}
                         </td>
-                        <td className="px-4 py-3 font-medium text-gray-700 max-w-[200px]">
+                        <td className="px-4 py-3 font-medium text-primary max-w-[200px]">
                           {editingItem?.id === file.id ? (
                             <form
                               onSubmit={handleRename}
@@ -758,7 +751,7 @@ export default function GlobalAssetsPage() {
                               <input
                                 autoFocus
                                 type="text"
-                                className="w-full px-2 py-1 border border-accent rounded text-sm outline-none"
+                                className="w-full px-2 py-1 bg-surface border border-accent rounded text-sm outline-none text-primary"
                                 value={editingItem.name}
                                 onChange={(e) =>
                                   setEditingItem({
@@ -767,13 +760,13 @@ export default function GlobalAssetsPage() {
                                   })
                                 }
                               />
-                              <button type="submit" className="text-green-600">
+                              <button type="submit" className="text-green-500">
                                 <Check className="w-4 h-4" />
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setEditingItem(null)}
-                                className="text-gray-400"
+                                className="text-primary-light"
                               >
                                 <X className="w-4 h-4" />
                               </button>
@@ -784,16 +777,16 @@ export default function GlobalAssetsPage() {
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-gray-500 truncate">
+                        <td className="px-4 py-3 text-primary-light truncate">
                           {file.projects?.title}
                         </td>
-                        <td className="px-4 py-3 text-gray-500 font-mono text-xs">
+                        <td className="px-4 py-3 text-primary-light font-mono text-xs">
                           {formatSize(file.size)}
                         </td>
-                        <td className="px-4 py-3 text-gray-500">
+                        <td className="px-4 py-3 text-primary-light">
                           {file.profiles?.display_name}
                         </td>
-                        <td className="px-4 py-3 text-gray-400 text-xs">
+                        <td className="px-4 py-3 text-primary-light text-xs">
                           {new Date(file.created_at).toLocaleDateString(
                             "th-TH"
                           )}
@@ -806,7 +799,7 @@ export default function GlobalAssetsPage() {
                             onClick={() =>
                               handleDownload(file.file_url, file.name)
                             }
-                            className="p-1.5 text-gray-400 hover:text-accent rounded-lg hover:bg-blue-50"
+                            className="p-1.5 text-primary-light hover:text-accent rounded-lg hover:bg-surface-subtle"
                             title="ดาวน์โหลด"
                           >
                             <Download className="w-4 h-4" />
@@ -815,7 +808,7 @@ export default function GlobalAssetsPage() {
                             onClick={() =>
                               setEditingItem({ id: file.id, name: file.name })
                             }
-                            className="p-1.5 text-gray-400 hover:text-blue-500 rounded-lg hover:bg-blue-50"
+                            className="p-1.5 text-primary-light hover:text-accent rounded-lg hover:bg-surface-subtle"
                             title="เปลี่ยนชื่อ"
                           >
                             <Pencil className="w-4 h-4" />
@@ -828,7 +821,7 @@ export default function GlobalAssetsPage() {
                                 key: file.file_url,
                               })
                             }
-                            className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50"
+                            className="p-1.5 text-primary-light hover:text-red-500 rounded-lg hover:bg-surface-subtle"
                             title="ลบไฟล์"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -846,16 +839,16 @@ export default function GlobalAssetsPage() {
 
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-red-100 scale-100 animate-in zoom-in-95 duration-200">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600">
+          <div className="bg-surface rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-red-100 dark:border-red-900/50 scale-100 animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600 dark:text-red-400">
               <AlertTriangle className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-bold text-center text-gray-900">
+            <h3 className="text-lg font-bold text-center text-primary">
               ยืนยันการลบไฟล์?
             </h3>
-            <p className="text-sm text-center text-gray-500 mt-2 mb-6 leading-relaxed">
+            <p className="text-sm text-center text-primary-light mt-2 mb-6 leading-relaxed">
               คุณกำลังจะลบ{" "}
-              <span className="font-bold text-gray-800">
+              <span className="font-bold text-primary">
                 "{deleteTarget.name}"
               </span>{" "}
               <br />
@@ -865,7 +858,7 @@ export default function GlobalAssetsPage() {
               <button
                 onClick={() => setDeleteTarget(null)}
                 disabled={isDeleting}
-                className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200"
+                className="flex-1 py-2.5 bg-surface-subtle text-primary font-medium rounded-xl hover:bg-border transition-colors"
               >
                 ยกเลิก
               </button>
@@ -892,17 +885,21 @@ export default function GlobalAssetsPage() {
 // Helpers
 const getFileIcon = (file: FileData, className = "w-6 h-6") => {
   if (file.file_type.includes("image"))
-    return <ImageIcon className={`${className} text-purple-500`} />;
+    return (
+      <ImageIcon
+        className={`${className} text-purple-500 dark:text-purple-400`}
+      />
+    );
   const isMix =
     file.name.toLowerCase().includes("mix") ||
     file.name.toLowerCase().includes("master");
   if (file.file_type.includes("audio"))
     return isMix ? (
-      <Disc className={`${className} text-orange-500`} />
+      <Disc className={`${className} text-orange-500 dark:text-orange-400`} />
     ) : (
-      <Music4 className={`${className} text-blue-500`} />
+      <Music4 className={`${className} text-blue-500 dark:text-blue-400`} />
     );
-  return <FileIcon className={`${className} text-gray-400`} />;
+  return <FileIcon className={`${className} text-primary-light`} />;
 };
 
 const FileThumbnail = ({ file }: { file: FileData }) => {
@@ -940,11 +937,13 @@ const FileThumbnail = ({ file }: { file: FileData }) => {
     return (
       <div
         className={`w-12 h-12 rounded-full flex items-center justify-center ${
-          isMix ? "bg-orange-100 text-orange-500" : "bg-blue-100 text-blue-500"
+          isMix
+            ? "bg-orange-100 text-orange-500 dark:bg-orange-900/30 dark:text-orange-300"
+            : "bg-blue-100 text-blue-500 dark:bg-blue-900/30 dark:text-blue-300"
         }`}
       >
         {isMix ? <Disc className="w-6 h-6" /> : <Music4 className="w-6 h-6" />}
       </div>
     );
-  return <FileIcon className="w-10 h-10 text-gray-300" />;
+  return <FileIcon className="w-10 h-10 text-primary-light/50" />;
 };

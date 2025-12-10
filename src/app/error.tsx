@@ -16,12 +16,12 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-surface-subtle p-4 text-center">
       <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6 border border-red-100">
         <AlertTriangle className="w-10 h-10 text-red-500" />
       </div>
 
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">
+      <h2 className="text-2xl font-bold text-primary mb-2">
         เกิดข้อผิดพลาดบางอย่าง!
       </h2>
       <p className="text-gray-500 max-w-sm mb-8 text-sm">
@@ -50,7 +50,7 @@ export default function Error({
 
         <Link
           href="/dashboard"
-          className="flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-medium"
+          className="flex items-center gap-2 px-5 py-2.5 bg-white border border-border text-gray-700 rounded-xl hover:bg-surface-subtle transition-colors font-medium"
         >
           <Home className="w-4 h-4" /> หน้าหลัก
         </Link>

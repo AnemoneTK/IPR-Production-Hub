@@ -60,13 +60,13 @@ export default function ChangePasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-primary p-4">
+    <div className="min-h-screen flex items-center justify-center bg-sidebar p-4">
       <div className="w-full max-w-md bg-white rounded-xl shadow-2xl overflow-hidden p-8">
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <Lock className="w-8 h-8 text-yellow-600" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-primary">
             กรุณาตั้งรหัสผ่านใหม่
           </h1>
           <p className="text-gray-500 mt-2">
@@ -83,7 +83,7 @@ export default function ChangePasswordPage() {
             <input
               type="password"
               required
-              className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-accent focus:outline-none"
+              className="w-full px-4 py-2 border-2 border-border rounded-lg focus:border-accent focus:outline-none"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="ตั้งรหัสผ่านใหม่..."
@@ -97,7 +97,7 @@ export default function ChangePasswordPage() {
             <input
               type="password"
               required
-              className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-accent focus:outline-none"
+              className="w-full px-4 py-2 border-2 border-border rounded-lg focus:border-accent focus:outline-none"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="พิมพ์อีกครั้ง..."

@@ -12,12 +12,8 @@ import {
   History,
   ClipboardList,
   CheckCircle2,
-  AlertCircle,
-  Clock,
-  PlayCircle,
-  Archive,
 } from "lucide-react";
-// ดึง Config สีสถานะมาใช้ต่อ (เพื่อให้สีตรงกันทั้งเว็บ)
+// ดึง Config สีสถานะมาใช้ต่อ
 import { FEEDBACK_STATUSES } from "@/components/FeedbackModal";
 
 export default function FeedbackPage() {
@@ -142,20 +138,21 @@ export default function FeedbackPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto py-8">
+    <div className="max-w-3xl mx-auto py-8 px-4 md:px-0">
       {/* Header & Tabs */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-primary">
             ศูนย์ช่วยเหลือ & แจ้งปัญหา
           </h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <p className="text-primary-light text-sm mt-1">
             ส่งเรื่องถึงทีมงาน หรือติดตามสถานะงานที่แจ้งไป
           </p>
         </div>
 
         {/* Tabs Switcher */}
-        <div className="bg-gray-100 p-1 rounded-xl flex gap-1">
+        {/* 🔥 แก้: bg-gray-100 -> bg-surface-subtle */}
+        <div className="bg-surface-subtle border border-border p-1 rounded-xl flex gap-1">
           <button
             onClick={() => {
               setActiveTab("submit");
@@ -163,8 +160,8 @@ export default function FeedbackPage() {
             }}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
               activeTab === "submit"
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-surface text-primary shadow-sm"
+                : "text-primary-light hover:text-primary"
             }`}
           >
             <Send className="w-4 h-4" /> แจ้งเรื่องใหม่
@@ -173,8 +170,8 @@ export default function FeedbackPage() {
             onClick={() => setActiveTab("history")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
               activeTab === "history"
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-surface text-primary shadow-sm"
+                : "text-primary-light hover:text-primary"
             }`}
           >
             <History className="w-4 h-4" /> ประวัติการแจ้ง
@@ -186,27 +183,27 @@ export default function FeedbackPage() {
       {activeTab === "submit" && (
         <div className="animate-in fade-in slide-in-from-bottom-2">
           {sent ? (
-            <div className="bg-white p-12 rounded-2xl shadow-sm border border-gray-100 text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 text-green-600">
+            <div className="bg-surface p-12 rounded-2xl shadow-sm border border-border text-center">
+              <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-green-600 dark:text-green-400">
                 <CheckCircle2 className="w-8 h-8" />
               </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">
+              <h2 className="text-xl font-bold text-primary mb-2">
                 ได้รับเรื่องแล้ว!
               </h2>
-              <p className="text-gray-500 mb-6">
+              <p className="text-primary-light mb-6">
                 ขอบคุณที่ช่วยแจ้งปัญหาครับ คุณสามารถติดตามสถานะได้ที่เมนู
                 "ประวัติการแจ้ง"
               </p>
               <div className="flex justify-center gap-3">
                 <button
                   onClick={() => setSent(false)}
-                  className="bg-gray-900 text-white px-6 py-2 rounded-xl hover:bg-black transition-colors"
+                  className="bg-primary text-surface px-6 py-2 rounded-xl hover:opacity-90 transition-colors font-medium"
                 >
                   ส่งเรื่องอื่นต่อ
                 </button>
                 <button
                   onClick={() => setActiveTab("history")}
-                  className="bg-gray-100 text-gray-700 px-6 py-2 rounded-xl hover:bg-gray-200 transition-colors"
+                  className="bg-surface-subtle text-primary px-6 py-2 rounded-xl hover:bg-border transition-colors font-medium"
                 >
                   ดูประวัติ
                 </button>
@@ -215,16 +212,17 @@ export default function FeedbackPage() {
           ) : (
             <form
               onSubmit={handleSubmit}
-              className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 space-y-6"
+              className="bg-surface p-8 rounded-2xl shadow-sm border border-border space-y-6"
             >
               <div className="grid grid-cols-2 gap-4">
                 <button
                   type="button"
                   onClick={() => setFormData({ ...formData, type: "bug" })}
+                  // 🔥 แก้: สีปุ่มเลือกประเภท
                   className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${
                     formData.type === "bug"
-                      ? "border-red-500 bg-red-50 text-red-700"
-                      : "border-gray-100 hover:border-gray-200 text-gray-500"
+                      ? "border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400"
+                      : "border-border hover:border-red-200 dark:hover:border-red-900/50 text-primary-light"
                   }`}
                 >
                   <Bug className="w-6 h-6" />{" "}
@@ -235,8 +233,8 @@ export default function FeedbackPage() {
                   onClick={() => setFormData({ ...formData, type: "feature" })}
                   className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${
                     formData.type === "feature"
-                      ? "border-accent bg-blue-50 text-accent"
-                      : "border-gray-100 hover:border-gray-200 text-gray-500"
+                      ? "border-accent bg-blue-50 dark:bg-blue-900/20 text-accent"
+                      : "border-border hover:border-accent/50 text-primary-light"
                   }`}
                 >
                   <Lightbulb className="w-6 h-6" />{" "}
@@ -245,13 +243,13 @@ export default function FeedbackPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">
+                <label className="block text-sm font-bold text-primary mb-1">
                   หัวข้อเรื่อง
                 </label>
                 <input
                   type="text"
                   required
-                  className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:border-accent focus:outline-none"
+                  className="w-full px-4 py-2 bg-surface border border-border rounded-xl focus:border-accent focus:outline-none text-primary placeholder:text-primary-light/50"
                   placeholder="เช่น: อัปโหลดรูปไม่ได้"
                   value={formData.title}
                   onChange={(e) =>
@@ -260,13 +258,13 @@ export default function FeedbackPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">
+                <label className="block text-sm font-bold text-primary mb-1">
                   รายละเอียด
                 </label>
                 <textarea
                   rows={4}
                   required
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-accent focus:outline-none resize-none"
+                  className="w-full px-4 py-3 bg-surface border border-border rounded-xl focus:border-accent focus:outline-none resize-none text-primary placeholder:text-primary-light/50"
                   placeholder="บอกรายละเอียดให้เราหน่อย..."
                   value={formData.description}
                   onChange={(e) =>
@@ -276,7 +274,7 @@ export default function FeedbackPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">
+                <label className="block text-sm font-bold text-primary mb-2">
                   รูปภาพประกอบ ({selectedFiles.length}/5)
                 </label>
                 <input
@@ -291,7 +289,7 @@ export default function FeedbackPage() {
                   {previewUrls.map((url, i) => (
                     <div
                       key={i}
-                      className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 group"
+                      className="relative aspect-square rounded-lg overflow-hidden border border-border group"
                     >
                       <img
                         src={url}
@@ -311,7 +309,7 @@ export default function FeedbackPage() {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400 hover:border-accent hover:text-accent hover:bg-gray-50 transition-all"
+                      className="aspect-square rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center text-primary-light hover:border-accent hover:text-accent hover:bg-surface-subtle transition-all"
                     >
                       <Plus className="w-5 h-5" />
                     </button>
@@ -322,7 +320,8 @@ export default function FeedbackPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-gray-900 hover:bg-black text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-70"
+                // 🔥 แก้: ปุ่มส่งเป็นสี Primary (ดำใน Light, ขาวใน Dark)
+                className="w-full py-3 bg-primary text-surface hover:opacity-90 font-bold rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-70 shadow-sm"
               >
                 {loading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
@@ -340,11 +339,11 @@ export default function FeedbackPage() {
       {activeTab === "history" && (
         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
           {loadingHistory ? (
-            <div className="text-center py-20 text-gray-400">
+            <div className="text-center py-20 text-primary-light">
               <Loader2 className="w-8 h-8 animate-spin mx-auto" />
             </div>
           ) : myFeedbacks.length === 0 ? (
-            <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200 text-gray-400">
+            <div className="text-center py-20 bg-surface rounded-2xl border border-dashed border-border text-primary-light">
               <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-20" />
               <p>คุณยังไม่เคยส่งรายการแจ้งปัญหา</p>
             </div>
@@ -359,14 +358,14 @@ export default function FeedbackPage() {
               return (
                 <div
                   key={item.id}
-                  className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow flex items-start gap-4"
+                  className="bg-surface p-5 rounded-xl border border-border shadow-sm hover:shadow-md dark:hover:shadow-none transition-shadow flex items-start gap-4"
                 >
                   {/* Icon Type */}
                   <div
                     className={`mt-1 w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                       item.type === "bug"
-                        ? "bg-red-50 text-red-500"
-                        : "bg-blue-50 text-blue-500"
+                        ? "bg-red-50 dark:bg-red-900/30 text-red-500"
+                        : "bg-blue-50 dark:bg-blue-900/30 text-blue-500"
                     }`}
                   >
                     {item.type === "bug" ? (
@@ -378,22 +377,21 @@ export default function FeedbackPage() {
 
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-start mb-1">
-                      <h3 className="font-bold text-gray-900 truncate pr-2">
+                      <h3 className="font-bold text-primary truncate pr-2">
                         {item.title}
                       </h3>
-                      <span className="text-xs text-gray-400 whitespace-nowrap">
+                      <span className="text-xs text-primary-light whitespace-nowrap">
                         {new Date(item.created_at).toLocaleDateString("th-TH")}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-500 line-clamp-2 mb-3">
+                    <p className="text-sm text-primary-light line-clamp-2 mb-3">
                       {item.description}
                     </p>
 
                     {/* Status Badge */}
+                    {/* 🔥 ใช้ config สีโดยตรง ไม่ต้อง replace แล้ว */}
                     <div
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border ${statusConfig.color
-                        .replace("text-", "border-")
-                        .replace("100", "200")} ${statusConfig.color}`}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border ${statusConfig.color}`}
                     >
                       <StatusIcon className="w-3.5 h-3.5" />
                       {statusConfig.label}

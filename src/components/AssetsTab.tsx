@@ -177,7 +177,6 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
 
     try {
       for (const name of defaultFolders) {
-        // 1. หาว่าโฟลเดอร์หลักมีอยู่แล้วหรือไม่
         let folderId;
         const existingFolder = allFoldersRaw.find(
           (f) => f.name === name && f.parent_id === null
@@ -186,7 +185,6 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
         if (existingFolder) {
           folderId = existingFolder.id;
         } else {
-          // ถ้าไม่มี ให้สร้างใหม่ และเอา ID มา
           const { data } = await supabase
             .from("folders")
             .insert({
@@ -200,9 +198,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
           if (data) folderId = data.id;
         }
 
-        // 2. ถ้าเป็น "Raw Audio" ให้สร้าง Sub-folders ข้างใน
         if (name === "🎵 Raw Audio" && folderId) {
-          // เช็คก่อนว่าข้างในมีโฟลเดอร์อะไรบ้างแล้ว (กันสร้างซ้ำ)
           const { data: existingSubs } = await supabase
             .from("folders")
             .select("name")
@@ -211,7 +207,6 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
 
           const existingSubNames = existingSubs?.map((s) => s.name) || [];
 
-          // วนลูปสร้าง Sub-folders ที่ยังไม่มี
           for (const subName of rawAudioSubFolders) {
             if (!existingSubNames.includes(subName)) {
               await supabase.from("folders").insert({
@@ -223,8 +218,6 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
           }
         }
       }
-
-      // โหลดข้อมูลใหม่ทั้งหมด
       await fetchData();
     } catch (error: any) {
       alert("Error initializing folders: " + error.message);
@@ -322,7 +315,6 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
 
   // --- File Click / Preview ---
   const handleFileClick = async (file: FileData) => {
-    // 🖼️ รูปภาพ
     if (file.file_type.includes("image")) {
       setIsPreviewLoading(true);
       setPreviewImage({ url: "", name: file.name });
@@ -345,9 +337,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
       } finally {
         setIsPreviewLoading(false);
       }
-    }
-    // 🎵 เสียง
-    else if (file.file_type.includes("audio")) {
+    } else if (file.file_type.includes("audio")) {
       setIsPreviewLoading(true);
       setPreviewAudio({ url: "", name: file.name });
 
@@ -443,10 +433,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
       newPath.length > 0 ? newPath[newPath.length - 1].id : null
     );
   };
-  const getDeleteCount = () =>
-    deleteTarget?.type === "folder"
-      ? getAllDescendantFiles(deleteTarget.id).length
-      : 0;
+
   const formatSize = (bytes: number) => {
     if (bytes === 0) return "0 B";
     const k = 1024;
@@ -458,7 +445,9 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
   return (
     <div
       className={`p-4 md:p-6 min-h-[500px] relative transition-colors ${
-        isDragging ? "bg-blue-50/50" : ""
+        isDragging
+          ? "bg-accent/10" // 🔥 Dragging BG
+          : ""
       }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -466,8 +455,8 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
     >
       {/* Upload Overlay */}
       {isDragging && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-blue-100/80 border-4 border-blue-400 border-dashed rounded-xl m-4 backdrop-blur-sm pointer-events-none">
-          <div className="text-center text-blue-600 animate-bounce">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-accent/20 border-4 border-accent border-dashed rounded-xl m-4 backdrop-blur-sm pointer-events-none">
+          <div className="text-center text-accent animate-bounce">
             <UploadCloud className="w-16 h-16 mx-auto mb-2" />
             <h3 className="text-2xl font-bold">วางไฟล์เพื่ออัปโหลด</h3>
           </div>
@@ -482,10 +471,10 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
         multiple
       />
 
-      {/* 🔥 Preview Image */}
+      {/* Preview Image / Audio (Lightbox - keep black background) */}
       {previewImage && (
         <div
-          className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200"
+          className="fixed inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200"
           onClick={() => setPreviewImage(null)}
         >
           <div
@@ -527,10 +516,9 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
         </div>
       )}
 
-      {/* 🔥 Preview Audio */}
       {previewAudio && (
         <div
-          className="fixed inset-0 z-[100] h-screen w-screen bg-black flex flex-col items-center justify-center p-6 animate-in slide-in-from-bottom-10 duration-300"
+          className="fixed inset-0 z-[100] h-screen w-screen bg-black/90 flex flex-col items-center justify-center p-6 animate-in slide-in-from-bottom-10 duration-300"
           onClick={() => setPreviewAudio(null)}
         >
           <div
@@ -607,29 +595,30 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
           {currentFolderId && (
             <button
               onClick={navigateUp}
-              className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 mr-1"
+              // 🔥 สีปุ่ม Back
+              className="p-1.5 hover:bg-surface-subtle rounded-lg text-primary-light mr-1 transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
           )}
-          <div className="flex items-center gap-2 text-sm font-medium text-gray-600 whitespace-nowrap">
+          <div className="flex items-center gap-2 text-sm font-medium text-primary-light whitespace-nowrap">
             <span
               onClick={() => {
                 setCurrentFolderId(null);
                 setFolderPath([]);
               }}
               className={`cursor-pointer hover:text-accent ${
-                !currentFolderId && "text-gray-900 font-bold"
+                !currentFolderId && "text-primary font-bold"
               }`}
             >
               Home
             </span>
             {folderPath.map((f, i) => (
               <div key={f.id} className="flex items-center gap-2">
-                <span className="text-gray-300">/</span>
+                <span className="text-primary-light/50">/</span>
                 <span
                   className={
-                    i === folderPath.length - 1 ? "text-gray-900 font-bold" : ""
+                    i === folderPath.length - 1 ? "text-primary font-bold" : ""
                   }
                 >
                   {f.name}
@@ -640,13 +629,14 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
         </div>
 
         <div className="flex flex-wrap gap-2 items-center">
-          <div className="flex bg-gray-100 p-1 rounded-lg mr-2">
+          {/* 🔥 View Toggle BG */}
+          <div className="flex bg-surface-subtle border border-border p-1 rounded-lg mr-2">
             <button
               onClick={() => setViewMode("grid")}
               className={`p-1.5 rounded-md transition-all ${
                 viewMode === "grid"
-                  ? "bg-white shadow text-gray-800"
-                  : "text-gray-400 hover:text-gray-600"
+                  ? "bg-surface shadow text-primary"
+                  : "text-primary-light hover:text-primary"
               }`}
             >
               <LayoutGrid className="w-4 h-4" />
@@ -655,8 +645,8 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
               onClick={() => setViewMode("list")}
               className={`p-1.5 rounded-md transition-all ${
                 viewMode === "list"
-                  ? "bg-white shadow text-gray-800"
-                  : "text-gray-400 hover:text-gray-600"
+                  ? "bg-surface shadow text-primary"
+                  : "text-primary-light hover:text-primary"
               }`}
             >
               <List className="w-4 h-4" />
@@ -667,7 +657,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
             <button
               onClick={handleInitFolders}
               disabled={isInitializing}
-              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-100 rounded-lg hover:bg-blue-100 transition-colors"
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
             >
               {isInitializing ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -680,7 +670,8 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
 
           <button
             onClick={() => setIsCreatingFolder(true)}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+            // 🔥 สีปุ่ม Create Folder
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-primary bg-surface border border-border rounded-lg hover:bg-surface-subtle transition-colors"
           >
             <Folder className="w-4 h-4" />{" "}
             <span className="hidden sm:inline">สร้าง</span>
@@ -688,7 +679,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-accent rounded-lg hover:bg-accent-hover shadow-sm disabled:opacity-50"
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-accent rounded-lg hover:bg-accent-hover shadow-sm disabled:opacity-50 transition-colors"
           >
             {isUploading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -705,10 +696,11 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
           onSubmit={handleCreateFolder}
           className="mb-4 flex items-center gap-2 max-w-md animate-in fade-in slide-in-from-top-2"
         >
+          {/* 🔥 Input Color */}
           <input
             autoFocus
             type="text"
-            className="flex-1 px-3 py-2 border border-accent rounded-lg outline-none text-sm"
+            className="flex-1 px-3 py-2 bg-surface border border-accent rounded-lg outline-none text-sm text-primary placeholder:text-primary-light"
             placeholder="ชื่อโฟลเดอร์..."
             value={newFolderName}
             onChange={(e) => setNewFolderName(e.target.value)}
@@ -722,7 +714,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
           <button
             type="button"
             onClick={() => setIsCreatingFolder(false)}
-            className="px-3 py-2 text-gray-500 text-sm"
+            className="px-3 py-2 text-primary-light hover:text-primary text-sm"
           >
             ยกเลิก
           </button>
@@ -730,7 +722,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
       )}
 
       {loading ? (
-        <div className="text-center py-10 text-gray-400">
+        <div className="text-center py-10 text-primary-light">
           <Loader2 className="w-8 h-8 animate-spin mx-auto" />
         </div>
       ) : (
@@ -742,7 +734,8 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                 <div key={folder.id} className="group relative">
                   <div
                     onClick={() => enterFolder(folder)}
-                    className="p-4 bg-gray-50 rounded-xl border border-gray-100 hover:bg-blue-50 hover:border-blue-200 cursor-pointer transition-all flex flex-col items-center text-center"
+                    // 🔥 Folder Card Colors
+                    className="p-4 bg-surface-subtle rounded-xl border border-border hover:bg-accent/10 hover:border-accent/30 cursor-pointer transition-all flex flex-col items-center text-center"
                   >
                     <Folder
                       className={`w-10 h-10 mb-2 transition-colors ${
@@ -750,7 +743,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                           ? "text-blue-400"
                           : folder.name.includes("Mix")
                           ? "text-orange-400"
-                          : "text-gray-400"
+                          : "text-primary-light"
                       }`}
                       fill="currentColor"
                       fillOpacity={0.2}
@@ -765,7 +758,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                         <input
                           autoFocus
                           type="text"
-                          className="w-full text-xs text-center border-b border-blue-500 outline-none bg-transparent"
+                          className="w-full text-xs text-center border-b border-accent outline-none bg-transparent text-primary"
                           value={editingItem.name}
                           onChange={(e) =>
                             setEditingItem({
@@ -777,7 +770,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                         />
                       </form>
                     ) : (
-                      <span className="text-sm font-medium text-gray-700 group-hover:text-blue-700 truncate w-full mt-1 px-1">
+                      <span className="text-sm font-medium text-primary group-hover:text-accent truncate w-full mt-1 px-1">
                         {folder.name}
                       </span>
                     )}
@@ -793,7 +786,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                           name: folder.name,
                         });
                       }}
-                      className="p-1.5 bg-white rounded-full text-gray-400 hover:text-blue-500 hover:bg-blue-50 shadow-sm"
+                      className="p-1.5 bg-surface rounded-full text-primary-light hover:text-accent hover:bg-surface-subtle shadow-sm border border-border"
                     >
                       <Pencil className="w-3 h-3" />
                     </button>
@@ -806,7 +799,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                           name: folder.name,
                         });
                       }}
-                      className="p-1.5 bg-white rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 shadow-sm"
+                      className="p-1.5 bg-surface rounded-full text-primary-light hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 shadow-sm border border-border"
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>
@@ -822,7 +815,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                           name: folder.name,
                         });
                       }}
-                      className="text-blue-500"
+                      className="text-accent"
                     >
                       <Pencil className="w-4 h-4" />
                     </button>
@@ -851,11 +844,11 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
               {files.map((file) => (
                 <div
                   key={file.id}
-                  className="group relative bg-white border border-gray-100 rounded-xl overflow-hidden hover:shadow-md transition-all"
+                  className="group relative bg-surface border border-border rounded-xl overflow-hidden hover:shadow-md dark:hover:shadow-none transition-all"
                 >
                   <div
-                    className="aspect-square bg-gray-50 flex items-center justify-center relative overflow-hidden cursor-pointer"
-                    onClick={() => handleFileClick(file)} // 🔥 เปิด Preview
+                    className="aspect-square bg-surface-subtle flex items-center justify-center relative overflow-hidden cursor-pointer"
+                    onClick={() => handleFileClick(file)}
                   >
                     <FileThumbnail file={file} />
 
@@ -863,10 +856,9 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                       className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex items-center justify-center gap-2 backdrop-blur-sm"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {/* 🔥 เปลี่ยนปุ่มตาเป็น Download */}
                       <button
                         onClick={() => handleDownload(file.file_url, file.name)}
-                        className="p-2 bg-white rounded-full text-gray-700 hover:bg-gray-100"
+                        className="p-2 bg-surface rounded-full text-primary hover:bg-surface-subtle"
                         title="ดาวน์โหลด"
                       >
                         <Download className="w-4 h-4" />
@@ -880,7 +872,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                             name: file.name,
                           })
                         }
-                        className="p-2 bg-white rounded-full text-blue-600 hover:bg-blue-50"
+                        className="p-2 bg-surface rounded-full text-accent hover:bg-surface-subtle"
                         title="เปลี่ยนชื่อ"
                       >
                         <Pencil className="w-4 h-4" />
@@ -894,7 +886,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                             key: file.file_url,
                           })
                         }
-                        className="p-2 bg-white rounded-full text-red-600 hover:bg-red-50"
+                        className="p-2 bg-surface rounded-full text-red-500 hover:bg-surface-subtle"
                         title="ลบ"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -911,7 +903,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                         <input
                           autoFocus
                           type="text"
-                          className="w-full text-xs p-1 border border-accent rounded outline-none"
+                          className="w-full text-xs p-1 bg-surface border border-accent rounded outline-none text-primary"
                           value={editingItem.name}
                           onChange={(e) =>
                             setEditingItem({
@@ -925,15 +917,15 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                     ) : (
                       <div className="flex items-start justify-between gap-2">
                         <span
-                          className="text-sm font-medium text-gray-700 truncate cursor-pointer hover:text-accent"
+                          className="text-sm font-medium text-primary truncate cursor-pointer hover:text-accent"
                           title={file.name}
-                          onClick={() => handleFileClick(file)} // 🔥 เปิด Preview
+                          onClick={() => handleFileClick(file)}
                         >
                           {file.name}
                         </span>
                       </div>
                     )}
-                    <div className="flex justify-between items-center mt-1 text-[10px] text-gray-400">
+                    <div className="flex justify-between items-center mt-1 text-[10px] text-primary-light">
                       <span>{formatSize(file.size)}</span>
                       <span>
                         {new Date(file.created_at).toLocaleDateString()}
@@ -941,10 +933,10 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                     </div>
 
                     {/* Mobile Actions */}
-                    <div className="md:hidden flex justify-between items-center mt-3 pt-2 border-t border-gray-50">
+                    <div className="md:hidden flex justify-between items-center mt-3 pt-2 border-t border-border">
                       <button
                         onClick={() => handleDownload(file.file_url, file.name)}
-                        className="text-gray-600 p-1"
+                        className="text-primary-light p-1"
                       >
                         <Download className="w-4 h-4" />
                       </button>
@@ -956,7 +948,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                             name: file.name,
                           })
                         }
-                        className="text-blue-600 p-1"
+                        className="text-accent p-1"
                       >
                         <Pencil className="w-4 h-4" />
                       </button>
@@ -969,7 +961,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                             key: file.file_url,
                           })
                         }
-                        className="text-red-600 p-1"
+                        className="text-red-500 p-1"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -982,10 +974,10 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
 
           {/* 🔥 LIST MODE */}
           {viewMode === "list" && files.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
+            <div className="bg-surface rounded-xl border border-border overflow-hidden shadow-sm dark:shadow-none">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left min-w-[600px]">
-                  <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-100">
+                  <thead className="bg-surface-subtle text-primary-light font-medium border-b border-border">
                     <tr>
                       <th className="px-4 py-3 w-10"></th>
                       <th className="px-4 py-3">ชื่อไฟล์</th>
@@ -995,17 +987,17 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                       <th className="px-4 py-3 text-right"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-border">
                     {files.map((file) => (
                       <tr
                         key={file.id}
-                        className="hover:bg-gray-50 group transition-colors cursor-pointer"
-                        onClick={() => handleFileClick(file)} // 🔥 เปิด Preview
+                        className="hover:bg-surface-subtle group transition-colors cursor-pointer"
+                        onClick={() => handleFileClick(file)}
                       >
-                        <td className="px-4 py-3 text-gray-400">
+                        <td className="px-4 py-3 text-primary-light">
                           {getFileIcon(file)}
                         </td>
-                        <td className="px-4 py-3 font-medium text-gray-700 max-w-[200px]">
+                        <td className="px-4 py-3 font-medium text-primary max-w-[200px]">
                           {editingItem?.id === file.id &&
                           editingItem?.type === "file" ? (
                             <form
@@ -1016,7 +1008,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                               <input
                                 autoFocus
                                 type="text"
-                                className="w-full px-2 py-1 border border-accent rounded text-sm outline-none"
+                                className="w-full px-2 py-1 bg-surface border border-accent rounded text-sm outline-none text-primary"
                                 value={editingItem.name}
                                 onChange={(e) =>
                                   setEditingItem({
@@ -1025,13 +1017,13 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                                   })
                                 }
                               />
-                              <button type="submit" className="text-green-600">
+                              <button type="submit" className="text-green-500">
                                 <Check className="w-4 h-4" />
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setEditingItem(null)}
-                                className="text-gray-400"
+                                className="text-primary-light"
                               >
                                 <X className="w-4 h-4" />
                               </button>
@@ -1042,13 +1034,13 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-gray-500">
+                        <td className="px-4 py-3 text-primary-light">
                           {formatSize(file.size)}
                         </td>
-                        <td className="px-4 py-3 text-gray-500">
+                        <td className="px-4 py-3 text-primary-light">
                           {file.profiles?.display_name}
                         </td>
-                        <td className="px-4 py-3 text-gray-400">
+                        <td className="px-4 py-3 text-primary-light">
                           {new Date(file.created_at).toLocaleDateString()}
                         </td>
                         <td
@@ -1059,7 +1051,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                             onClick={() =>
                               handleDownload(file.file_url, file.name)
                             }
-                            className="p-1.5 text-gray-400 hover:text-accent rounded-lg hover:bg-blue-50"
+                            className="p-1.5 text-primary-light hover:text-accent rounded-lg hover:bg-surface-subtle"
                             title="ดาวน์โหลด"
                           >
                             <Download className="w-4 h-4" />
@@ -1072,7 +1064,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                                 name: file.name,
                               })
                             }
-                            className="p-1.5 text-gray-400 hover:text-blue-500 rounded-lg hover:bg-blue-50"
+                            className="p-1.5 text-primary-light hover:text-accent rounded-lg hover:bg-surface-subtle"
                             title="เปลี่ยนชื่อ"
                           >
                             <Pencil className="w-4 h-4" />
@@ -1086,7 +1078,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
                                 key: file.file_url,
                               })
                             }
-                            className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50"
+                            className="p-1.5 text-primary-light hover:text-red-500 rounded-lg hover:bg-surface-subtle"
                             title="ลบไฟล์"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -1101,14 +1093,14 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
           )}
 
           {files.length === 0 && folders.length === 0 && (
-            <div className="flex flex-col items-center justify-center w-full py-20 text-gray-400 gap-3 border-2 border-dashed border-gray-100 rounded-xl">
-              <div className="p-4 bg-gray-50 rounded-full">
+            <div className="flex flex-col items-center justify-center w-full py-20 text-primary-light/50 gap-3 border-2 border-dashed border-border rounded-xl">
+              <div className="p-4 bg-surface-subtle rounded-full">
                 <FileIcon className="w-8 h-8 opacity-40" />
               </div>
               <span className="font-medium text-sm">
                 ยังไม่มีไฟล์ในโฟลเดอร์นี้
               </span>
-              <p className="text-xs text-gray-300">
+              <p className="text-xs text-primary-light/70">
                 ลากไฟล์มาวางเพื่ออัปโหลดได้เลย
               </p>
             </div>
@@ -1116,18 +1108,19 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
         </>
       )}
 
+      {/* Delete Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-red-100 scale-100 animate-in zoom-in-95 duration-200">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600">
+          <div className="bg-surface rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-red-100 dark:border-red-900/50 scale-100 animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600 dark:text-red-400">
               <AlertTriangle className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-bold text-center text-gray-900">
+            <h3 className="text-lg font-bold text-center text-primary">
               ยืนยันการลบไฟล์?
             </h3>
-            <p className="text-sm text-center text-gray-500 mt-2 mb-6 leading-relaxed">
+            <p className="text-sm text-center text-primary-light mt-2 mb-6 leading-relaxed">
               คุณกำลังจะลบ{" "}
-              <span className="font-bold text-gray-800">
+              <span className="font-bold text-primary">
                 "{deleteTarget.name}"
               </span>{" "}
               <br />
@@ -1137,7 +1130,7 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
               <button
                 onClick={() => setDeleteTarget(null)}
                 disabled={isDeleting}
-                className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200"
+                className="flex-1 py-2.5 bg-surface-subtle text-primary font-medium rounded-xl hover:bg-border transition-colors"
               >
                 ยกเลิก
               </button>
@@ -1174,7 +1167,7 @@ const getFileIcon = (file: any) => {
     ) : (
       <Music4 className="w-6 h-6 text-blue-500" />
     );
-  return <FileIcon className="w-6 h-6 text-gray-400" />;
+  return <FileIcon className="w-6 h-6 text-primary-light" />;
 };
 
 const FileThumbnail = ({ file }: { file: any }) => {
@@ -1220,5 +1213,5 @@ const FileThumbnail = ({ file }: { file: any }) => {
       </div>
     );
   }
-  return <FileIcon className="w-10 h-10 text-gray-300" />;
+  return <FileIcon className="w-10 h-10 text-primary-light/30" />;
 };

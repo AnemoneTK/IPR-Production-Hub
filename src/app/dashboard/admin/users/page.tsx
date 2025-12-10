@@ -43,7 +43,7 @@ export default function AdminUsersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
 
-  // 🔥 Success Modal State (ปรับใหม่ให้ใช้ร่วมกันได้ทุกงาน)
+  // Success Modal State
   const [successModal, setSuccessModal] = useState<{
     title: string;
     message: string;
@@ -114,7 +114,6 @@ export default function AdminUsersPage() {
       if (!res.ok) throw new Error("Failed");
 
       setShowCreateModal(false);
-      // 🔥 เรียกใช้ Modal สวยๆ
       setSuccessModal({
         title: "สร้างบัญชีสำเร็จ!",
         message: `บัญชี ${createForm.email} ถูกสร้างเรียบร้อยแล้ว ระบบได้ส่งอีเมลแจ้งรหัสผ่านไปยังผู้ใช้แล้ว`,
@@ -142,7 +141,6 @@ export default function AdminUsersPage() {
 
       setShowEditModal(false);
       setEditingUser(null);
-      // 🔥 เรียกใช้ Modal สวยๆ
       setSuccessModal({
         title: "แก้ไขข้อมูลสำเร็จ!",
         message: "ข้อมูลผู้ใช้งานได้รับการอัปเดตเรียบร้อยแล้ว",
@@ -172,7 +170,6 @@ export default function AdminUsersPage() {
       if (!res.ok) throw new Error("Failed");
       fetchUsers();
       setStatusTarget(null);
-      // 🔥 เรียกใช้ Modal สวยๆ (Optional: ถ้าไม่อยากให้เด้งตอนเปิดปิด ก็ลบบรรทัดนี้ได้)
       setSuccessModal({
         title: "สถานะเปลี่ยนแล้ว!",
         message: `บัญชีผู้ใช้ถูก ${
@@ -197,7 +194,6 @@ export default function AdminUsersPage() {
       if (!res.ok) throw new Error("Failed");
       setUsers(users.filter((u) => u.id !== deleteTarget.id));
       setDeleteTarget(null);
-      // 🔥 เรียกใช้ Modal สวยๆ
       setSuccessModal({
         title: "ลบบัญชีสำเร็จ!",
         message: "ข้อมูลผู้ใช้ถูกลบออกจากระบบถาวรแล้ว",
@@ -218,13 +214,14 @@ export default function AdminUsersPage() {
 
   return (
     <div className="space-y-6 pb-10">
-      {/* Header & Filter (เหมือนเดิม) */}
+      {/* Header & Filter */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Shield className="w-6 h-6 text-blue-600" /> จัดการบัญชีผู้ใช้
+          <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
+            <Shield className="w-6 h-6 text-blue-600 dark:text-blue-400" />{" "}
+            จัดการบัญชีผู้ใช้
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-primary-light mt-1">
             บริหารจัดการสมาชิก สิทธิ์ และสถานะบัญชี
           </p>
         </div>
@@ -236,20 +233,21 @@ export default function AdminUsersPage() {
         </button>
       </div>
 
-      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
+      {/* 🔥 Filter Bar: bg-surface, text-primary */}
+      <div className="bg-surface p-4 rounded-xl border border-border shadow-sm flex flex-col md:flex-row gap-4 items-center">
         <div className="relative w-full md:w-80">
-          <Search className="absolute left-3 top-2.5 text-gray-400 w-4 h-4" />
+          <Search className="absolute left-3 top-2.5 text-primary-light w-4 h-4" />
           <input
             type="text"
             placeholder="ค้นหาชื่อ หรือ อีเมล..."
-            className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 outline-none transition-all"
+            className="w-full pl-9 pr-4 py-2 bg-surface-subtle border border-border rounded-lg text-sm text-primary focus:border-blue-500 outline-none transition-all placeholder:text-primary-light/50"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
         <div className="relative w-full md:w-56">
           <select
-            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 outline-none cursor-pointer"
+            className="w-full px-4 py-2 bg-surface-subtle border border-border rounded-lg text-sm text-primary focus:border-blue-500 outline-none cursor-pointer"
             value={filterRole}
             onChange={(e) => setFilterRole(e.target.value)}
           >
@@ -261,16 +259,17 @@ export default function AdminUsersPage() {
             ))}
           </select>
         </div>
-        <div className="text-xs text-gray-400 ml-auto hidden md:block">
+        <div className="text-xs text-primary-light ml-auto hidden md:block">
           แสดง {filteredUsers.length} จากทั้งหมด {users.length} ผู้ใช้
         </div>
       </div>
 
       {/* Users Table */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      {/* 🔥 Table: bg-surface, border-border */}
+      <div className="bg-surface rounded-2xl border border-border shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
-            <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-100">
+            <thead className="bg-surface-subtle text-primary-light font-medium border-b border-border">
               <tr>
                 <th className="px-6 py-4">ผู้ใช้</th>
                 <th className="px-6 py-4">ตำแหน่ง</th>
@@ -279,29 +278,35 @@ export default function AdminUsersPage() {
                 <th className="px-6 py-4 text-right">จัดการ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-border">
               {loading ? (
                 <tr>
                   <td colSpan={5} className="py-20 text-center">
-                    <Loader2 className="w-8 h-8 animate-spin mx-auto text-gray-300" />
+                    <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary-light" />
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-gray-400">
+                  <td
+                    colSpan={5}
+                    className="py-12 text-center text-primary-light"
+                  >
                     ไม่พบผู้ใช้ที่ค้นหา
                   </td>
                 </tr>
               ) : (
                 filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50">
+                  <tr
+                    key={user.id}
+                    className="hover:bg-surface-subtle transition-colors"
+                  >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div
                           className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white ${
                             user.is_active
                               ? "bg-gradient-to-br from-blue-500 to-blue-600"
-                              : "bg-gray-400"
+                              : "bg-gray-400 dark:bg-gray-600"
                           }`}
                         >
                           {user.display_name?.substring(0, 2).toUpperCase() ||
@@ -310,29 +315,33 @@ export default function AdminUsersPage() {
                         <div>
                           <p
                             className={`font-semibold ${
-                              user.is_active ? "text-gray-900" : "text-gray-400"
+                              user.is_active
+                                ? "text-primary"
+                                : "text-primary-light"
                             }`}
                           >
                             {user.display_name}
                           </p>
-                          <p className="text-xs text-gray-400">{user.email}</p>
+                          <p className="text-xs text-primary-light">
+                            {user.email}
+                          </p>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded border text-xs font-bold uppercase">
+                      <span className="bg-surface-subtle text-primary-light px-2 py-1 rounded border border-border text-xs font-bold uppercase">
                         {user.main_role}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex gap-1">
                         {user.is_admin && (
-                          <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-bold">
+                          <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded text-[10px] font-bold">
                             ADMIN
                           </span>
                         )}
                         {user.is_producer && (
-                          <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[10px] font-bold">
+                          <span className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 px-2 py-0.5 rounded text-[10px] font-bold">
                             PRODUCER
                           </span>
                         )}
@@ -340,11 +349,11 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-6 py-4">
                       {user.is_active ? (
-                        <span className="flex items-center gap-1 text-green-600 font-medium text-xs">
+                        <span className="flex items-center gap-1 text-green-600 dark:text-green-400 font-medium text-xs">
                           <CheckCircle2 className="w-3 h-3" /> Active
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1 text-red-500 font-medium text-xs">
+                        <span className="flex items-center gap-1 text-red-500 dark:text-red-400 font-medium text-xs">
                           <XCircle className="w-3 h-3" /> Suspended
                         </span>
                       )}
@@ -359,21 +368,21 @@ export default function AdminUsersPage() {
                         }
                         className={`p-2 rounded-lg transition-colors ${
                           user.is_active
-                            ? "text-green-600 hover:bg-green-50"
-                            : "text-gray-400 hover:bg-gray-100"
+                            ? "text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20"
+                            : "text-primary-light hover:bg-surface-subtle"
                         }`}
                       >
                         <Power className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => openEditModal(user)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => setDeleteTarget(user)}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        className="p-2 text-primary-light hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -386,23 +395,25 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      {/* --- Success Modal (ใช้ร่วมกันได้ทุกงาน) --- */}
+      {/* --- Success Modal --- */}
       {successModal && (
         <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center p-4 backdrop-blur-sm animate-in zoom-in-95 duration-300">
-          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-8 text-center border-t-4 border-green-500 relative">
+          <div className="bg-surface w-full max-w-sm rounded-2xl shadow-2xl p-8 text-center border-t-4 border-green-500 relative">
             <button
               onClick={() => setSuccessModal(null)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+              className="absolute top-4 right-4 text-primary-light hover:text-primary"
             >
               <X className="w-5 h-5" />
             </button>
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 text-green-600">
+            <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-green-600 dark:text-green-400">
               <CheckCircle2 className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">
+            <h3 className="text-xl font-bold text-primary mb-2">
               {successModal.title}
             </h3>
-            <p className="text-gray-500 text-sm mb-6">{successModal.message}</p>
+            <p className="text-primary-light text-sm mb-6">
+              {successModal.message}
+            </p>
             <button
               onClick={() => setSuccessModal(null)}
               className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition-colors shadow-lg shadow-green-500/30"
@@ -416,20 +427,20 @@ export default function AdminUsersPage() {
       {/* --- Create Modal --- */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/60 z-[80] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 border border-gray-100">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">
+          <div className="bg-surface w-full max-w-md rounded-2xl shadow-2xl p-6 border border-border">
+            <h3 className="text-xl font-bold text-primary mb-4">
               เพิ่มสมาชิกใหม่
             </h3>
             <form onSubmit={handleCreateUser} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                <label className="block text-xs font-bold text-primary-light uppercase mb-1">
                   อีเมล
                 </label>
                 <input
                   type="email"
                   required
                   placeholder="example@ipr.com"
-                  className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
+                  className="w-full p-3 bg-surface border border-border rounded-xl outline-none focus:border-blue-500 text-primary"
                   value={createForm.email}
                   onChange={(e) =>
                     setCreateForm({ ...createForm, email: e.target.value })
@@ -437,7 +448,7 @@ export default function AdminUsersPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                <label className="block text-xs font-bold text-primary-light uppercase mb-2">
                   ตำแหน่ง (Main Role)
                 </label>
                 <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto pr-1">
@@ -446,8 +457,8 @@ export default function AdminUsersPage() {
                       key={option.value}
                       className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
                         createForm.role === option.value
-                          ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500"
-                          : "border-gray-200 hover:border-gray-300"
+                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-500"
+                          : "border-border hover:border-accent/50 bg-surface"
                       }`}
                     >
                       <input
@@ -459,7 +470,7 @@ export default function AdminUsersPage() {
                           setCreateForm({ ...createForm, role: e.target.value })
                         }
                       />
-                      <span className="text-sm font-bold text-gray-700">
+                      <span className="text-sm font-bold text-primary">
                         {option.label}
                       </span>
                     </label>
@@ -470,7 +481,7 @@ export default function AdminUsersPage() {
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-lg"
+                  className="px-4 py-2 text-primary-light hover:bg-surface-subtle rounded-lg"
                 >
                   ยกเลิก
                 </button>
@@ -491,18 +502,19 @@ export default function AdminUsersPage() {
       {/* --- Edit Modal --- */}
       {showEditModal && editingUser && (
         <div className="fixed inset-0 bg-black/60 z-[80] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl p-6 border border-gray-100">
-            <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <Edit2 className="w-5 h-5 text-blue-600" /> แก้ไขข้อมูลผู้ใช้
+          <div className="bg-surface w-full max-w-lg rounded-2xl shadow-2xl p-6 border border-border">
+            <h3 className="text-xl font-bold text-primary mb-4 flex items-center gap-2">
+              <Edit2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />{" "}
+              แก้ไขข้อมูลผู้ใช้
             </h3>
             <form onSubmit={handleUpdateUser} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                <label className="block text-xs font-bold text-primary-light uppercase mb-1">
                   ชื่อที่แสดง
                 </label>
                 <input
                   type="text"
-                  className="w-full p-2 border border-gray-200 rounded-lg"
+                  className="w-full p-2 bg-surface border border-border rounded-lg text-primary outline-none focus:border-accent"
                   value={editingUser.display_name}
                   onChange={(e) =>
                     setEditingUser({
@@ -513,11 +525,11 @@ export default function AdminUsersPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                <label className="block text-xs font-bold text-primary-light uppercase mb-1">
                   ตำแหน่ง
                 </label>
                 <select
-                  className="w-full p-2 border border-gray-200 rounded-lg"
+                  className="w-full p-2 bg-surface border border-border rounded-lg text-primary outline-none focus:border-accent"
                   value={editingUser.main_role}
                   onChange={(e) =>
                     setEditingUser({
@@ -534,7 +546,7 @@ export default function AdminUsersPage() {
                 </select>
               </div>
               <div className="flex items-center gap-4 py-2">
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label className="flex items-center gap-2 cursor-pointer text-primary">
                   <input
                     type="checkbox"
                     checked={editingUser.is_admin}
@@ -549,11 +561,11 @@ export default function AdminUsersPage() {
                   <span className="text-sm font-medium">Admin</span>
                 </label>
               </div>
-              <div className="flex gap-2 justify-end pt-4 border-t border-gray-100">
+              <div className="flex gap-2 justify-end pt-4 border-t border-border">
                 <button
                   type="button"
                   onClick={() => setShowEditModal(false)}
-                  className="px-4 py-2 text-gray-500 hover:bg-gray-50 rounded-lg"
+                  className="px-4 py-2 text-primary-light hover:bg-surface-subtle rounded-lg"
                 >
                   ยกเลิก
                 </button>
@@ -571,16 +583,15 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      {/* --- Status/Delete Modals (เหมือนเดิม) --- */}
-      {/* ... โค้ดส่วน Status และ Delete Modal เดิม ... (ไม่ต้องแก้) */}
+      {/* --- Status/Delete Modals --- */}
       {statusTarget && (
         <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 border border-gray-100 scale-100 animate-in zoom-in-95 duration-200 text-center">
+          <div className="bg-surface w-full max-w-sm rounded-2xl shadow-2xl p-6 border border-border scale-100 animate-in zoom-in-95 duration-200 text-center">
             <div
               className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${
                 statusTarget.type === "suspend"
-                  ? "bg-red-100 text-red-600"
-                  : "bg-green-100 text-green-600"
+                  ? "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+                  : "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400"
               }`}
             >
               {statusTarget.type === "suspend" ? (
@@ -592,18 +603,18 @@ export default function AdminUsersPage() {
             <h3
               className={`text-xl font-bold mb-2 ${
                 statusTarget.type === "suspend"
-                  ? "text-red-700"
-                  : "text-green-700"
+                  ? "text-red-700 dark:text-red-400"
+                  : "text-green-700 dark:text-green-400"
               }`}
             >
               {statusTarget.type === "suspend"
                 ? "ยืนยันระงับบัญชี?"
                 : "ยืนยันเปิดใช้งาน?"}
             </h3>
-            <p className="text-sm text-gray-500 mb-6">
+            <p className="text-sm text-primary-light mb-6">
               คุณกำลังจะ{statusTarget.type === "suspend" ? "ปิด" : "เปิด"}
               การใช้งานบัญชีของ{" "}
-              <span className="font-bold text-gray-800">
+              <span className="font-bold text-primary">
                 {statusTarget.user.display_name}
               </span>
             </p>
@@ -611,7 +622,7 @@ export default function AdminUsersPage() {
               <button
                 onClick={() => setStatusTarget(null)}
                 disabled={isProcessing}
-                className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200"
+                className="flex-1 py-2.5 bg-surface-subtle text-primary font-medium rounded-xl hover:bg-border transition-colors"
               >
                 ยกเลิก
               </button>
@@ -638,16 +649,16 @@ export default function AdminUsersPage() {
 
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 border border-red-100 scale-100 animate-in zoom-in-95 duration-200 text-center">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600">
+          <div className="bg-surface w-full max-w-sm rounded-2xl shadow-2xl p-6 border border-red-100 dark:border-red-900/50 scale-100 animate-in zoom-in-95 duration-200 text-center">
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600 dark:text-red-400">
               <Trash2 className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-bold mb-2 text-red-700">
+            <h3 className="text-xl font-bold mb-2 text-red-700 dark:text-red-400">
               ลบบัญชีถาวร?
             </h3>
-            <p className="text-sm text-gray-500 mb-6">
+            <p className="text-sm text-primary-light mb-6">
               คุณต้องการลบบัญชี{" "}
-              <span className="font-bold text-gray-800">
+              <span className="font-bold text-primary">
                 {deleteTarget.email}
               </span>{" "}
               ออกจากระบบอย่างถาวรใช่ไหม?
@@ -656,7 +667,7 @@ export default function AdminUsersPage() {
               <button
                 onClick={() => setDeleteTarget(null)}
                 disabled={isProcessing}
-                className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200"
+                className="flex-1 py-2.5 bg-surface-subtle text-primary font-medium rounded-xl hover:bg-border transition-colors"
               >
                 ยกเลิก
               </button>

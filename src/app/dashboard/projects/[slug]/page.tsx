@@ -11,7 +11,7 @@ import {
   Settings,
   Loader2,
   Users,
-  AudioWaveform, // 🔥 1. เพิ่มไอคอนนี้
+  AudioWaveform,
 } from "lucide-react";
 
 // Import Components
@@ -20,7 +20,7 @@ import AssetsTab from "@/components/AssetsTab";
 import LyricsTab from "@/components/LyricsTab";
 import SettingsTab from "@/components/SettingsTab";
 import MemberModal from "@/components/MemberModal";
-import ArrangementTab from "@/components/ArrangementTab"; // 🔥 2. Import Component นี้
+import ArrangementTab from "@/components/ArrangementTab";
 
 export default function ProjectWorkspace() {
   const params = useParams();
@@ -66,39 +66,39 @@ export default function ProjectWorkspace() {
 
   if (loading)
     return (
-      <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-3">
+      <div className="h-full flex flex-col items-center justify-center gap-3">
         <Loader2 className="w-10 h-10 animate-spin text-accent" />
-        <p className="animate-pulse">กำลังเข้าสู่ Workspace...</p>
+        <p className="animate-pulse text-primary-light">
+          กำลังเข้าสู่ Workspace...
+        </p>
       </div>
     );
 
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-gray-100 pb-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-border pb-4">
         <div>
-          <div className="flex items-center gap-2 text-sm text-gray-400 mb-1">
+          <div className="flex items-center gap-2 text-sm text-primary-light mb-1">
             <Link
               href="/dashboard/projects"
               className="hover:text-accent transition-colors flex items-center gap-1"
             >
               <ArrowLeft className="w-3 h-3" /> Projects
             </Link>
-            <span className="text-gray-300">/</span>
-            <span className="text-gray-600">Workspace</span>
+            <span className="opacity-50">/</span>
+            <span className="opacity-70">Workspace</span>
           </div>
 
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-gray-900">
-              {project.title}
-            </h1>
+            <h1 className="text-2xl font-bold text-primary">{project.title}</h1>
             <span
               className={`text-xs px-2.5 py-0.5 rounded-full border font-medium uppercase tracking-wide ${
                 project.status === "done"
-                  ? "bg-green-50 border-green-100 text-green-600"
+                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-transparent"
                   : project.status === "production"
-                  ? "bg-blue-50 border-blue-100 text-blue-600"
-                  : "bg-yellow-50 border-yellow-100 text-yellow-600"
+                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-transparent"
+                  : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 border-transparent"
               }`}
             >
               {project.status}
@@ -108,7 +108,7 @@ export default function ProjectWorkspace() {
 
         <button
           onClick={() => setShowMemberModal(true)}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:text-gray-900 transition-colors shadow-sm"
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-light bg-surface border border-border rounded-xl hover:bg-surface-subtle hover:text-primary transition-colors shadow-sm"
         >
           <Users className="w-4 h-4" />
           <span>สมาชิกทีม</span>
@@ -116,7 +116,8 @@ export default function ProjectWorkspace() {
       </div>
 
       {/* Tabs Navigation */}
-      <div className="flex items-center gap-1 bg-gray-100/80 p-1.5 rounded-xl w-fit mb-6 shadow-inner overflow-x-auto max-w-full">
+      {/* ปรับสีพื้นหลังแถบ Tab ให้ใช้ตัวแปร surface-subtle เพื่อรองรับ Dark Mode */}
+      <div className="flex items-center gap-1 bg-surface-subtle border border-border p-1.5 rounded-xl w-fit mb-6 shadow-inner overflow-x-auto max-w-full">
         <TabButton
           active={activeTab === "board"}
           onClick={() => setActiveTab("board")}
@@ -136,7 +137,6 @@ export default function ProjectWorkspace() {
           label="Lyrics"
         />
 
-        {/* 🔥 3. เพิ่มปุ่ม Arrangement ตรงนี้ (ต่อจาก Lyrics) */}
         <TabButton
           active={activeTab === "arrange"}
           onClick={() => setActiveTab("arrange")}
@@ -144,7 +144,8 @@ export default function ProjectWorkspace() {
           label="Arrange"
         />
 
-        <div className="w-px h-5 bg-gray-300 mx-2 flex-shrink-0" />
+        <div className="w-px h-5 bg-border mx-2 flex-shrink-0" />
+
         <TabButton
           active={activeTab === "settings"}
           onClick={() => setActiveTab("settings")}
@@ -154,7 +155,8 @@ export default function ProjectWorkspace() {
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden relative flex flex-col">
+      {/* ใช้ bg-surface เพื่อให้เป็นสีการ์ดในโหมดมืด */}
+      <div className="flex-1 bg-surface rounded-2xl border border-border shadow-sm overflow-hidden relative flex flex-col">
         {activeTab === "board" && (
           <BoardTab key={refreshKey} projectId={project.id} />
         )}
@@ -174,7 +176,6 @@ export default function ProjectWorkspace() {
           <LyricsTab key={refreshKey} projectId={project.id} />
         )}
 
-        {/* 🔥 4. เพิ่มส่วน Render ArrangementTab */}
         {activeTab === "arrange" && (
           <ArrangementTab key={refreshKey} projectId={project.id} />
         )}
@@ -196,8 +197,8 @@ function TabButton({ active, onClick, icon: Icon, label }: any) {
         flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap
         ${
           active
-            ? "bg-white text-accent shadow-sm ring-1 ring-black/5 scale-100"
-            : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50 scale-[0.98]"
+            ? "bg-surface text-accent shadow-sm ring-1 ring-border scale-100"
+            : "text-primary-light hover:text-primary hover:bg-surface/50 scale-[0.98]"
         }
       `}
     >

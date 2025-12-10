@@ -24,7 +24,7 @@ const getEmailTemplate = (
   const baseStyle =
     "font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; line-height: 1.6; color: #333;";
   const containerStyle =
-    "max-w-xl mx-auto border border-gray-200 rounded-lg overflow-hidden";
+    "max-w-xl mx-auto border border-border rounded-lg overflow-hidden";
   const headerStyle =
     "background-color: #0f172a; padding: 20px; text-align: center;";
   const bodyStyle = "padding: 30px; background-color: #ffffff;";

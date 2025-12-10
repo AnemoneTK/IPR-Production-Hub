@@ -34,60 +34,61 @@ const MEMBER_COLORS = [
   "#e2e8f0",
 ];
 
+// 🔥 ปรับสี Role ให้รองรับ Dark Mode
 const ROLE_CONFIG: any = {
   producer: {
     label: "Producer",
     icon: Shield,
-    color: "text-orange-600",
-    bg: "bg-orange-50 border-orange-200",
+    color: "text-orange-600 dark:text-orange-300",
+    bg: "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800",
   },
   manager: {
     label: "Manager",
     icon: Briefcase,
-    color: "text-teal-600",
-    bg: "bg-teal-50 border-teal-200",
+    color: "text-teal-600 dark:text-teal-300",
+    bg: "bg-teal-50 dark:bg-teal-900/20 border-teal-200 dark:border-teal-800",
   },
   mixer: {
     label: "Mixer",
     icon: Music,
-    color: "text-blue-600",
-    bg: "bg-blue-50 border-blue-200",
+    color: "text-blue-600 dark:text-blue-300",
+    bg: "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800",
   },
   singer: {
     label: "Singer",
     icon: Mic,
-    color: "text-pink-600",
-    bg: "bg-pink-50 border-pink-200",
+    color: "text-pink-600 dark:text-pink-300",
+    bg: "bg-pink-50 dark:bg-pink-900/20 border-pink-200 dark:border-pink-800",
   },
   artist: {
     label: "Artist",
     icon: Palette,
-    color: "text-purple-600",
-    bg: "bg-purple-50 border-purple-200",
+    color: "text-purple-600 dark:text-purple-300",
+    bg: "bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800",
   },
   editor: {
     label: "Editor",
     icon: Video,
-    color: "text-green-600",
-    bg: "bg-green-50 border-green-200",
+    color: "text-green-600 dark:text-green-300",
+    bg: "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800",
   },
   translator: {
     label: "Translator",
     icon: Languages,
-    color: "text-indigo-600",
-    bg: "bg-indigo-50 border-indigo-200",
+    color: "text-indigo-600 dark:text-indigo-300",
+    bg: "bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800",
   },
   viewer: {
     label: "Viewer",
     icon: Eye,
-    color: "text-slate-500",
-    bg: "bg-slate-50 border-slate-200",
+    color: "text-slate-500 dark:text-slate-400",
+    bg: "bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700",
   },
   member: {
     label: "General",
     icon: User,
-    color: "text-gray-500",
-    bg: "bg-gray-50 border-gray-200",
+    color: "text-primary-light",
+    bg: "bg-surface-subtle border-border",
   },
 };
 
@@ -103,7 +104,6 @@ export default function MemberModal({
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // 🔥 New Filter State
   const [filterRole, setFilterRole] = useState("all");
 
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
@@ -130,16 +130,13 @@ export default function MemberModal({
     fetchData();
   }, [projectId]);
 
-  // 🔥 Update logic: Filter & Sort
   const getAvailableUsers = () => {
-    // 1. กรองคนที่เป็นสมาชิกแล้วออก
     const nonMembers = allUsers.filter(
       (user) => !members.some((m) => m.user_id === user.id)
     );
 
     let filtered = nonMembers;
 
-    // 2. กรองตามคำค้นหา
     if (searchTerm.trim()) {
       const lowerTerm = searchTerm.toLowerCase();
       filtered = filtered.filter(
@@ -149,14 +146,12 @@ export default function MemberModal({
       );
     }
 
-    // 3. กรองตาม Role
     if (filterRole !== "all") {
       filtered = filtered.filter(
         (u) => (u.main_role || "member") === filterRole
       );
     }
 
-    // 4. จัดเรียงตามความสำคัญ (Singer, Mixer, Producer ขึ้นก่อน)
     const priority: any = {
       singer: 1,
       mixer: 2,
@@ -278,19 +273,20 @@ export default function MemberModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+    <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+      {/* 🔥 แก้: bg-white -> bg-surface */}
+      <div className="bg-surface w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] border border-border">
         {/* Header */}
-        <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+        <div className="p-5 border-b border-border flex justify-between items-center bg-surface-subtle/50">
           <div>
-            <h3 className="font-bold text-xl text-gray-800">จัดการทีมงาน</h3>
-            <p className="text-xs text-gray-500 mt-1">
+            <h3 className="font-bold text-xl text-primary">จัดการทีมงาน</h3>
+            <p className="text-xs text-primary-light mt-1">
               เพิ่มสมาชิกและกำหนดหน้าที่รับผิดชอบ
             </p>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-100 rounded-lg transition-colors"
+            className="text-primary-light hover:text-primary p-1 hover:bg-surface-subtle rounded-lg transition-colors"
           >
             <X className="w-6 h-6" />
           </button>
@@ -298,29 +294,29 @@ export default function MemberModal({
 
         <div className="flex flex-col md:flex-row h-full overflow-hidden">
           {/* Left: Available Users */}
-          <div className="w-full md:w-80 bg-white border-r border-gray-100 flex flex-col z-10">
-            <div className="p-4 border-b border-gray-100 bg-gray-50/50 space-y-3">
-              <label className="text-xs font-bold text-gray-500 uppercase block">
+          <div className="w-full md:w-80 bg-surface border-r border-border flex flex-col z-10">
+            <div className="p-4 border-b border-border bg-surface-subtle/50 space-y-3">
+              <label className="text-xs font-bold text-primary-light uppercase block">
                 รายชื่อในระบบ
               </label>
 
               {/* Search */}
               <div className="relative">
-                <Search className="absolute left-3 top-2.5 text-gray-400 w-4 h-4" />
+                <Search className="absolute left-3 top-2.5 text-primary-light w-4 h-4" />
                 <input
                   type="text"
                   placeholder="ค้นหาชื่อ..."
-                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none"
+                  className="w-full pl-9 pr-3 py-2 bg-surface border border-border rounded-xl text-sm text-primary focus:border-accent focus:ring-1 focus:ring-accent outline-none placeholder:text-primary-light/50"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
 
-              {/* 🔥 Filter Dropdown */}
+              {/* Filter Dropdown */}
               <div className="relative">
-                <Filter className="absolute left-3 top-2.5 text-gray-400 w-4 h-4" />
+                <Filter className="absolute left-3 top-2.5 text-primary-light w-4 h-4" />
                 <select
-                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none appearance-none bg-white"
+                  className="w-full pl-9 pr-3 py-2 bg-surface border border-border rounded-xl text-sm text-primary focus:border-accent focus:ring-1 focus:ring-accent outline-none appearance-none cursor-pointer"
                   value={filterRole}
                   onChange={(e) => setFilterRole(e.target.value)}
                 >
@@ -334,14 +330,14 @@ export default function MemberModal({
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-2 bg-gray-50/30">
+            <div className="flex-1 overflow-y-auto p-2 bg-surface-subtle/30">
               {loading ? (
-                <div className="text-center py-8 text-gray-400 text-xs">
+                <div className="text-center py-8 text-primary-light text-xs">
                   Loading...
                 </div>
               ) : availableUsers.length === 0 ? (
                 <div className="text-center py-12 px-6">
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-primary-light">
                     {searchTerm
                       ? "ไม่พบรายชื่อที่ค้นหา"
                       : "เพื่อนทุกคนอยู่ในทีมแล้ว"}
@@ -355,13 +351,13 @@ export default function MemberModal({
                     <button
                       key={user.id}
                       onClick={() => handleAddMember(user)}
-                      className="w-full flex items-center gap-3 p-3 hover:bg-blue-50 hover:border-blue-100 border border-transparent rounded-xl transition-all group text-left mb-1 bg-white shadow-sm"
+                      className="w-full flex items-center gap-3 p-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-100 dark:hover:border-blue-800 border border-transparent rounded-xl transition-all group text-left mb-1 bg-surface shadow-sm dark:shadow-none"
                     >
-                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-xs group-hover:bg-blue-200 group-hover:text-blue-700">
+                      <div className="w-8 h-8 rounded-full bg-surface-subtle flex items-center justify-center text-primary-light font-bold text-xs group-hover:bg-blue-200 group-hover:text-blue-700 dark:group-hover:bg-blue-800 dark:group-hover:text-blue-200">
                         {user.display_name?.substring(0, 2).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">
+                        <p className="text-sm font-medium text-primary truncate">
                           {user.display_name}
                         </p>
                         <div className="flex items-center gap-1 text-[10px] mt-1">
@@ -372,7 +368,7 @@ export default function MemberModal({
                           </span>
                         </div>
                       </div>
-                      <Plus className="w-4 h-4 text-gray-300 group-hover:text-accent" />
+                      <Plus className="w-4 h-4 text-primary-light group-hover:text-accent" />
                     </button>
                   );
                 })
@@ -381,9 +377,9 @@ export default function MemberModal({
           </div>
 
           {/* Right: Current Team */}
-          <div className="flex-1 overflow-y-auto p-5 bg-white">
+          <div className="flex-1 overflow-y-auto p-5 bg-surface">
             {loading ? (
-              <div className="text-center py-10 text-gray-400">
+              <div className="text-center py-10 text-primary-light">
                 กำลังโหลด...
               </div>
             ) : (
@@ -400,7 +396,7 @@ export default function MemberModal({
                 {members.filter((m) => !m.roles || m.roles.length === 0)
                   .length > 0 && (
                   <div className="mb-6">
-                    <h4 className="text-xs font-bold flex items-center gap-2 mb-2 uppercase tracking-wider text-gray-400">
+                    <h4 className="text-xs font-bold flex items-center gap-2 mb-2 uppercase tracking-wider text-primary-light">
                       <HelpCircle className="w-3 h-3" /> Unassigned
                     </h4>
                     {members
@@ -417,7 +413,7 @@ export default function MemberModal({
                   </div>
                 )}
                 {members.length === 0 && (
-                  <div className="text-center py-20 text-gray-400 border-2 border-dashed border-gray-100 rounded-xl">
+                  <div className="text-center py-20 text-primary-light border-2 border-dashed border-border rounded-xl">
                     ยังไม่มีสมาชิกในทีม
                     <br />
                     เลือกเพิ่มจากฝั่งซ้ายได้เลย
@@ -432,16 +428,16 @@ export default function MemberModal({
       {/* Delete Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-red-100 scale-100 animate-in zoom-in-95 duration-200 text-center">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600">
+          <div className="bg-surface rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-red-100 dark:border-red-900/50 scale-100 animate-in zoom-in-95 duration-200 text-center">
+            <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600 dark:text-red-400">
               <AlertTriangle className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-bold text-gray-900">
+            <h3 className="text-lg font-bold text-primary">
               ยืนยันการลบสมาชิก?
             </h3>
-            <p className="text-sm text-gray-500 mt-2 mb-6 leading-relaxed">
+            <p className="text-sm text-primary-light mt-2 mb-6 leading-relaxed">
               คุณต้องการลบ{" "}
-              <span className="font-bold text-gray-800">
+              <span className="font-bold text-primary">
                 "{deleteTarget.profiles?.display_name}"
               </span>{" "}
               ออกจากทีมใช่ไหม?
@@ -450,7 +446,7 @@ export default function MemberModal({
               <button
                 onClick={() => setDeleteTarget(null)}
                 disabled={isDeleting}
-                className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
+                className="flex-1 py-2.5 bg-surface-subtle text-primary font-medium rounded-xl hover:bg-border transition-colors"
               >
                 ยกเลิก
               </button>
@@ -479,12 +475,12 @@ function MemberCard({ m, toggleRole, onDeleteClick, changeMemberColor }: any) {
   const [showColorPicker, setShowColorPicker] = useState(false);
 
   return (
-    <div className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl shadow-sm hover:border-accent/30 transition-all group">
+    <div className="flex items-center justify-between p-3 bg-surface border border-border rounded-xl shadow-sm dark:shadow-none hover:border-accent/30 transition-all group">
       <div className="flex items-center gap-3">
         <div className="relative">
           <button
             onClick={() => setShowColorPicker(!showColorPicker)}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-gray-700 font-bold text-xs shadow-inner border-2 border-white ring-1 ring-gray-200 hover:scale-105 transition-transform"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-gray-700 font-bold text-xs shadow-inner border-2 border-white dark:border-surface-subtle ring-1 ring-border hover:scale-105 transition-transform"
             style={{ backgroundColor: m.assigned_color || "#e2e8f0" }}
             title="เปลี่ยนสีประจำตัว"
           >
@@ -492,11 +488,11 @@ function MemberCard({ m, toggleRole, onDeleteClick, changeMemberColor }: any) {
           </button>
           {showColorPicker && (
             <>
-              <div className="absolute top-full left-0 mt-2 bg-white p-2 rounded-xl shadow-xl border border-gray-100 grid grid-cols-3 gap-1 z-50 w-24 animate-in fade-in zoom-in-95">
+              <div className="absolute top-full left-0 mt-2 bg-surface p-2 rounded-xl shadow-xl border border-border grid grid-cols-3 gap-1 z-50 w-24 animate-in fade-in zoom-in-95">
                 {MEMBER_COLORS.map((color) => (
                   <button
                     key={color}
-                    className="w-6 h-6 rounded-full border border-gray-200 hover:scale-110 transition-transform"
+                    className="w-6 h-6 rounded-full border border-border hover:scale-110 transition-transform"
                     style={{ backgroundColor: color }}
                     onClick={() => {
                       changeMemberColor(m.id, color);
@@ -513,7 +509,7 @@ function MemberCard({ m, toggleRole, onDeleteClick, changeMemberColor }: any) {
           )}
         </div>
         <div>
-          <p className="text-sm font-semibold text-gray-800">
+          <p className="text-sm font-semibold text-primary">
             {m.profiles?.display_name}
           </p>
           <div className="flex gap-1.5 mt-1.5 flex-wrap">
@@ -528,8 +524,8 @@ function MemberCard({ m, toggleRole, onDeleteClick, changeMemberColor }: any) {
                     onClick={() => toggleRole(m.id, m.roles, rKey)}
                     className={`text-[10px] px-2 py-0.5 rounded-md border transition-all duration-200 font-medium ${
                       isActive
-                        ? `${config.bg} ${config.color} shadow-sm ring-1 ring-opacity-20 ring-current`
-                        : `bg-white border-gray-200 ${config.color} opacity-50 hover:opacity-100 hover:bg-gray-50`
+                        ? `${config.bg} ${config.color} shadow-sm dark:shadow-none ring-1 ring-opacity-20 ring-current`
+                        : `bg-surface border-border ${config.color} opacity-50 hover:opacity-100 hover:bg-surface-subtle`
                     }`}
                   >
                     {config.label}
@@ -542,7 +538,7 @@ function MemberCard({ m, toggleRole, onDeleteClick, changeMemberColor }: any) {
       {!m.roles?.includes("producer") && (
         <button
           onClick={onDeleteClick}
-          className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+          className="p-2 text-primary-light hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
         >
           <Trash2 className="w-4 h-4" />
         </button>

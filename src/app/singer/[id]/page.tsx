@@ -41,8 +41,8 @@ export default function SingerViewPage() {
   // Data State
   const [blocks, setBlocks] = useState<LyricBlock[]>([]);
   const [audioFiles, setAudioFiles] = useState<AudioFile[]>([]);
-  const [selectedAudio, setSelectedAudio] = useState<string>(""); // URL ดิบ
-  const [playableUrl, setPlayableUrl] = useState<string>(""); // 🔥 URL ที่เล่นได้จริง (Signed)
+  const [selectedAudio, setSelectedAudio] = useState<string>("");
+  const [playableUrl, setPlayableUrl] = useState<string>("");
   const [title, setTitle] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -116,7 +116,6 @@ export default function SingerViewPage() {
         );
         setAudioFiles(relevantFiles);
 
-        // ถ้ายังไม่มีการเลือกไฟล์ ให้เลือกไฟล์แรก
         if (!selectedAudio && relevantFiles.length > 0) {
           setSelectedAudio(relevantFiles[0].file_url);
         }
@@ -129,7 +128,7 @@ export default function SingerViewPage() {
     fetchData();
   }, [fetchData]);
 
-  // 🔥 Effect: แปลง URL ดิบ เป็น Signed URL ที่เล่นได้จริง
+  // Effect: Signed URL
   useEffect(() => {
     const fetchSignedUrl = async () => {
       if (!selectedAudio) {
@@ -167,7 +166,6 @@ export default function SingerViewPage() {
     setIsUploading(true);
 
     try {
-      // 1. ขอ Signed URL (ใช้ API กลางที่มีอยู่แล้ว)
       const uploadRes = await fetch("/api/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -177,7 +175,6 @@ export default function SingerViewPage() {
       if (!uploadRes.ok) throw new Error("Get upload URL failed");
       const { url, fileName } = await uploadRes.json();
 
-      // 2. อัปโหลดไฟล์ขึ้น R2 โดยตรง (ไม่ผ่าน Vercel Server)
       const r2Res = await fetch(url, {
         method: "PUT",
         body: file,
@@ -186,13 +183,12 @@ export default function SingerViewPage() {
 
       if (!r2Res.ok) throw new Error("Upload to R2 failed");
 
-      // 3. ส่งข้อมูลไปบันทึกลง Database (ผ่าน API เฉพาะของ Singer เพื่อข้าม RLS)
       const saveRes = await fetch("/api/singer-upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          fileName: fileName, // ชื่อไฟล์ใน R2 (Unique)
-          originalName: file.name, // 🔥 เพิ่มบรรทัดนี้: ส่งชื่อไฟล์เดิมไปด้วย
+          fileName: fileName,
+          originalName: file.name,
           fileType: file.type,
           fileSize: file.size,
           scriptId: id,
@@ -202,7 +198,7 @@ export default function SingerViewPage() {
       if (!saveRes.ok) throw new Error("Save database failed");
 
       showAlert("สำเร็จ", "อัปโหลดไฟล์เสียงเรียบร้อย", "success");
-      fetchData(); // รีโหลดข้อมูล
+      fetchData();
     } catch (error: any) {
       console.error(error);
       showAlert("ผิดพลาด", "อัปโหลดไม่สำเร็จ: " + error.message, "error");
@@ -221,7 +217,6 @@ export default function SingerViewPage() {
     if (!deleteTarget) return;
 
     try {
-      // เรียก API ลบไฟล์ (ทั้ง R2 และ DB)
       const res = await fetch("/api/singer-delete-file", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -233,11 +228,9 @@ export default function SingerViewPage() {
 
       if (!res.ok) throw new Error("ลบไฟล์ไม่สำเร็จ");
 
-      // อัปเดตหน้าจอ
       const updatedFiles = audioFiles.filter((f) => f.id !== deleteTarget.id);
       setAudioFiles(updatedFiles);
 
-      // ถ้าไฟล์ที่ลบคือไฟล์ที่กำลังเล่นอยู่ ให้เคลียร์ Player
       if (selectedAudio === deleteTarget.file_url) {
         setSelectedAudio(
           updatedFiles.length > 0 ? updatedFiles[0].file_url : ""
@@ -256,17 +249,18 @@ export default function SingerViewPage() {
 
   if (loading)
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-900 text-white">
+      <div className="h-screen flex items-center justify-center bg-slate-950 text-slate-200">
         <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
       </div>
     );
 
   return (
+    // 🔥 พื้นหลังหลัก: bg-slate-950 (Midnight Soft)
     <div
       className={`min-h-screen transition-colors duration-300 flex flex-col relative ${
         theme === "dark"
-          ? "bg-gray-900 text-gray-100"
-          : "bg-white text-gray-900"
+          ? "bg-slate-950 text-slate-100"
+          : "bg-white text-slate-900"
       }`}
     >
       {/* --- Custom Alert Modal --- */}
@@ -275,8 +269,8 @@ export default function SingerViewPage() {
           <div
             className={`w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border scale-100 animate-in zoom-in-95 duration-200 relative ${
               theme === "dark"
-                ? "bg-gray-800 border-gray-700"
-                : "bg-white border-gray-100"
+                ? "bg-slate-900 border-slate-800"
+                : "bg-white border-slate-200"
             }`}
           >
             <button
@@ -285,8 +279,8 @@ export default function SingerViewPage() {
               }
               className={`absolute top-4 right-4 ${
                 theme === "dark"
-                  ? "text-gray-400 hover:text-gray-200"
-                  : "text-gray-400 hover:text-gray-600"
+                  ? "text-slate-400 hover:text-slate-200"
+                  : "text-slate-400 hover:text-slate-600"
               }`}
             >
               <X className="w-5 h-5" />
@@ -308,14 +302,14 @@ export default function SingerViewPage() {
 
             <h3
               className={`text-lg font-bold mb-2 ${
-                theme === "dark" ? "text-white" : "text-gray-900"
+                theme === "dark" ? "text-slate-100" : "text-slate-900"
               }`}
             >
               {alertConfig.title}
             </h3>
             <p
               className={`text-sm mb-6 leading-relaxed ${
-                theme === "dark" ? "text-gray-400" : "text-gray-500"
+                theme === "dark" ? "text-slate-400" : "text-slate-500"
               }`}
             >
               {alertConfig.message}
@@ -343,7 +337,7 @@ export default function SingerViewPage() {
           <div
             className={`w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border scale-100 animate-in zoom-in-95 duration-200 relative ${
               theme === "dark"
-                ? "bg-gray-800 border-gray-700"
+                ? "bg-slate-900 border-slate-800"
                 : "bg-white border-red-100"
             }`}
           >
@@ -351,8 +345,8 @@ export default function SingerViewPage() {
               onClick={() => setDeleteTarget(null)}
               className={`absolute top-4 right-4 ${
                 theme === "dark"
-                  ? "text-gray-400 hover:text-gray-200"
-                  : "text-gray-400 hover:text-gray-600"
+                  ? "text-slate-400 hover:text-slate-200"
+                  : "text-slate-400 hover:text-slate-600"
               }`}
             >
               <X className="w-5 h-5" />
@@ -363,20 +357,20 @@ export default function SingerViewPage() {
             </div>
             <h3
               className={`text-lg font-bold mb-2 ${
-                theme === "dark" ? "text-white" : "text-gray-900"
+                theme === "dark" ? "text-slate-100" : "text-slate-900"
               }`}
             >
               ลบไฟล์เสียง?
             </h3>
             <p
               className={`text-sm mb-6 leading-relaxed ${
-                theme === "dark" ? "text-gray-400" : "text-gray-500"
+                theme === "dark" ? "text-slate-400" : "text-slate-500"
               }`}
             >
               คุณต้องการลบไฟล์ <br />
               <span
                 className={`font-bold ${
-                  theme === "dark" ? "text-gray-200" : "text-gray-800"
+                  theme === "dark" ? "text-slate-200" : "text-slate-900"
                 }`}
               >
                 "{deleteTarget.name}"
@@ -390,8 +384,8 @@ export default function SingerViewPage() {
                 onClick={() => setDeleteTarget(null)}
                 className={`flex-1 py-2.5 font-medium rounded-xl transition-colors ${
                   theme === "dark"
-                    ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    ? "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                 }`}
               >
                 ยกเลิก
@@ -412,14 +406,14 @@ export default function SingerViewPage() {
       <div
         className={`fixed top-0 left-0 right-0 z-50 px-4 py-3 flex justify-between items-center backdrop-blur-md border-b ${
           theme === "dark"
-            ? "bg-gray-900/80 border-gray-800"
-            : "bg-white/80 border-gray-200"
+            ? "bg-slate-900/90 border-slate-800"
+            : "bg-white/90 border-slate-200"
         }`}
       >
         <button
           onClick={handleCloseTab}
           className={`p-2 rounded-full transition-colors ${
-            theme === "dark" ? "hover:bg-gray-800" : "hover:bg-gray-100"
+            theme === "dark" ? "hover:bg-slate-800" : "hover:bg-slate-100"
           }`}
           title="ปิดหน้านี้"
         >
@@ -436,8 +430,8 @@ export default function SingerViewPage() {
             showSettings
               ? "bg-blue-500 text-white"
               : theme === "dark"
-              ? "hover:bg-gray-800"
-              : "hover:bg-gray-100"
+              ? "hover:bg-slate-800"
+              : "hover:bg-slate-100"
           }`}
         >
           <Settings className="w-6 h-6" />
@@ -449,8 +443,8 @@ export default function SingerViewPage() {
         <div
           className={`fixed top-[60px] left-0 right-0 z-40 p-6 border-b shadow-xl animate-in slide-in-from-top-5 max-h-[80vh] overflow-y-auto ${
             theme === "dark"
-              ? "bg-gray-800 border-gray-700"
-              : "bg-gray-50 border-gray-200"
+              ? "bg-slate-900 border-slate-800"
+              : "bg-white border-slate-200"
           }`}
         >
           <div className="max-w-2xl mx-auto space-y-6">
@@ -461,13 +455,13 @@ export default function SingerViewPage() {
                   การแสดงผล
                 </label>
                 <div className="flex gap-4">
-                  <div className="flex bg-gray-200/20 rounded-lg p-1">
+                  <div className="flex bg-slate-200/20 rounded-lg p-1">
                     <button
                       onClick={() => setTheme("light")}
                       className={`p-2 rounded-md ${
                         theme === "light"
                           ? "bg-white shadow text-black"
-                          : "text-gray-500"
+                          : "text-slate-500"
                       }`}
                     >
                       <Sun className="w-5 h-5" />
@@ -476,22 +470,22 @@ export default function SingerViewPage() {
                       onClick={() => setTheme("dark")}
                       className={`p-2 rounded-md ${
                         theme === "dark"
-                          ? "bg-gray-700 shadow text-white"
-                          : "text-gray-500"
+                          ? "bg-slate-700 shadow text-white"
+                          : "text-slate-500"
                       }`}
                     >
                       <Moon className="w-5 h-5" />
                     </button>
                   </div>
-                  <div className="flex bg-gray-200/20 rounded-lg p-1">
+                  <div className="flex bg-slate-200/20 rounded-lg p-1">
                     <button
                       onClick={() => setTextAlign("left")}
                       className={`p-2 rounded-md ${
                         textAlign === "left"
                           ? theme === "dark"
-                            ? "bg-gray-700 shadow"
+                            ? "bg-slate-700 shadow"
                             : "bg-white shadow"
-                          : "text-gray-500"
+                          : "text-slate-500"
                       }`}
                     >
                       <AlignLeft className="w-5 h-5" />
@@ -501,9 +495,9 @@ export default function SingerViewPage() {
                       className={`p-2 rounded-md ${
                         textAlign === "center"
                           ? theme === "dark"
-                            ? "bg-gray-700 shadow"
+                            ? "bg-slate-700 shadow"
                             : "bg-white shadow"
-                          : "text-gray-500"
+                          : "text-slate-500"
                       }`}
                     >
                       <AlignCenter className="w-5 h-5" />
@@ -523,7 +517,7 @@ export default function SingerViewPage() {
                     max="64"
                     value={fontSize}
                     onChange={(e) => setFontSize(Number(e.target.value))}
-                    className="flex-1 h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    className="flex-1 h-2 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-blue-500"
                   />
                   <span className="w-8 text-sm text-right">{fontSize}px</span>
                 </div>
@@ -532,7 +526,7 @@ export default function SingerViewPage() {
 
             <hr
               className={`border-t ${
-                theme === "dark" ? "border-gray-700" : "border-gray-200"
+                theme === "dark" ? "border-slate-800" : "border-slate-200"
               }`}
             />
 
@@ -545,8 +539,8 @@ export default function SingerViewPage() {
               <div
                 className={`relative group border-2 border-dashed rounded-xl p-6 transition-all text-center cursor-pointer ${
                   theme === "dark"
-                    ? "border-gray-600 hover:border-blue-500 bg-gray-700/30"
-                    : "border-gray-300 hover:border-blue-500 bg-white"
+                    ? "border-slate-700 hover:border-blue-500 bg-slate-800/30"
+                    : "border-slate-300 hover:border-blue-500 bg-white"
                 }`}
               >
                 <input
@@ -576,8 +570,8 @@ export default function SingerViewPage() {
                     key={f.id}
                     className={`flex items-center justify-between p-3 rounded-lg border ${
                       theme === "dark"
-                        ? "bg-gray-700/50 border-gray-600"
-                        : "bg-white border-gray-200"
+                        ? "bg-slate-800/50 border-slate-700"
+                        : "bg-white border-slate-200"
                     }`}
                   >
                     <div className="flex items-center gap-3 overflow-hidden">
@@ -586,7 +580,7 @@ export default function SingerViewPage() {
                         className={`w-8 h-8 rounded-full flex items-center justify-center cursor-pointer ${
                           selectedAudio === f.file_url
                             ? "bg-blue-500 text-white"
-                            : "bg-gray-500/20"
+                            : "bg-slate-200/20"
                         }`}
                       >
                         <Music className="w-4 h-4" />
@@ -604,7 +598,7 @@ export default function SingerViewPage() {
                     </div>
                     <button
                       onClick={() => handleDeleteClick(f)}
-                      className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                      className="p-2 text-slate-400 hover:text-red-500 transition-colors"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -621,53 +615,53 @@ export default function SingerViewPage() {
         <div style={{ textAlign: textAlign }} className="space-y-8">
           {blocks.map((block) => (
             <div key={block.id} className="space-y-2">
-              {/* ชื่อท่อน (แสดงเฉพาะถ้าไม่ใช่ Separator เพราะ Separator โชว์ชื่อในตัวอยู่แล้ว) */}
+              {/* ชื่อท่อน */}
               {block.name && block.type !== "separator" && (
                 <div
                   className={`text-sm font-bold uppercase tracking-wider mb-2 ${
-                    theme === "dark" ? "text-gray-500" : "text-gray-400"
+                    theme === "dark" ? "text-slate-500" : "text-slate-400"
                   }`}
                 >
                   {block.name}
                 </div>
               )}
 
-              {/* 🔥 Case 1: ตัวคั่น (Separator) */}
+              {/* Separator */}
               {block.type === "separator" ? (
                 <div className="flex items-center gap-4 py-6 opacity-60">
                   <div
                     className={`h-[2px] flex-1 rounded-full ${
-                      theme === "dark" ? "bg-gray-700" : "bg-gray-200"
+                      theme === "dark" ? "bg-slate-800" : "bg-slate-200"
                     }`}
                   ></div>
                   <span
                     className={`text-base font-bold uppercase tracking-widest ${
-                      theme === "dark" ? "text-gray-400" : "text-gray-500"
+                      theme === "dark" ? "text-slate-500" : "text-slate-400"
                     }`}
                   >
                     {block.name}
                   </span>
                   <div
                     className={`h-[2px] flex-1 rounded-full ${
-                      theme === "dark" ? "bg-gray-700" : "bg-gray-200"
+                      theme === "dark" ? "bg-slate-800" : "bg-slate-200"
                     }`}
                   ></div>
                 </div>
-              ) : /* Case 2: ดนตรี (Interlude) */
+              ) : /* Interlude */
               block.type === "interlude" ? (
                 <div
                   className={`py-4 rounded-xl border-2 border-dashed font-medium text-lg italic opacity-70 ${
                     theme === "dark"
-                      ? "border-gray-700 bg-gray-800/50 text-purple-300"
-                      : "border-gray-300 bg-gray-50 text-purple-600"
+                      ? "border-slate-700 bg-slate-800/50 text-purple-300"
+                      : "border-slate-300 bg-slate-50 text-purple-600"
                   }`}
                 >
                   🎵 {block.name || "ดนตรี / Solo"}
                 </div>
               ) : (
-                /* Case 3: เนื้อเพลงปกติ (Lyrics) */
+                /* Lyrics Text */
                 <div
-                  className={`leading-relaxed whitespace-pre-wrap outline-none [&_*]:!text-inherit [&_mark]:!text-gray-900 [&_mark]:!bg-opacity-100`}
+                  className={`leading-relaxed whitespace-pre-wrap outline-none [&_*]:!text-inherit [&_mark]:!text-slate-900 [&_mark]:!bg-yellow-200`}
                   style={{ fontSize: `${fontSize}px` }}
                   dangerouslySetInnerHTML={{ __html: block.htmlContent }}
                 />
@@ -678,21 +672,21 @@ export default function SingerViewPage() {
         <div className="h-32"></div>
       </div>
 
-      {/* --- Audio Player (ใช้ playableUrl ที่ Signed แล้ว) --- */}
+      {/* --- Audio Player --- */}
       {playableUrl && (
         <div
           className={`fixed bottom-0 left-0 right-0 p-4 border-t backdrop-blur-lg ${
             theme === "dark"
-              ? "bg-gray-900/90 border-gray-800"
-              : "bg-white/90 border-gray-200"
+              ? "bg-slate-900/90 border-slate-800"
+              : "bg-white/90 border-slate-200"
           }`}
         >
           <div className="max-w-3xl mx-auto">
             <audio
-              key={playableUrl} // ใส่ key เพื่อให้ Player รีเซ็ตเมื่อเปลี่ยนเพลง
+              key={playableUrl}
               controls
-              preload="auto" // 🔥 โหลดไฟล์ล่วงหน้า แก้ปัญหากระตุก
-              playsInline // เล่นในหน้าเว็บเลย (ไม่เด้ง Fullscreen ในมือถือ)
+              preload="auto"
+              playsInline
               className="w-full h-10 rounded-lg"
               controlsList="nodownload"
             >

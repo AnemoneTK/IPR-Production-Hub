@@ -32,30 +32,35 @@ interface Task {
   due_date?: string;
 }
 
+// 🔥 ปรับสี Columns ให้รองรับ Dark Mode (ลดความสดลงในโหมดมืด)
 const COLUMNS: any = {
   revision: {
     id: "revision",
     title: "แก้ด่วน / Revision",
-    color: "bg-red-50 border-red-200",
-    titleColor: "text-red-700 bg-red-100",
+    color: "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900/50",
+    titleColor: "text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/50",
   },
   todo: {
     id: "todo",
     title: "To Do",
-    color: "bg-gray-100 border-gray-200",
-    titleColor: "text-gray-700 bg-gray-200",
+    color: "bg-surface-subtle border-border", // ใช้ธีมกลาง
+    titleColor: "text-primary bg-surface border border-border",
   },
   doing: {
     id: "doing",
     title: "In Progress",
-    color: "bg-blue-50 border-blue-100",
-    titleColor: "text-blue-700 bg-blue-100",
+    color:
+      "bg-blue-50 dark:bg-blue-950/30 border-blue-100 dark:border-blue-900/50",
+    titleColor:
+      "text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50",
   },
   done: {
     id: "done",
     title: "Done",
-    color: "bg-green-50 border-green-100",
-    titleColor: "text-green-700 bg-green-100",
+    color:
+      "bg-green-50 dark:bg-green-950/30 border-green-100 dark:border-green-900/50",
+    titleColor:
+      "text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/50",
   },
 };
 
@@ -72,7 +77,7 @@ export default function BoardTab({ projectId }: { projectId: number }) {
     assigned_to: [] as string[],
     due_date: "",
   });
-  const [showMemberSelect, setShowMemberSelect] = useState(false); // สำหรับ Dropdown ตอนสร้าง
+  const [showMemberSelect, setShowMemberSelect] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -142,7 +147,6 @@ export default function BoardTab({ projectId }: { projectId: number }) {
       description: newForm.description,
       status: "todo",
       assigned_to: newForm.assigned_to,
-      // 🔥 แปลงวันที่เป็น ISO String (UTC) ก่อนส่ง
       due_date: newForm.due_date
         ? new Date(newForm.due_date).toISOString()
         : null,
@@ -205,7 +209,7 @@ export default function BoardTab({ projectId }: { projectId: number }) {
 
   if (loading)
     return (
-      <div className="flex h-64 items-center justify-center text-gray-400">
+      <div className="flex h-64 items-center justify-center text-primary-light">
         <Loader2 className="w-8 h-8 animate-spin" />
       </div>
     );
@@ -213,13 +217,13 @@ export default function BoardTab({ projectId }: { projectId: number }) {
   return (
     <>
       <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex h-full min-h-[600px] overflow-x-auto p-6 gap-6 bg-gray-50/50 items-start">
+        <div className="flex h-full min-h-[600px] overflow-x-auto p-6 gap-6 bg-surface-subtle items-start">
           {Object.values(COLUMNS).map((col: any) => {
             const colTasks = tasks.filter((t) => t.status === col.id);
             return (
               <div
                 key={col.id}
-                className={`w-80 flex-shrink-0 flex flex-col rounded-2xl p-3 border ${col.color} bg-opacity-50 h-fit max-h-full`}
+                className={`w-80 flex-shrink-0 flex flex-col rounded-2xl p-3 border ${col.color} h-fit max-h-full transition-colors`}
               >
                 <div className="flex items-center justify-between mb-3 px-1">
                   <div className="flex items-center gap-2">
@@ -228,7 +232,7 @@ export default function BoardTab({ projectId }: { projectId: number }) {
                     >
                       {col.title}
                     </span>
-                    <span className="text-gray-400 text-xs font-semibold bg-white/50 px-2 py-0.5 rounded-md">
+                    <span className="text-primary-light text-xs font-semibold bg-surface/50 px-2 py-0.5 rounded-md">
                       {colTasks.length}
                     </span>
                   </div>
@@ -237,7 +241,7 @@ export default function BoardTab({ projectId }: { projectId: number }) {
                 {col.id === "todo" && (
                   <button
                     onClick={() => setIsCreating(true)}
-                    className="w-full mb-3 py-2.5 flex items-center justify-center gap-2 text-sm font-medium text-gray-500 hover:text-accent hover:bg-white/80 rounded-xl transition-all border border-dashed border-gray-300 hover:border-accent"
+                    className="w-full mb-3 py-2.5 flex items-center justify-center gap-2 text-sm font-medium text-primary-light hover:text-accent hover:bg-surface rounded-xl transition-all border border-dashed border-border hover:border-accent"
                   >
                     <Plus className="w-4 h-4" /> สร้างการ์ดงานใหม่
                   </button>
@@ -250,7 +254,7 @@ export default function BoardTab({ projectId }: { projectId: number }) {
                       {...provided.droppableProps}
                       className={`space-y-3 min-h-[100px] transition-colors rounded-xl p-1 ${
                         snapshot.isDraggingOver
-                          ? "bg-white/40 ring-2 ring-accent/20"
+                          ? "bg-surface/20 ring-2 ring-accent/20"
                           : ""
                       }`}
                     >
@@ -267,14 +271,15 @@ export default function BoardTab({ projectId }: { projectId: number }) {
                               {...provided.dragHandleProps}
                               onClick={() => setSelectedTask(task)}
                               style={{ ...provided.draggableProps.style }}
-                              className={`p-4 rounded-xl shadow-sm border cursor-pointer group relative overflow-hidden bg-white ${
+                              // 🔥 Task Card Style: ใช้ bg-surface และ border-border
+                              className={`p-4 rounded-xl shadow-sm border cursor-pointer group relative overflow-hidden bg-surface transition-all ${
                                 task.status === "revision"
-                                  ? "border-red-200 shadow-red-100 hover:border-red-300"
-                                  : "border-gray-100 hover:border-accent/50"
+                                  ? "border-red-200 dark:border-red-900/50 shadow-red-100 dark:shadow-none hover:border-red-300 dark:hover:border-red-700"
+                                  : "border-border hover:border-accent/50 dark:hover:border-accent/50"
                               } ${
                                 snapshot.isDragging
-                                  ? "shadow-lg rotate-2 scale-105 z-50"
-                                  : "hover:-translate-y-0.5"
+                                  ? "shadow-lg rotate-2 scale-105 z-50 ring-2 ring-accent"
+                                  : "hover:-translate-y-0.5 dark:hover:shadow-none"
                               }`}
                             >
                               {task.status === "revision" && (
@@ -284,20 +289,20 @@ export default function BoardTab({ projectId }: { projectId: number }) {
                                 <h4
                                   className={`text-sm font-medium leading-relaxed pr-6 ${
                                     task.status === "revision"
-                                      ? "text-red-700"
-                                      : "text-gray-700"
+                                      ? "text-red-700 dark:text-red-400"
+                                      : "text-primary"
                                   }`}
                                 >
                                   {task.title}
                                 </h4>
                                 <button
                                   onClick={(e) => promptDelete(e, task)}
-                                  className="absolute top-2 right-2 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                                  className="absolute top-2 right-2 p-1.5 text-primary-light hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
-                              <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-50">
+                              <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
                                 <div className="flex -space-x-2 overflow-hidden">
                                   {task.assigned_to &&
                                   task.assigned_to.length > 0 ? (
@@ -309,7 +314,7 @@ export default function BoardTab({ projectId }: { projectId: number }) {
                                       return (
                                         <div
                                           key={userId}
-                                          className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[9px] font-bold border border-white ring-1 ring-gray-100"
+                                          className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-200 flex items-center justify-center text-[9px] font-bold border border-surface ring-1 ring-border"
                                           title={member.display_name}
                                         >
                                           {member.display_name
@@ -319,7 +324,7 @@ export default function BoardTab({ projectId }: { projectId: number }) {
                                       );
                                     })
                                   ) : (
-                                    <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 border border-white">
+                                    <div className="w-6 h-6 rounded-full bg-surface-subtle flex items-center justify-center text-primary-light border border-surface">
                                       <UserIcon className="w-3 h-3" />
                                     </div>
                                   )}
@@ -329,8 +334,8 @@ export default function BoardTab({ projectId }: { projectId: number }) {
                                     className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border ${
                                       new Date(task.due_date) < new Date() &&
                                       task.status !== "done"
-                                        ? "bg-red-50 text-red-600 border-red-100"
-                                        : "bg-gray-50 text-gray-400 border-gray-100"
+                                        ? "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-100 dark:border-red-800"
+                                        : "bg-surface-subtle text-primary-light border-border"
                                     }`}
                                   >
                                     <Clock className="w-3 h-3" />{" "}
@@ -355,18 +360,19 @@ export default function BoardTab({ projectId }: { projectId: number }) {
         </div>
       </DragDropContext>
 
-      {/* --- 🔥 Create Task Modal (ดีไซน์เดียวกับ TaskModal) --- */}
+      {/* --- Create Task Modal --- */}
       {isCreating && (
-        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in zoom-in-95">
-          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in zoom-in-95">
+          {/* 🔥 Modal: bg-surface, text-primary */}
+          <div className="bg-surface w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-border">
             {/* Header */}
-            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-              <h3 className="font-bold text-lg text-gray-800">
+            <div className="p-5 border-b border-border flex justify-between items-center bg-surface-subtle">
+              <h3 className="font-bold text-lg text-primary">
                 สร้างการ์ดงานใหม่
               </h3>
               <button
                 onClick={() => setIsCreating(false)}
-                className="p-2 hover:bg-gray-200 rounded-lg text-gray-500"
+                className="p-2 hover:bg-surface rounded-lg text-primary-light hover:text-primary transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -375,13 +381,13 @@ export default function BoardTab({ projectId }: { projectId: number }) {
             <div className="p-6 space-y-6 flex-1 overflow-y-auto">
               {/* Title */}
               <div>
-                <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">
+                <label className="text-xs font-bold text-primary-light uppercase mb-2 block">
                   ชื่องาน
                 </label>
                 <input
                   type="text"
                   autoFocus
-                  className="w-full text-xl font-bold p-2 border-b-2 border-gray-200 focus:border-accent outline-none bg-transparent placeholder:text-gray-300"
+                  className="w-full text-xl font-bold p-2 border-b-2 border-border focus:border-accent outline-none bg-transparent placeholder:text-primary-light/50 text-primary"
                   placeholder="ใส่ชื่องาน..."
                   value={newForm.title}
                   onChange={(e) =>
@@ -393,12 +399,12 @@ export default function BoardTab({ projectId }: { projectId: number }) {
               {/* Grid: Date & Assignees */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1">
+                  <label className="text-xs font-bold text-primary-light uppercase flex items-center gap-1">
                     <Calendar className="w-3 h-3" /> Deadline
                   </label>
                   <input
                     type="datetime-local"
-                    className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-accent"
+                    className="w-full p-2.5 bg-surface-subtle border border-border rounded-xl text-sm outline-none focus:border-accent text-primary [color-scheme:light] dark:[color-scheme:dark]"
                     value={newForm.due_date}
                     onChange={(e) =>
                       setNewForm({ ...newForm, due_date: e.target.value })
@@ -407,7 +413,7 @@ export default function BoardTab({ projectId }: { projectId: number }) {
                 </div>
 
                 <div className="space-y-2 relative">
-                  <label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1">
+                  <label className="text-xs font-bold text-primary-light uppercase flex items-center gap-1">
                     <UserIcon className="w-3 h-3" /> ผู้รับผิดชอบ
                   </label>
                   <div className="flex flex-wrap gap-2 min-h-[42px] items-center">
@@ -417,9 +423,9 @@ export default function BoardTab({ projectId }: { projectId: number }) {
                       return (
                         <div
                           key={id}
-                          className="flex items-center gap-1 pl-1 pr-2 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-full text-xs font-bold"
+                          className="flex items-center gap-1 pl-1 pr-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800 rounded-full text-xs font-bold"
                         >
-                          <div className="w-5 h-5 rounded-full bg-blue-200 flex items-center justify-center text-[9px]">
+                          <div className="w-5 h-5 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center text-[9px]">
                             {member.display_name?.substring(0, 2).toUpperCase()}
                           </div>
                           {member.display_name}
@@ -434,13 +440,13 @@ export default function BoardTab({ projectId }: { projectId: number }) {
                     })}
                     <button
                       onClick={() => setShowMemberSelect(!showMemberSelect)}
-                      className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-500 border border-gray-200 rounded-full text-xs hover:bg-gray-200 transition-colors"
+                      className="flex items-center gap-1 px-2 py-1 bg-surface-subtle text-primary-light border border-border rounded-full text-xs hover:bg-surface hover:text-primary transition-colors"
                     >
                       <Plus className="w-3 h-3" /> เพิ่มคน
                     </button>
                   </div>
                   {showMemberSelect && (
-                    <div className="absolute top-full left-0 mt-2 w-full bg-white border border-gray-200 rounded-xl shadow-xl z-10 overflow-hidden p-1">
+                    <div className="absolute top-full left-0 mt-2 w-full bg-surface border border-border rounded-xl shadow-xl z-10 overflow-hidden p-1">
                       {members.map((m: any) => {
                         const isSelected = newForm.assigned_to.includes(m.id);
                         return (
@@ -449,12 +455,12 @@ export default function BoardTab({ projectId }: { projectId: number }) {
                             onClick={() => toggleNewAssignee(m.id)}
                             className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors ${
                               isSelected
-                                ? "bg-blue-50 text-blue-700 font-bold"
-                                : "hover:bg-gray-50 text-gray-700"
+                                ? "bg-accent/10 text-accent font-bold"
+                                : "hover:bg-surface-subtle text-primary"
                             }`}
                           >
                             <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] text-gray-600 font-bold">
+                              <div className="w-6 h-6 rounded-full bg-surface-subtle flex items-center justify-center text-[10px] text-primary-light font-bold border border-border">
                                 {m.display_name?.substring(0, 2).toUpperCase()}
                               </div>
                               {m.display_name}
@@ -476,12 +482,12 @@ export default function BoardTab({ projectId }: { projectId: number }) {
 
               {/* Description */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1">
+                <label className="text-xs font-bold text-primary-light uppercase flex items-center gap-1">
                   <AlignLeft className="w-3 h-3" /> รายละเอียด
                 </label>
                 <textarea
                   rows={5}
-                  className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-accent resize-none leading-relaxed"
+                  className="w-full p-4 bg-surface-subtle border border-border rounded-xl text-sm outline-none focus:border-accent resize-none leading-relaxed text-primary placeholder:text-primary-light/50"
                   placeholder="ใส่รายละเอียดงาน..."
                   value={newForm.description}
                   onChange={(e) =>
@@ -492,17 +498,17 @@ export default function BoardTab({ projectId }: { projectId: number }) {
             </div>
 
             {/* Footer */}
-            <div className="p-5 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+            <div className="p-5 border-t border-border bg-surface-subtle flex justify-end gap-3">
               <button
                 onClick={() => setIsCreating(false)}
-                className="px-5 py-2.5 text-gray-600 hover:bg-gray-200 rounded-xl font-medium transition-colors"
+                className="px-5 py-2.5 text-primary-light hover:bg-surface rounded-xl font-medium transition-colors"
               >
                 ยกเลิก
               </button>
               <button
                 onClick={handleCreateSubmit}
                 disabled={!newForm.title.trim() || isSubmitting}
-                className="px-6 py-2.5 bg-accent text-white rounded-xl font-bold hover:bg-accent-hover disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-blue-500/30"
+                className="px-6 py-2.5 bg-accent text-white rounded-xl font-bold hover:bg-accent-hover disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-accent/20"
               >
                 {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}{" "}
                 สร้างงาน
@@ -528,23 +534,25 @@ export default function BoardTab({ projectId }: { projectId: number }) {
       {/* Delete Confirm Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full text-center">
-            <AlertTriangle className="w-12 h-12 text-red-600 mx-auto mb-4" />
-            <h3 className="text-lg font-bold text-gray-900">ลบงานนี้?</h3>
-            <p className="text-sm text-gray-500 mb-6">
+          <div className="bg-surface rounded-2xl shadow-2xl p-6 max-w-sm w-full text-center border border-border">
+            <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600 dark:text-red-400">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold text-primary">ลบงานนี้?</h3>
+            <p className="text-primary-light mb-6">
               "{deleteTarget.title}" จะหายไปถาวร
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteTarget(null)}
-                className="flex-1 py-2.5 bg-gray-100 rounded-xl hover:bg-gray-200 font-medium"
+                className="flex-1 py-2.5 bg-surface-subtle text-primary hover:bg-border/50 rounded-xl font-medium transition-colors"
               >
                 ยกเลิก
               </button>
               <button
                 onClick={confirmDelete}
                 disabled={isDeleting}
-                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700 font-bold flex justify-center items-center gap-2"
+                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700 font-bold flex justify-center items-center gap-2 shadow-lg shadow-red-500/30"
               >
                 {isDeleting ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

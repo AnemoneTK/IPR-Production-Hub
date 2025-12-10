@@ -16,7 +16,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
 
-  // State สถิติ (ลบ storageUsed ออกแล้ว)
+  // State สถิติ
   const [stats, setStats] = useState({
     pendingTasks: 0,
     activeProjects: 0,
@@ -90,7 +90,7 @@ export default function DashboardPage() {
 
   if (loading)
     return (
-      <div className="flex h-screen items-center justify-center text-gray-400">
+      <div className="flex h-screen items-center justify-center text-primary-light">
         <Loader2 className="w-10 h-10 animate-spin text-accent" />
       </div>
     );
@@ -98,7 +98,8 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8 pb-10">
       {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-primary to-primary-light rounded-2xl p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
+      {/* 🔥 แก้: ใช้สี Slate เข้มเสมอ (เพื่อให้ตัวหนังสือขาวอ่านออกทั้ง Light/Dark) */}
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 dark:from-slate-800 dark:to-slate-900 rounded-2xl p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden border border-slate-700">
         <div className="absolute top-0 right-0 p-4 opacity-10">
           <FolderKanban className="w-40 h-40 text-white" />
         </div>
@@ -108,7 +109,7 @@ export default function DashboardPage() {
             <h1 className="text-3xl font-bold">
               สวัสดี, {profile?.display_name || "Creator"}! 👋
             </h1>
-            <span className="px-3 py-1 bg-white/20 rounded-full text-xs font-medium backdrop-blur-sm border border-white/10 uppercase tracking-wider">
+            <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-medium backdrop-blur-sm border border-white/10 uppercase tracking-wider">
               {profile?.main_role || "Member"}
             </span>
           </div>
@@ -128,7 +129,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Quick Stats (เหลือ 2 การ์ด ปรับ Grid เป็น 2 ช่อง) */}
+      {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <StatCard
           title="งานที่ค้างอยู่"
@@ -136,6 +137,7 @@ export default function DashboardPage() {
           subtitle="Pending Tasks"
           icon={Clock}
           color="text-orange-500"
+          bgIcon="bg-orange-50 dark:bg-orange-900/20"
         />
         <StatCard
           title="โปรเจกต์ที่ดูแล"
@@ -143,6 +145,7 @@ export default function DashboardPage() {
           subtitle="Active Projects"
           icon={FolderKanban}
           color="text-accent"
+          bgIcon="bg-blue-50 dark:bg-blue-900/20"
         />
       </div>
 
@@ -150,21 +153,22 @@ export default function DashboardPage() {
         {/* Tasks Feed */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+            <h2 className="text-xl font-bold text-primary flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-accent" />
               งานล่าสุด
             </h2>
             <Link
               href="/dashboard/projects"
-              className="text-sm text-gray-500 hover:text-accent transition-colors flex items-center gap-1"
+              className="text-sm text-primary-light hover:text-accent transition-colors flex items-center gap-1"
             >
               ดูทั้งหมด <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          {/* 🔥 แก้: bg-surface, border-border */}
+          <div className="bg-surface rounded-xl shadow-sm border border-border overflow-hidden">
             {myTasks.length === 0 ? (
-              <div className="p-8 text-center text-gray-400">
+              <div className="p-8 text-center text-primary-light">
                 ยังไม่มีงานที่ค้างอยู่
               </div>
             ) : (
@@ -174,9 +178,9 @@ export default function DashboardPage() {
                     task.projects?.slug || task.project_id
                   }`}
                   key={task.id}
-                  className="block hover:bg-gray-50 transition-colors"
+                  className="block hover:bg-surface-subtle transition-colors"
                 >
-                  <div className="p-4 border-b border-gray-50 last:border-0 flex items-center justify-between group">
+                  <div className="p-4 border-b border-border last:border-0 flex items-center justify-between group">
                     <div className="flex items-center gap-4">
                       <div
                         className={`w-3 h-3 rounded-full ${
@@ -188,16 +192,16 @@ export default function DashboardPage() {
                         }`}
                       />
                       <div>
-                        <h3 className="font-medium text-gray-900 group-hover:text-accent transition-colors">
+                        <h3 className="font-medium text-primary group-hover:text-accent transition-colors">
                           {task.title}
                         </h3>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-primary-light">
                           {task.projects?.title || "Unknown Project"}
                         </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className="text-xs px-2 py-1 rounded-md font-medium bg-gray-100 text-gray-600">
+                      <span className="text-xs px-2 py-1 rounded-md font-medium bg-surface-subtle text-primary-light border border-border">
                         {task.status}
                       </span>
                     </div>
@@ -210,33 +214,33 @@ export default function DashboardPage() {
 
         {/* Recent Uploads */}
         <div className="space-y-4">
-          <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-            <FileAudio className="w-5 h-5 text-gray-400" />
+          <h2 className="text-xl font-bold text-primary flex items-center gap-2">
+            <FileAudio className="w-5 h-5 text-primary-light" />
             อัปโหลดล่าสุด
           </h2>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-2">
+          <div className="bg-surface rounded-xl shadow-sm border border-border p-2">
             {recentFiles.length === 0 ? (
-              <div className="p-8 text-center text-xs text-gray-400">
+              <div className="p-8 text-center text-xs text-primary-light">
                 ยังไม่มีไฟล์อัปโหลด
               </div>
             ) : (
               recentFiles.map((file) => (
                 <div
                   key={file.id}
-                  className="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors border-b border-gray-50 last:border-0"
+                  className="flex items-start gap-3 p-3 hover:bg-surface-subtle rounded-lg transition-colors border-b border-border last:border-0"
                 >
-                  <div className="mt-1 w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-accent">
+                  <div className="mt-1 w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-accent">
                     <FileAudio className="w-4 h-4" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
+                    <p className="text-sm font-medium text-primary truncate">
                       {file.name}
                     </p>
-                    <p className="text-xs text-gray-500 truncate">
+                    <p className="text-xs text-primary-light truncate">
                       โดย {file.profiles?.display_name} • {file.projects?.title}
                     </p>
-                    <p className="text-[10px] text-gray-400 mt-1">
+                    <p className="text-[10px] text-primary-light/70 mt-1">
                       {new Date(file.created_at).toLocaleTimeString("th-TH", {
                         hour: "2-digit",
                         minute: "2-digit",
@@ -253,15 +257,16 @@ export default function DashboardPage() {
   );
 }
 
-function StatCard({ title, value, subtitle, icon: Icon, color }: any) {
+function StatCard({ title, value, subtitle, icon: Icon, color, bgIcon }: any) {
   return (
-    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-start justify-between hover:shadow-md transition-shadow">
+    // 🔥 แก้: bg-surface, border-border
+    <div className="bg-surface p-6 rounded-xl shadow-sm border border-border flex items-start justify-between hover:shadow-md transition-shadow">
       <div>
-        <h3 className="text-gray-500 text-sm font-medium mb-1">{title}</h3>
-        <p className="text-3xl font-bold text-gray-900">{value}</p>
-        <p className="text-xs text-gray-400 mt-1">{subtitle}</p>
+        <h3 className="text-primary-light text-sm font-medium mb-1">{title}</h3>
+        <p className="text-3xl font-bold text-primary">{value}</p>
+        <p className="text-xs text-primary-light/70 mt-1">{subtitle}</p>
       </div>
-      <div className={`p-3 rounded-lg bg-gray-50 ${color}`}>
+      <div className={`p-3 rounded-lg ${bgIcon} ${color}`}>
         <Icon className="w-6 h-6" />
       </div>
     </div>

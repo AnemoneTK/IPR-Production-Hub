@@ -20,7 +20,7 @@ export default function AdminFeedbackPage() {
   // Modal States
   const [selectedFeedback, setSelectedFeedback] = useState<any>(null);
 
-  // 🔥 แก้ไข 1: เปลี่ยน state เก็บข้อมูลลบ ให้รองรับ Array ของรูป (string[])
+  // Delete State
   const [deleteTarget, setDeleteTarget] = useState<{
     id: number;
     imageUrls: string[];
@@ -69,41 +69,34 @@ export default function AdminFeedbackPage() {
     await supabase.from("feedbacks").update({ status: newStatus }).eq("id", id);
   };
 
-  // 🔥 แก้ไข 2: รับ image_urls (ที่เป็น Array) แทน image_url ตัวเดียว
   const promptDelete = (
     e: React.MouseEvent,
     id: number,
     imageUrls: string[] | null
   ) => {
     e.stopPropagation();
-    // ถ้าไม่มีรูป ให้ส่ง array ว่างไป
     setDeleteTarget({ id, imageUrls: imageUrls || [] });
   };
 
-  // 🔥 แก้ไข 3: ส่ง Array ไปให้ API ลบทีเดียวหมด
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setIsDeleting(true);
 
     try {
-      // A. ถ้ามีรูป (หลายรูป) ให้ลบออกจาก R2
       if (deleteTarget.imageUrls && deleteTarget.imageUrls.length > 0) {
         await fetch("/api/delete-files", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          // ส่งไปทั้งก้อนเลย API delete-files เรารองรับ Array อยู่แล้ว
           body: JSON.stringify({ fileKeys: deleteTarget.imageUrls }),
         });
       }
 
-      // B. ลบข้อมูลจาก Database
       const { error } = await supabase
         .from("feedbacks")
         .delete()
         .eq("id", deleteTarget.id);
       if (error) throw error;
 
-      // C. อัปเดตหน้าจอ
       setFeedbacks((prev) => prev.filter((f) => f.id !== deleteTarget.id));
       setDeleteTarget(null);
     } catch (error: any) {
@@ -122,12 +115,12 @@ export default function AdminFeedbackPage() {
   return (
     <div className="space-y-6 pb-10">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
           <Shield className="w-6 h-6 text-orange-500" /> Admin Feedback Center
         </h1>
         <button
           onClick={fetchFeedbacks}
-          className="text-sm text-gray-500 hover:text-accent"
+          className="text-sm text-primary-light hover:text-accent transition-colors"
         >
           รีเฟรชข้อมูล
         </button>
@@ -135,12 +128,13 @@ export default function AdminFeedbackPage() {
 
       {loading ? (
         <div className="flex justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-gray-300" />
+          <Loader2 className="w-8 h-8 animate-spin text-primary-light" />
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        // 🔥 แก้: bg-white -> bg-surface, border-gray -> border-border
+        <div className="bg-surface rounded-2xl border border-border shadow-sm overflow-hidden">
           <table className="w-full text-sm text-left">
-            <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-100">
+            <thead className="bg-surface-subtle text-primary-light font-medium border-b border-border">
               <tr>
                 <th className="px-6 py-4 w-48">สถานะ</th>
                 <th className="px-6 py-4 w-24">ประเภท</th>
@@ -150,7 +144,7 @@ export default function AdminFeedbackPage() {
                 <th className="px-6 py-4 w-10"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-border">
               {feedbacks.map((item) => {
                 const currentStatusConfig =
                   FEEDBACK_STATUSES[
@@ -161,7 +155,7 @@ export default function AdminFeedbackPage() {
                   <tr
                     key={item.id}
                     onClick={() => setSelectedFeedback(item)}
-                    className="hover:bg-blue-50/50 cursor-pointer transition-colors group"
+                    className="hover:bg-surface-subtle/50 cursor-pointer transition-colors group"
                   >
                     <td
                       className="px-6 py-4"
@@ -186,14 +180,15 @@ export default function AdminFeedbackPage() {
                               <option
                                 key={key}
                                 value={key}
-                                className="bg-white text-gray-700"
+                                // 🔥 แก้: ตัวเลือกใน Dropdown ให้เป็นสีธีม
+                                className="bg-surface text-primary"
                               >
                                 {config.label}
                               </option>
                             )
                           )}
                         </select>
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-current opacity-50">
                           <svg
                             className="fill-current h-3 w-3"
                             xmlns="http://www.w3.org/2000/svg"
@@ -208,7 +203,9 @@ export default function AdminFeedbackPage() {
                     <td className="px-6 py-4">
                       <span
                         className={`inline-flex items-center gap-1 text-xs font-medium ${
-                          item.type === "bug" ? "text-red-600" : "text-blue-600"
+                          item.type === "bug"
+                            ? "text-red-600 dark:text-red-400"
+                            : "text-blue-600 dark:text-blue-400"
                         }`}
                       >
                         {item.type === "bug" ? (
@@ -220,26 +217,25 @@ export default function AdminFeedbackPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="font-semibold text-gray-900 truncate max-w-md group-hover:text-accent transition-colors">
+                      <p className="font-semibold text-primary truncate max-w-md group-hover:text-accent transition-colors">
                         {item.title}
                       </p>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="font-medium text-gray-700">
+                      <div className="font-medium text-primary-light">
                         {item.profiles?.display_name || "Unknown"}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-right text-gray-400 text-xs">
+                    <td className="px-6 py-4 text-right text-primary-light text-xs">
                       {new Date(item.created_at).toLocaleDateString("th-TH")}
                     </td>
 
                     <td className="px-6 py-4 text-right">
-                      {/* 🔥 แก้ไข 4: ส่ง item.image_urls (array) ไปแทน */}
                       <button
                         onClick={(e) =>
                           promptDelete(e, item.id, item.image_urls)
                         }
-                        className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                        className="p-2 text-primary-light hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                         title="ลบรายการ"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -252,7 +248,7 @@ export default function AdminFeedbackPage() {
                 <tr>
                   <td
                     colSpan={6}
-                    className="px-6 py-12 text-center text-gray-400"
+                    className="px-6 py-12 text-center text-primary-light"
                   >
                     ยังไม่มีรายการแจ้งปัญหา
                   </td>
@@ -275,20 +271,20 @@ export default function AdminFeedbackPage() {
       {/* Delete Confirmation Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/60 z-[80] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-red-100 scale-100 animate-in zoom-in-95 duration-200">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600">
+          {/* 🔥 แก้: Modal Theme */}
+          <div className="bg-surface rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-red-100 dark:border-red-900/50 scale-100 animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600 dark:text-red-400">
               <AlertTriangle className="w-6 h-6" />
             </div>
 
-            <h3 className="text-lg font-bold text-center text-gray-900">
+            <h3 className="text-lg font-bold text-center text-primary">
               ยืนยันการลบ?
             </h3>
 
-            <p className="text-sm text-center text-gray-500 mt-2 mb-6 leading-relaxed">
+            <p className="text-sm text-center text-primary-light mt-2 mb-6 leading-relaxed">
               คุณต้องการลบรายการนี้ใช่ไหม <br />
-              {/* แสดงจำนวนรูปที่จะถูกลบด้วย */}
               {deleteTarget.imageUrls.length > 0 && (
-                <span className="text-red-600 font-bold block mt-1">
+                <span className="text-red-600 dark:text-red-400 font-bold block mt-1">
                   ⚠️ รูปภาพแนบ {deleteTarget.imageUrls.length} รูปจะถูกลบถาวร
                 </span>
               )}
@@ -298,7 +294,7 @@ export default function AdminFeedbackPage() {
               <button
                 onClick={() => setDeleteTarget(null)}
                 disabled={isDeleting}
-                className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50"
+                className="flex-1 py-2.5 bg-surface-subtle text-primary font-medium rounded-xl hover:bg-border transition-colors disabled:opacity-50"
               >
                 ยกเลิก
               </button>

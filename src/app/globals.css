@@ -1,58 +1,57 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* --- ☀️ Light Mode (คงเดิมไว้ เพราะคุณชอบแล้ว) --- */
 @theme {
-  /* กำหนดชุดสีของเราที่นี่ (ใช้ชื่อเดิมกับที่ผมพาทำก่อนหน้านี้) */
-  --color-primary: #0f172a; /* น้ำเงินเข้ม (Slate 900) */
-  --color-primary-light: #1e293b; /* Slate 800 */
-
-  --color-accent: #2563eb; /* ฟ้า (Blue 600) */
+  --color-primary: #0f172a; /* Slate 900 */
+  --color-primary-light: #334155; /* Slate 700 */
+  --color-accent: #2563eb; /* Blue 600 */
   --color-accent-hover: #1d4ed8; /* Blue 700 */
-
-  --color-surface: #ffffff; /* สีพื้นการ์ด */
-  --color-surface-subtle: #f8fafc; /* สีพื้นหลังเว็บ */
+  --color-surface: #ffffff;
+  --color-surface-subtle: #f1f5f9;
+  --color-border: #e2e8f0; /* Slate 200 */
+  --color-sidebar: #0f172a;
+  --color-sidebar-text: #f8fafc;
 }
 
-/* ตั้งค่า Default ให้เว็บ (เหมือนเดิม) */
+/* --- 🌙 Dark Mode (สูตรใหม่: Midnight Soft) --- */
+.dark {
+  /* 1. พื้นหลัง: ใช้ Slate-900 (น้ำเงินเข้ม) แทนสีดำ ทำให้ดูมีสีสัน */
+  --color-surface-subtle: #0f172a;
+
+  /* 2. การ์ด: ใช้ Slate-800 (สว่างขึ้นมา 1 ระดับ) เพื่อให้ลอยเด่นขึ้นมาจากพื้นหลัง */
+  --color-surface: #1e293b;
+
+  /* 3. ตัวหนังสือ: ขาวนวล (Slate-100) และเทาอมฟ้า (Slate-400) อ่านสบายตากว่า */
+  --color-primary: #f1f5f9;
+  --color-primary-light: #94a3b8;
+
+  /* 4. เส้นขอบ: สี Slate-700 (ไม่ขาวโดด ตัดขอบนุ่มๆ) */
+  --color-border: #334155;
+
+  /* 5. Accent: ปรับให้สว่างนิดนึง ให้ตัดกับพื้นน้ำเงิน */
+  --color-accent: #60a5fa; /* Blue 400 */
+  --color-accent-hover: #3b82f6; /* Blue 500 */
+
+  /* 6. Sidebar: ใช้ Slate-950 (เข้มกว่าพื้นหลังนิดนึง เพื่อแบ่งสัดส่วน) */
+  --color-sidebar: #020617;
+  --color-sidebar-text: #e2e8f0;
+}
+
+/* --- Base Styles --- */
 body {
   background-color: var(--color-surface-subtle);
   color: var(--color-primary);
+  /* Transition นุ่มๆ เวลาเปลี่ยนธีม */
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.3s ease;
 }
 
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* Scrollbar (ปรับให้เป็นโทน Slate) */
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155; /* Slate 700 */
 }
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1; /* สีเทาอ่อนๆ (slate-300) */
-  border-radius: 99px;
-  transition: background 0.2s;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8; /* สีเข้มขึ้นตอนเอาเมาส์ชี้ (slate-400) */
-}
-
-/* Firefox */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
-}
-
-.bg-stripes {
-  background-image: linear-gradient(
-    45deg,
-    #f3f4f6 25%,
-    transparent 25%,
-    transparent 50%,
-    #f3f4f6 50%,
-    #f3f4f6 75%,
-    transparent 75%,
-    transparent
-  );
-  background-size: 10px 10px;
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569; /* Slate 600 */
 }

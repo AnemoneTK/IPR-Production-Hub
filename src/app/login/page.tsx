@@ -55,13 +55,13 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-primary p-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100">
+    <div className="min-h-screen flex items-center justify-center bg-sidebar p-4">
+      <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden border border-border">
         <div className="pt-10 pb-6 px-8 text-center">
           <div className="w-12 h-12 bg-accent/10 rounded-xl flex items-center justify-center mx-auto mb-4 text-accent">
             <LogIn className="w-6 h-6" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">เข้าสู่ระบบ</h1>
+          <h1 className="text-2xl font-bold text-primary">เข้าสู่ระบบ</h1>
           <p className="text-gray-500 text-sm mt-2">IPR Production Hub</p>
         </div>
 
@@ -76,7 +76,7 @@ export default function LoginPage() {
                 <input
                   type="email"
                   required
-                  className="w-full pl-11 pr-4 py-2.5 border-2 border-gray-100 rounded-xl focus:border-accent focus:bg-blue-50/30 focus:outline-none transition-all text-gray-800 placeholder:text-gray-300"
+                  className="w-full pl-11 pr-4 py-2.5 border-2 border-border rounded-xl focus:border-accent focus:bg-blue-50/30 focus:outline-none transition-all text-primary placeholder:text-gray-300"
                   placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -93,7 +93,7 @@ export default function LoginPage() {
                 <input
                   type="password"
                   required
-                  className="w-full pl-11 pr-4 py-2.5 border-2 border-gray-100 rounded-xl focus:border-accent focus:bg-blue-50/30 focus:outline-none transition-all text-gray-800 placeholder:text-gray-300"
+                  className="w-full pl-11 pr-4 py-2.5 border-2 border-border rounded-xl focus:border-accent focus:bg-blue-50/30 focus:outline-none transition-all text-primary placeholder:text-gray-300"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -150,7 +150,7 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <div className="bg-gray-50 py-4 text-center border-t border-gray-100">
+        <div className="bg-surface-subtle py-4 text-center border-t border-border">
           <p className="text-xs text-gray-400">ระบบภายในสำหรับทีมงาน IPR Hub</p>
         </div>
       </div>

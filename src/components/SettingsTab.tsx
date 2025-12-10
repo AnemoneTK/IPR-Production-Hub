@@ -13,27 +13,30 @@ import {
   X,
 } from "lucide-react";
 
-// ตัวเลือกสถานะ
+// ตัวเลือกสถานะ (ปรับสีให้รองรับ Dark Mode)
 const PROJECT_STATUSES = [
   {
     value: "planning",
     label: "📝 วางแผน (Planning)",
-    color: "bg-gray-100 text-gray-600",
+    color: "bg-surface-subtle text-primary-light border-border",
   },
   {
     value: "production",
     label: "🔥 กำลังทำ (In Progress)",
-    color: "bg-blue-50 text-blue-600",
+    color:
+      "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 border-blue-200 dark:border-blue-800",
   },
   {
     value: "paused",
     label: "⏸️ หยุดพัก (On Hold)",
-    color: "bg-orange-50 text-orange-600",
+    color:
+      "bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-300 border-orange-200 dark:border-orange-800",
   },
   {
     value: "done",
     label: "✅ เสร็จแล้ว (Completed)",
-    color: "bg-green-50 text-green-600",
+    color:
+      "bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-300 border-green-200 dark:border-green-800",
   },
 ];
 
@@ -143,16 +146,16 @@ export default function SettingsTab({ project }: { project: any }) {
   return (
     <div className="max-w-2xl mx-auto p-8 space-y-8 pb-20">
       {/* ตั้งค่าโปรเจกต์ */}
-      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-          <Settings className="w-5 h-5 text-gray-400" />
+      <div className="bg-surface p-6 rounded-2xl border border-border shadow-sm">
+        <h3 className="text-lg font-bold text-primary mb-4 flex items-center gap-2">
+          <Settings className="w-5 h-5 text-primary-light" />
           ตั้งค่าโปรเจกต์
         </h3>
 
         <form onSubmit={handleUpdate} className="space-y-5">
           {/* Status Selector */}
-          <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-1">
+          <div className="bg-surface-subtle p-4 rounded-xl border border-border">
+            <label className="block text-xs font-bold text-primary-light uppercase mb-2 flex items-center gap-1">
               <Activity className="w-3 h-3" /> สถานะโปรเจกต์
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -163,8 +166,8 @@ export default function SettingsTab({ project }: { project: any }) {
                     flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-all
                     ${
                       formData.status === status.value
-                        ? `${status.color} border-transparent ring-2 ring-offset-1 ring-blue-200 font-bold shadow-sm`
-                        : "bg-white border-gray-200 text-gray-600 hover:bg-gray-100"
+                        ? `${status.color} ring-2 ring-offset-1 ring-blue-200 dark:ring-blue-800 font-bold shadow-sm border-transparent`
+                        : "bg-surface border-border text-primary-light hover:bg-surface-subtle"
                     }
                   `}
                 >
@@ -185,12 +188,12 @@ export default function SettingsTab({ project }: { project: any }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-primary mb-1">
               ชื่อโปรเจกต์
             </label>
             <input
               type="text"
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
+              className="w-full px-4 py-2 bg-surface border border-border rounded-lg text-primary focus:border-accent focus:outline-none transition-colors"
               value={formData.title}
               onChange={(e) =>
                 setFormData({ ...formData, title: e.target.value })
@@ -199,12 +202,12 @@ export default function SettingsTab({ project }: { project: any }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-primary mb-1">
               URL Slug
             </label>
             <input
               type="text"
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-gray-500 font-mono text-sm bg-gray-50"
+              className="w-full px-4 py-2 bg-surface-subtle border border-border rounded-lg text-primary-light font-mono text-sm focus:border-accent focus:outline-none"
               value={formData.slug}
               onChange={(e) =>
                 setFormData({ ...formData, slug: e.target.value })
@@ -213,12 +216,12 @@ export default function SettingsTab({ project }: { project: any }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-primary mb-1">
               รายละเอียด
             </label>
             <textarea
               rows={3}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none resize-none transition-colors"
+              className="w-full px-4 py-2 bg-surface border border-border rounded-lg text-primary focus:border-accent focus:outline-none resize-none transition-colors"
               value={formData.description}
               onChange={(e) =>
                 setFormData({ ...formData, description: e.target.value })
@@ -227,12 +230,12 @@ export default function SettingsTab({ project }: { project: any }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-primary mb-1">
               วันกำหนดส่ง (Deadline)
             </label>
             <input
               type="datetime-local"
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
+              className="w-full px-4 py-2 bg-surface border border-border rounded-lg text-primary focus:border-accent focus:outline-none transition-colors [color-scheme:light] dark:[color-scheme:dark]"
               value={formData.deadline}
               onChange={(e) =>
                 setFormData({ ...formData, deadline: e.target.value })
@@ -240,11 +243,11 @@ export default function SettingsTab({ project }: { project: any }) {
             />
           </div>
 
-          <div className="pt-4 flex justify-end border-t border-gray-50 mt-4">
+          <div className="pt-4 flex justify-end border-t border-border mt-4">
             <button
               type="submit"
               disabled={loading}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50 shadow-sm"
+              className="bg-accent hover:bg-accent-hover text-white px-6 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50 shadow-sm"
             >
               {loading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -258,18 +261,18 @@ export default function SettingsTab({ project }: { project: any }) {
       </div>
 
       {/* Danger Zone */}
-      <div className="bg-white p-6 rounded-2xl border border-red-100 shadow-sm overflow-hidden relative">
+      <div className="bg-surface p-6 rounded-2xl border border-red-100 dark:border-red-900/30 shadow-sm overflow-hidden relative">
         <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-500" />
-        <h3 className="text-lg font-bold text-red-600 mb-2 flex items-center gap-2">
+        <h3 className="text-lg font-bold text-red-600 dark:text-red-400 mb-2 flex items-center gap-2">
           <AlertTriangle className="w-5 h-5" /> Danger Zone
         </h3>
-        <p className="text-sm text-gray-600 mb-6 max-w-lg">
+        <p className="text-sm text-primary-light mb-6 max-w-lg">
           การลบโปรเจกต์จะทำให้ข้อมูลทั้งหมดหายไปถาวร ทั้งไฟล์งานใน Cloud,
           เนื้อเพลง และคอมเมนต์ ไม่สามารถกู้คืนได้
         </p>
         <button
           onClick={() => setIsDeleteModalOpen(true)}
-          className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white px-5 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-all text-sm"
+          className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 hover:bg-red-600 hover:text-white dark:hover:bg-red-700 px-5 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-all text-sm"
         >
           <Trash2 className="w-4 h-4" /> ฉันเข้าใจ, ลบโปรเจกต์นี้
         </button>
@@ -278,22 +281,22 @@ export default function SettingsTab({ project }: { project: any }) {
       {/* Delete Modal */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-gray-100 scale-100 animate-in zoom-in-95 duration-200">
-            <div className="bg-red-50 p-6 text-center border-b border-red-100">
-              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Trash2 className="w-8 h-8 text-red-600" />
+          <div className="bg-surface w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-border scale-100 animate-in zoom-in-95 duration-200">
+            <div className="bg-red-50 dark:bg-red-900/20 p-6 text-center border-b border-red-100 dark:border-red-900/30">
+              <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-8 h-8 text-red-600 dark:text-red-400" />
               </div>
-              <h3 className="text-xl font-bold text-red-700">
+              <h3 className="text-xl font-bold text-red-700 dark:text-red-400">
                 ยืนยันการลบโปรเจกต์?
               </h3>
-              <p className="text-sm text-red-600/80 mt-1">
+              <p className="text-sm text-red-600/80 dark:text-red-400/80 mt-1">
                 ไฟล์ทั้งหมดในระบบจะถูกลบและกู้คืนไม่ได้
               </p>
             </div>
             <div className="p-6">
-              <p className="text-sm text-gray-600 mb-4 text-center">
+              <p className="text-sm text-primary-light mb-4 text-center">
                 พิมพ์ชื่อโปรเจกต์{" "}
-                <span className="font-bold select-all bg-gray-100 px-1 rounded text-gray-800">
+                <span className="font-bold select-all bg-surface-subtle px-1 rounded text-primary">
                   {project.title}
                 </span>{" "}
                 เพื่อยืนยัน
@@ -301,7 +304,7 @@ export default function SettingsTab({ project }: { project: any }) {
               <input
                 autoFocus
                 type="text"
-                className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:outline-none transition-colors text-center font-medium placeholder:font-normal"
+                className="w-full px-4 py-2.5 bg-surface border-2 border-border rounded-xl focus:border-red-500 focus:outline-none transition-colors text-center font-medium placeholder:font-normal text-primary"
                 placeholder="พิมพ์ชื่อโปรเจกต์ที่นี่..."
                 value={deleteInput}
                 onChange={(e) => setDeleteInput(e.target.value)}
@@ -312,7 +315,7 @@ export default function SettingsTab({ project }: { project: any }) {
                     setIsDeleteModalOpen(false);
                     setDeleteInput("");
                   }}
-                  className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
+                  className="flex-1 py-2.5 bg-surface-subtle text-primary font-medium rounded-xl hover:bg-border transition-colors"
                 >
                   ยกเลิก
                 </button>
@@ -337,20 +340,20 @@ export default function SettingsTab({ project }: { project: any }) {
       {/* Success Modal */}
       {showSuccessModal && (
         <div className="fixed inset-0 bg-black/60 z-[80] flex items-center justify-center p-4 backdrop-blur-sm animate-in zoom-in-95 duration-300">
-          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-8 text-center border-t-4 border-green-500 relative">
+          <div className="bg-surface w-full max-w-sm rounded-2xl shadow-2xl p-8 text-center border-t-4 border-green-500 relative">
             <button
               onClick={handleCloseSuccess}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+              className="absolute top-4 right-4 text-primary-light hover:text-primary"
             >
               <X className="w-5 h-5" />
             </button>
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 text-green-600">
+            <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-green-600 dark:text-green-400">
               <CheckCircle2 className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">
+            <h3 className="text-xl font-bold text-primary mb-2">
               บันทึกสำเร็จ!
             </h3>
-            <p className="text-gray-500 text-sm mb-6">
+            <p className="text-primary-light text-sm mb-6">
               ข้อมูลและการตั้งค่าโปรเจกต์ได้รับการอัปเดตเรียบร้อยแล้ว
             </p>
             <button

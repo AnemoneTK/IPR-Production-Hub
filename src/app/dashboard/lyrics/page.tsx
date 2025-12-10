@@ -214,10 +214,10 @@ export default function GlobalLyricsPage() {
       {/* Header & Main Actions */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
             <Music className="w-7 h-7 text-accent" /> คลังเนื้อเพลง
           </h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <p className="text-primary-light text-sm mt-1">
             จัดการเนื้อเพลงทั้งหมด ทั้งในโปรเจกต์และเพลงอิสระ
           </p>
         </div>
@@ -230,15 +230,17 @@ export default function GlobalLyricsPage() {
       </div>
 
       {/* Filter & Search Bar */}
-      <div className="flex flex-col md:flex-row gap-3 bg-white p-2 rounded-2xl border border-gray-100 shadow-sm">
+      {/* 🔥 แก้: bg-white -> bg-surface */}
+      <div className="flex flex-col md:flex-row gap-3 bg-surface p-2 rounded-2xl border border-border shadow-sm">
         {/* Filter Tabs */}
-        <div className="flex p-1 bg-gray-100 rounded-xl flex-shrink-0">
+        {/* 🔥 แก้: bg-gray-100 -> bg-surface-subtle */}
+        <div className="flex p-1 bg-surface-subtle rounded-xl flex-shrink-0">
           <button
             onClick={() => setFilterType("all")}
             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
               filterType === "all"
-                ? "bg-white text-gray-800 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-surface text-primary shadow-sm"
+                : "text-primary-light hover:text-primary"
             }`}
           >
             ทั้งหมด
@@ -247,8 +249,8 @@ export default function GlobalLyricsPage() {
             onClick={() => setFilterType("in_project")}
             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-1 ${
               filterType === "in_project"
-                ? "bg-white text-blue-600 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-surface text-blue-600 dark:text-blue-400 shadow-sm"
+                : "text-primary-light hover:text-primary"
             }`}
           >
             <FolderOpen className="w-3.5 h-3.5" /> ในโปรเจกต์
@@ -257,8 +259,8 @@ export default function GlobalLyricsPage() {
             onClick={() => setFilterType("no_project")}
             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-1 ${
               filterType === "no_project"
-                ? "bg-white text-orange-600 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-surface text-orange-600 dark:text-orange-400 shadow-sm"
+                : "text-primary-light hover:text-primary"
             }`}
           >
             <Globe className="w-3.5 h-3.5" /> ไม่มีโปรเจกต์
@@ -267,11 +269,11 @@ export default function GlobalLyricsPage() {
 
         {/* Search */}
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 text-gray-400 w-5 h-5" />
+          <Search className="absolute left-3 top-2.5 text-primary-light w-5 h-5" />
           <input
             type="text"
             placeholder="ค้นหาชื่อเพลง..."
-            className="w-full pl-10 pr-4 py-2.5 bg-transparent outline-none text-sm text-gray-800 placeholder:text-gray-400"
+            className="w-full pl-10 pr-4 py-2.5 bg-transparent outline-none text-sm text-primary placeholder:text-primary-light/50"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -279,13 +281,13 @@ export default function GlobalLyricsPage() {
       </div>
 
       {/* Content List */}
-      <div className="flex-1 overflow-y-auto min-h-0 bg-white/50 rounded-2xl border border-gray-100/50">
+      <div className="flex-1 overflow-y-auto min-h-0 bg-surface-subtle/30 rounded-2xl border border-border/50">
         {loading ? (
           <div className="flex h-64 items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-gray-300" />
+            <Loader2 className="w-8 h-8 animate-spin text-primary-light" />
           </div>
         ) : filteredScripts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+          <div className="flex flex-col items-center justify-center h-64 text-primary-light">
             <Music className="w-12 h-12 mb-3 opacity-20" />
             <p>ไม่พบเพลงที่ค้นหา</p>
           </div>
@@ -294,9 +296,10 @@ export default function GlobalLyricsPage() {
             {filteredScripts.map((script) => (
               <div
                 key={script.id}
-                className="group relative flex items-center justify-between p-4 bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow-md hover:border-accent/30 transition-all duration-200 cursor-pointer"
+                // 🔥 แก้: bg-white -> bg-surface, border-gray -> border-border
+                className="group relative flex items-center justify-between p-4 bg-surface border border-border rounded-xl shadow-sm hover:shadow-md hover:border-accent/30 dark:hover:border-accent/30 transition-all duration-200 cursor-pointer"
               >
-                {/* 🔥 Overlay Link: ทำให้ทั้งการ์ดคลิกได้ */}
+                {/* Overlay Link */}
                 <Link
                   href={`/dashboard/lyrics/${script.id}`}
                   className="absolute inset-0 z-0"
@@ -307,8 +310,8 @@ export default function GlobalLyricsPage() {
                   <div
                     className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
                       script.project_id
-                        ? "bg-blue-50 text-blue-500"
-                        : "bg-orange-50 text-orange-500"
+                        ? "bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400"
+                        : "bg-orange-50 dark:bg-orange-900/30 text-orange-500 dark:text-orange-400"
                     }`}
                   >
                     {script.project_id ? (
@@ -319,20 +322,20 @@ export default function GlobalLyricsPage() {
                   </div>
 
                   <div className="min-w-0">
-                    <h3 className="text-base font-bold text-gray-900 truncate pr-4 group-hover:text-accent transition-colors">
+                    <h3 className="text-base font-bold text-primary truncate pr-4 group-hover:text-accent transition-colors">
                       {script.title}
                     </h3>
                     <div className="flex items-center gap-2 mt-0.5">
                       {script.project_id && script.projects ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">
+                        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium">
                           {script.projects.title}
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 font-medium">
+                        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 font-medium">
                           ไม่มีโปรเจกต์
                         </span>
                       )}
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-primary-light">
                         • อัปเดต{" "}
                         {new Date(script.updated_at).toLocaleDateString(
                           "th-TH"
@@ -342,27 +345,27 @@ export default function GlobalLyricsPage() {
                   </div>
                 </div>
 
-                {/* Right: Actions (z-10 เพื่อให้กดได้) */}
+                {/* Right: Actions */}
                 <div className="flex items-center gap-1 pl-4 relative z-10">
                   <button
                     onClick={(e) => {
                       e.preventDefault();
-                      e.stopPropagation(); // ป้องกันการกด Link พื้นหลัง
+                      e.stopPropagation();
                       setImportTarget(script);
                     }}
-                    className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                    className="p-2 text-primary-light hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
                     title="ทำสำเนา"
                   >
                     <Copy className="w-4 h-4" />
                   </button>
-                  <div className="w-px h-4 bg-gray-200 mx-1"></div>
+                  <div className="w-px h-4 bg-border mx-1"></div>
                   <button
                     onClick={(e) => {
                       e.preventDefault();
-                      e.stopPropagation(); // ป้องกันการกด Link พื้นหลัง
+                      e.stopPropagation();
                       promptDelete(script.id, script.title);
                     }}
-                    className="p-2 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-2 text-primary-light hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                     title="ลบเพลง"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -379,27 +382,30 @@ export default function GlobalLyricsPage() {
       {/* Import Modal */}
       {importTarget && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+          {/* 🔥 แก้: bg-white -> bg-surface */}
+          <div className="bg-surface w-full max-w-md rounded-2xl p-6 shadow-2xl relative border border-border">
             <button
               onClick={() => setImportTarget(null)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+              className="absolute top-4 right-4 text-primary-light hover:text-primary"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <h3 className="text-lg font-bold text-primary mb-4 flex items-center gap-2">
               <Copy className="w-5 h-5 text-accent" /> ทำสำเนาเพลง
             </h3>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-primary-light mb-4">
               คุณกำลังจะสร้างสำเนาของเพลง{" "}
-              <strong>&quot;{importTarget.title}&quot;</strong>
+              <strong className="text-primary">
+                &quot;{importTarget.title}&quot;
+              </strong>
             </p>
 
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+            <label className="block text-xs font-bold text-primary-light uppercase mb-2">
               เก็บไว้ที่ไหน?
             </label>
             <select
-              className="w-full p-3 border border-gray-200 rounded-xl mb-6 outline-none focus:border-accent text-sm"
+              className="w-full p-3 border border-border bg-surface text-primary rounded-xl mb-6 outline-none focus:border-accent text-sm"
               value={selectedProject}
               onChange={(e) => setSelectedProject(e.target.value)}
             >
@@ -417,7 +423,7 @@ export default function GlobalLyricsPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => setImportTarget(null)}
-                className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
+                className="flex-1 py-2.5 bg-surface-subtle text-primary font-medium rounded-xl hover:bg-border transition-colors"
               >
                 ยกเลิก
               </button>
@@ -441,21 +447,22 @@ export default function GlobalLyricsPage() {
       {/* Delete Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-red-100 scale-100 animate-in zoom-in-95 duration-200 text-center relative">
+          {/* 🔥 แก้: Theme Modal */}
+          <div className="bg-surface rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-red-100 dark:border-red-900/50 scale-100 animate-in zoom-in-95 duration-200 text-center relative">
             <button
               onClick={() => setDeleteTarget(null)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+              className="absolute top-4 right-4 text-primary-light hover:text-primary"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600">
+            <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600 dark:text-red-400">
               <AlertTriangle className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-bold text-gray-900">ลบเพลงนี้?</h3>
-            <p className="text-sm text-gray-500 mt-2 mb-6 leading-relaxed">
+            <h3 className="text-lg font-bold text-primary">ลบเพลงนี้?</h3>
+            <p className="text-sm text-primary-light mt-2 mb-6 leading-relaxed">
               คุณต้องการลบเพลง <br />
-              <span className="font-bold text-gray-800">
+              <span className="font-bold text-primary">
                 "{deleteTarget.title}"
               </span>{" "}
               <br />
@@ -466,7 +473,7 @@ export default function GlobalLyricsPage() {
               <button
                 onClick={() => setDeleteTarget(null)}
                 disabled={isDeleting}
-                className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
+                className="flex-1 py-2.5 bg-surface-subtle text-primary font-medium rounded-xl hover:bg-border transition-colors"
               >
                 ยกเลิก
               </button>

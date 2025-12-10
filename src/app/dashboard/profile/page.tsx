@@ -99,29 +99,28 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-10">
-      <h1 className="text-2xl font-bold text-gray-900">ตั้งค่าบัญชีผู้ใช้</h1>
-
-      {/* แจ้งเตือนผลลัพธ์ */}
+      <h1 className="text-2xl font-bold text-primary">ตั้งค่าบัญชีผู้ใช้</h1>
 
       {/* --- ส่วนที่ 1: ข้อมูลทั่วไป --- */}
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-        <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+      {/* 🔥 แก้: bg-white -> bg-surface, border-gray -> border-border */}
+      <div className="bg-surface p-6 rounded-2xl shadow-sm border border-border">
+        <h2 className="text-lg font-bold text-primary mb-4 flex items-center gap-2">
           <User className="w-5 h-5 text-accent" /> ข้อมูลส่วนตัว
         </h2>
         <form onSubmit={handleUpdateProfile} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-primary mb-1">
               อีเมล
             </label>
             <input
               type="text"
               disabled
               value={profile.email}
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-500 cursor-not-allowed"
+              className="w-full px-4 py-2 bg-surface-subtle border border-border rounded-lg text-primary-light cursor-not-allowed"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-primary mb-1">
               ชื่อที่แสดง (Display Name)
             </label>
             <input
@@ -130,27 +129,28 @@ export default function ProfilePage() {
               onChange={(e) =>
                 setProfile({ ...profile, display_name: e.target.value })
               }
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-accent focus:outline-none"
+              // 🔥 แก้: Input พื้นหลังสี surface, ตัวหนังสือ text-primary
+              className="w-full px-4 py-2 bg-surface border border-border rounded-lg text-primary focus:border-accent focus:outline-none transition-colors"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-primary mb-1">
               ตำแหน่งหลัก (Main Role)
             </label>
             <input
               type="text"
               disabled
               value={profile.main_role}
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-500 uppercase"
+              className="w-full px-4 py-2 bg-surface-subtle border border-border rounded-lg text-primary-light uppercase"
             />
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-primary-light mt-1">
               หากต้องการเปลี่ยนตำแหน่ง กรุณาติดต่อ Admin
             </p>
           </div>
           <div className="pt-2 text-right">
             <button
               disabled={loading}
-              className="bg-accent text-white px-4 py-2 rounded-lg hover:bg-accent-hover disabled:opacity-50 flex items-center gap-2 ml-auto"
+              className="bg-accent text-white px-4 py-2 rounded-lg hover:bg-accent-hover disabled:opacity-50 flex items-center gap-2 ml-auto shadow-sm transition-all active:scale-95"
             >
               {loading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -164,29 +164,34 @@ export default function ProfilePage() {
       </div>
 
       {/* --- ส่วนที่ 2: เปลี่ยนรหัสผ่าน --- */}
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-        <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+      <div className="bg-surface p-6 rounded-2xl shadow-sm border border-border">
+        <h2 className="text-lg font-bold text-primary mb-4 flex items-center gap-2">
           <Lock className="w-5 h-5 text-orange-500" /> เปลี่ยนรหัสผ่าน
         </h2>
+
+        {/* 🔥 แก้: Alert Box สี Dark Mode */}
         {msg.text && (
           <div
-            className={`p-4 rounded-xl flex items-center gap-3 my-2 ${
+            className={`p-4 rounded-xl flex items-center gap-3 my-2 border ${
               msg.type === "success"
-                ? "bg-green-50 text-green-700 border border-green-200"
-                : "bg-red-50 text-red-700 border border-red-200"
+                ? "bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800"
+                : "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800"
             }`}
           >
             {msg.type === "success" ? (
               <CheckCircle2 className="w-5 h-5" />
             ) : (
-              <div className="w-5 h-5 font-bold">!</div>
+              <div className="w-5 h-5 font-bold flex items-center justify-center">
+                !
+              </div>
             )}
             {msg.text}
           </div>
         )}
+
         <form onSubmit={handleChangePassword} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-primary mb-1">
               รหัสผ่านใหม่
             </label>
             <input
@@ -195,12 +200,12 @@ export default function ProfilePage() {
               onChange={(e) =>
                 setPasswords({ ...passwords, new: e.target.value })
               }
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+              className="w-full px-4 py-2 bg-surface border border-border rounded-lg text-primary focus:border-orange-500 focus:outline-none placeholder:text-primary-light/50 transition-colors"
               placeholder="••••••••"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-primary mb-1">
               ยืนยันรหัสผ่านใหม่
             </label>
             <input
@@ -209,14 +214,14 @@ export default function ProfilePage() {
               onChange={(e) =>
                 setPasswords({ ...passwords, confirm: e.target.value })
               }
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+              className="w-full px-4 py-2 bg-surface border border-border rounded-lg text-primary focus:border-orange-500 focus:outline-none placeholder:text-primary-light/50 transition-colors"
               placeholder="••••••••"
             />
           </div>
           <div className="pt-2 text-right">
             <button
               disabled={loading}
-              className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 disabled:opacity-50 flex items-center gap-2 ml-auto"
+              className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 disabled:opacity-50 flex items-center gap-2 ml-auto shadow-sm transition-all active:scale-95"
             >
               {loading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

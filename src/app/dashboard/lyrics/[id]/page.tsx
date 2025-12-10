@@ -1,8 +1,8 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import Link from "next/link";
 import {
   ArrowLeft,
   Save,
@@ -16,11 +16,11 @@ import {
   ExternalLink,
   Music,
   PlusCircle,
-  Minus, // 🔥 เพิ่มไอคอน Minus สำหรับตัวคั่น
+  Minus,
   CheckCircle2,
   AlertTriangle,
   X,
-  Mic2, // เพิ่มไอคอนไมค์สำหรับปุ่ม Singer View
+  Mic2,
 } from "lucide-react";
 import {
   DragDropContext,
@@ -29,12 +29,25 @@ import {
   DropResult,
 } from "@hello-pangea/dnd";
 
-// 🔥 เปลี่ยนมาใช้ LyricEditor ตัวใหม่ที่แยกไฟล์แล้ว
+// Import Sub-components
 import LyricEditor, {
   LyricBlock,
   ReferenceLink,
+  Member, // เพิ่ม Import Member เพื่อให้ type ตรงกัน
 } from "@/components/lyrics/LyricEditor";
 import ReferenceList from "@/components/lyrics/ReferenceList";
+
+// --- Interface for Raw Data (Supabase) ---
+interface ProjectMemberResponse {
+  user_id: string;
+  roles: string[];
+  assigned_color: string;
+  profiles: {
+    id: string;
+    display_name: string;
+    avatar_url: string | null;
+  } | null;
+}
 
 // --- Helper Functions ---
 const getYouTubeID = (url: string) => {
@@ -51,7 +64,6 @@ const calculateMaxWidth = () => {
   return 400;
 };
 
-// 🔥 Update createBlock ให้รองรับ separator
 const createBlock = (
   type: "lyrics" | "interlude" | "separator"
 ): LyricBlock => ({
@@ -77,8 +89,6 @@ export default function ScriptEditPage() {
   const [blocks, setBlocks] = useState<LyricBlock[]>([]);
   const [title, setTitle] = useState("");
   const [projectId, setProjectId] = useState<number | null>(null);
-
-  // ❌ ลบ state members ออกแล้ว เพราะไม่ได้ใช้ในหน้านี้ (ใช้ใน ArrangementTab แทน)
 
   const [isSaving, setIsSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -258,7 +268,6 @@ export default function ScriptEditPage() {
     }
   };
 
-  // 🔥 Update addBlock ให้รองรับ separator
   const addBlock = (
     type: "lyrics" | "interlude" | "separator",
     index?: number
@@ -317,31 +326,33 @@ export default function ScriptEditPage() {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
+      <div className="h-screen flex items-center justify-center bg-surface-subtle">
         <Loader2 className="animate-spin text-accent w-10 h-10" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-gray-50 relative">
+    // 🔥 พื้นหลังหลัก: bg-surface-subtle
+    <div className="flex flex-col h-screen overflow-hidden bg-surface-subtle relative">
       {/* Alert Modal */}
       {alertConfig.show && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-gray-100 scale-100 animate-in zoom-in-95 duration-200 relative">
+          {/* 🔥 Modal: bg-surface, border-border */}
+          <div className="bg-surface w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-border scale-100 animate-in zoom-in-95 duration-200 relative">
             <button
               onClick={() =>
                 setAlertConfig((prev) => ({ ...prev, show: false }))
               }
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+              className="absolute top-4 right-4 text-primary-light hover:text-primary"
             >
               <X className="w-5 h-5" />
             </button>
             <div
               className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${
                 alertConfig.type === "success"
-                  ? "bg-green-100 text-green-600"
-                  : "bg-red-100 text-red-600"
+                  ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400"
+                  : "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
               }`}
             >
               {alertConfig.type === "success" ? (
@@ -350,10 +361,12 @@ export default function ScriptEditPage() {
                 <AlertTriangle className="w-6 h-6" />
               )}
             </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">
+            <h3 className="text-lg font-bold text-primary mb-2">
               {alertConfig.title}
             </h3>
-            <p className="text-sm text-gray-500 mb-6">{alertConfig.message}</p>
+            <p className="text-sm text-primary-light mb-6">
+              {alertConfig.message}
+            </p>
             <button
               onClick={() =>
                 setAlertConfig((prev) => ({ ...prev, show: false }))
@@ -371,11 +384,12 @@ export default function ScriptEditPage() {
       )}
 
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center z-50 shadow-sm flex-shrink-0">
+      {/* 🔥 Header: bg-surface, border-border */}
+      <header className="bg-surface border-b border-border px-6 py-3 flex justify-between items-center z-50 shadow-sm flex-shrink-0">
         <div className="flex items-center gap-4 flex-1">
           <Link
             href="/dashboard/lyrics"
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 text-primary-light hover:text-primary hover:bg-surface-subtle rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </Link>
@@ -383,13 +397,13 @@ export default function ScriptEditPage() {
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="text-xl font-bold text-gray-900 bg-transparent outline-none placeholder:text-gray-300 w-full"
+            className="text-xl font-bold text-primary bg-transparent outline-none placeholder:text-primary-light/50 w-full"
             placeholder="ตั้งชื่อเพลง..."
           />
         </div>
         <div className="flex items-center gap-3 text-xs">
           {lastSaved && (
-            <span className="text-gray-400 hidden sm:inline">
+            <span className="text-primary-light hidden sm:inline">
               บันทึกเมื่อ {lastSaved.toLocaleTimeString("th-TH")}
             </span>
           )}
@@ -398,7 +412,7 @@ export default function ScriptEditPage() {
           <Link
             href={`/singer/${id}`}
             target="_blank"
-            className="flex items-center gap-2 px-3 py-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-all font-bold"
+            className="flex items-center gap-2 px-3 py-2 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-300 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-all font-bold"
           >
             <Mic2 className="w-4 h-4" />
             <span className="hidden sm:inline">โหมดนักร้อง</span>
@@ -422,16 +436,17 @@ export default function ScriptEditPage() {
       {/* Body Container */}
       <div className="flex flex-1 overflow-hidden relative">
         {/* Left Side */}
-        <div className="flex-1 flex flex-col bg-gray-50/50 overflow-hidden relative">
+        {/* 🔥 พื้นหลังเนื้อหา: bg-surface-subtle */}
+        <div className="flex-1 flex flex-col bg-surface-subtle/50 overflow-hidden relative">
           {/* Sub Tabs */}
-          <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-sm border-b border-gray-200 px-6 py-2 flex items-center justify-between">
+          <div className="sticky top-0 z-30 bg-surface/80 backdrop-blur-sm border-b border-border px-6 py-2 flex items-center justify-between">
             <div className="flex gap-1">
               <button
                 onClick={() => setActiveSubTab("script")}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
                   activeSubTab === "script"
-                    ? "bg-white text-gray-900 shadow-sm ring-1 ring-gray-200"
-                    : "text-gray-500 hover:bg-gray-200/50"
+                    ? "bg-surface text-primary shadow-sm ring-1 ring-border"
+                    : "text-primary-light hover:bg-surface-subtle"
                 }`}
               >
                 <FileText className="w-4 h-4" /> เนื้อเพลง
@@ -440,8 +455,8 @@ export default function ScriptEditPage() {
                 onClick={() => setActiveSubTab("refs")}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
                   activeSubTab === "refs"
-                    ? "bg-white text-purple-600 shadow-sm ring-1 ring-purple-100"
-                    : "text-gray-500 hover:bg-gray-200/50"
+                    ? "bg-surface text-purple-600 dark:text-purple-300 shadow-sm ring-1 ring-purple-100 dark:ring-purple-900"
+                    : "text-primary-light hover:bg-surface-subtle"
                 }`}
               >
                 <LinkIcon className="w-4 h-4" /> ลิงก์ทั่วไป
@@ -481,7 +496,6 @@ export default function ScriptEditPage() {
                                 <LyricEditor
                                   index={index}
                                   block={block}
-                                  // ❌ members ไม่ต้องส่งแล้ว
                                   onUpdate={(data) => updateBlock(index, data)}
                                   onDelete={() => deleteBlock(index)}
                                   onDuplicate={() => duplicateBlock(index)}
@@ -490,14 +504,14 @@ export default function ScriptEditPage() {
                                   dragHandleProps={provided.dragHandleProps}
                                 />
 
-                                {/* Insert Button */}
+                                {/* Insert Button (Hover) */}
                                 <div className="absolute left-0 right-0 -bottom-6 h-8 z-10 flex items-center justify-center opacity-0 group-hover/block:opacity-100 transition-all duration-200 pointer-events-none group-hover/block:pointer-events-auto">
-                                  <div className="flex items-center gap-2 transform scale-75 hover:scale-100 transition-transform bg-gray-50/80 px-3 py-1 rounded-full backdrop-blur-sm border border-gray-200 shadow-sm">
+                                  <div className="flex items-center gap-2 transform scale-75 hover:scale-100 transition-transform bg-surface-subtle/80 px-3 py-1 rounded-full backdrop-blur-sm border border-border shadow-sm">
                                     <button
                                       onClick={() =>
                                         addBlock("lyrics", index + 1)
                                       }
-                                      className="flex items-center gap-1 px-3 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded-full text-xs font-bold hover:bg-blue-100 shadow-sm transition-colors"
+                                      className="flex items-center gap-1 px-3 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-300 rounded-full text-xs font-bold hover:bg-blue-100 shadow-sm transition-colors"
                                       title="แทรกเนื้อร้อง"
                                     >
                                       <PlusCircle className="w-3 h-3" />{" "}
@@ -507,17 +521,16 @@ export default function ScriptEditPage() {
                                       onClick={() =>
                                         addBlock("interlude", index + 1)
                                       }
-                                      className="flex items-center gap-1 px-3 py-1 bg-orange-50 border border-orange-200 text-orange-600 rounded-full text-xs font-bold hover:bg-orange-100 shadow-sm transition-colors"
+                                      className="flex items-center gap-1 px-3 py-1 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-300 rounded-full text-xs font-bold hover:bg-orange-100 shadow-sm transition-colors"
                                       title="แทรกดนตรี"
                                     >
                                       <Music className="w-3 h-3" /> ดนตรี
                                     </button>
-                                    {/* 🔥 เพิ่มปุ่มตัวคั่นตรงนี้ */}
                                     <button
                                       onClick={() =>
                                         addBlock("separator", index + 1)
                                       }
-                                      className="flex items-center gap-1 px-3 py-1 bg-gray-100 border border-gray-300 text-gray-600 rounded-full text-xs font-bold hover:bg-gray-200 shadow-sm transition-colors"
+                                      className="flex items-center gap-1 px-3 py-1 bg-surface-subtle border border-border text-primary-light rounded-full text-xs font-bold hover:bg-surface shadow-sm transition-colors"
                                       title="แทรกตัวคั่น"
                                     >
                                       <Minus className="w-3 h-3" /> ตัวคั่น
@@ -538,7 +551,7 @@ export default function ScriptEditPage() {
                 <div className="grid grid-cols-3 gap-4 mt-8">
                   <button
                     onClick={() => addBlock("lyrics")}
-                    className="py-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:text-accent hover:border-accent/50 hover:bg-white transition-all flex flex-col items-center justify-center gap-2"
+                    className="py-4 border-2 border-dashed border-border rounded-xl text-primary-light hover:text-accent hover:border-accent/50 hover:bg-surface transition-all flex flex-col items-center justify-center gap-2"
                   >
                     <Plus className="w-6 h-6" />
                     <span className="text-sm font-medium">
@@ -547,14 +560,14 @@ export default function ScriptEditPage() {
                   </button>
                   <button
                     onClick={() => addBlock("interlude")}
-                    className="py-4 border-2 border-dashed border-purple-200 rounded-xl text-gray-400 hover:text-purple-500 hover:border-purple-200 hover:bg-purple-50 transition-all flex flex-col items-center justify-center gap-2"
+                    className="py-4 border-2 border-dashed border-purple-200 dark:border-purple-800 rounded-xl text-primary-light hover:text-purple-500 dark:hover:text-purple-300 hover:border-purple-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all flex flex-col items-center justify-center gap-2"
                   >
                     <Music className="w-6 h-6" />
                     <span className="text-sm font-medium">เพิ่มท่อนดนตรี</span>
                   </button>
                   <button
                     onClick={() => addBlock("separator")}
-                    className="py-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-400 hover:text-gray-700 hover:border-gray-400 hover:bg-gray-50 transition-all flex flex-col items-center justify-center gap-2"
+                    className="py-4 border-2 border-dashed border-border rounded-xl text-primary-light hover:text-primary hover:border-border hover:bg-surface-subtle transition-all flex flex-col items-center justify-center gap-2"
                   >
                     <Minus className="w-6 h-6" />
                     <span className="text-sm font-medium">เพิ่มตัวคั่น</span>
@@ -567,20 +580,20 @@ export default function ScriptEditPage() {
             {activeSubTab === "refs" && (
               <div className="max-w-4xl mx-auto space-y-6">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-primary flex items-center gap-2">
                     <LinkIcon className="w-5 h-5 text-purple-500" />{" "}
                     ลิงก์อ้างอิงทั่วไป
                   </h2>
                   <button
                     onClick={() => setIsAddingLink(true)}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-900 text-white rounded-lg text-sm font-bold shadow-sm transition-all"
+                    className="flex items-center gap-2 px-3 py-1.5 bg-primary text-surface hover:opacity-90 rounded-lg text-sm font-bold shadow-sm transition-all"
                   >
                     <Plus className="w-4 h-4" /> เพิ่มลิงก์
                   </button>
                 </div>
 
                 {isAddingLink && (
-                  <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-lg animate-in fade-in slide-in-from-top-2">
+                  <div className="bg-surface p-5 rounded-xl border border-border shadow-lg animate-in fade-in slide-in-from-top-2">
                     <form
                       onSubmit={handleAddLink}
                       className="flex flex-col gap-3"
@@ -589,7 +602,7 @@ export default function ScriptEditPage() {
                         autoFocus
                         type="text"
                         placeholder="ชื่อลิงก์..."
-                        className="px-4 py-2 border border-gray-200 rounded-lg outline-none focus:border-accent text-sm"
+                        className="px-4 py-2 border border-border bg-surface-subtle rounded-lg outline-none focus:border-accent text-sm text-primary"
                         value={newLink.title}
                         onChange={(e) =>
                           setNewLink({ ...newLink, title: e.target.value })
@@ -598,7 +611,7 @@ export default function ScriptEditPage() {
                       <input
                         type="url"
                         placeholder="URL (https://...)"
-                        className="px-4 py-2 border border-gray-200 rounded-lg outline-none focus:border-accent text-sm"
+                        className="px-4 py-2 border border-border bg-surface-subtle rounded-lg outline-none focus:border-accent text-sm text-primary"
                         value={newLink.url}
                         onChange={(e) =>
                           setNewLink({ ...newLink, url: e.target.value })
@@ -608,13 +621,13 @@ export default function ScriptEditPage() {
                         <button
                           type="button"
                           onClick={() => setIsAddingLink(false)}
-                          className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-lg text-sm"
+                          className="px-4 py-2 text-primary-light hover:bg-surface-subtle rounded-lg text-sm"
                         >
                           ยกเลิก
                         </button>
                         <button
                           type="submit"
-                          className="px-4 py-2 bg-gray-800 text-white font-bold rounded-lg hover:bg-gray-900 text-sm"
+                          className="px-4 py-2 bg-primary text-surface font-bold rounded-lg hover:opacity-90 text-sm"
                         >
                           เพิ่มลิงก์
                         </button>
@@ -638,38 +651,39 @@ export default function ScriptEditPage() {
         {/* Resizer */}
         <div
           onMouseDown={startResizing}
-          className={`w-1.5 cursor-col-resize bg-gray-200 hover:bg-blue-300 transition-colors z-40 flex items-center justify-center group ${
+          className={`w-1.5 cursor-col-resize bg-border hover:bg-accent/50 transition-colors z-40 flex items-center justify-center group ${
             isResizing ? "bg-accent" : ""
           }`}
         >
           <div
-            className={`h-8 w-1 bg-gray-400 rounded-full transition-colors ${
-              isResizing ? "bg-white" : "group-hover:bg-white"
+            className={`h-8 w-1 bg-primary-light/50 rounded-full transition-colors ${
+              isResizing ? "bg-surface" : "group-hover:bg-surface"
             }`}
           />
         </div>
 
         {/* Right Sidebar (YouTube) */}
+        {/* 🔥 Sidebar: bg-surface */}
         <div
           ref={sidebarRef}
           style={{ width: sidebarWidth }}
-          className="bg-white border-l border-gray-200 flex-shrink-0 flex flex-col shadow-xl z-30 h-full overflow-hidden"
+          className="bg-surface border-l border-border flex-shrink-0 flex flex-col shadow-xl z-30 h-full overflow-hidden"
         >
-          <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center flex-shrink-0">
-            <h3 className="font-bold text-red-600 flex items-center gap-2">
+          <div className="p-4 border-b border-border bg-surface-subtle/50 flex justify-between items-center flex-shrink-0">
+            <h3 className="font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
               <Youtube className="w-5 h-5" /> YouTube
             </h3>
             <div className="flex items-center gap-1">
               <button
                 onClick={handleResetWidth}
-                className="p-1.5 hover:bg-gray-200 rounded-lg text-gray-500"
+                className="p-1.5 hover:bg-surface-subtle rounded-lg text-primary-light"
                 title="รีเซ็ตความกว้าง"
               >
                 <RotateCcw className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setIsAddingLink(true)}
-                className="p-1.5 hover:bg-red-100 text-red-500 rounded-lg"
+                className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 dark:text-red-400 rounded-lg"
                 title="เพิ่มคลิป"
               >
                 <Plus className="w-5 h-5" />
@@ -678,13 +692,13 @@ export default function ScriptEditPage() {
           </div>
 
           {isAddingLink && activeSubTab === "script" && (
-            <div className="p-4 border-b border-red-100 bg-red-50 animate-in fade-in">
+            <div className="p-4 border-b border-red-100 dark:border-red-900/30 bg-red-50 dark:bg-red-900/10 animate-in fade-in">
               <form onSubmit={handleAddLink} className="flex flex-col gap-2">
                 <input
                   autoFocus
                   type="text"
                   placeholder="ชื่อคลิป..."
-                  className="w-full text-sm px-2 py-1.5 bg-transparent border-b border-red-200 outline-none text-red-900"
+                  className="w-full text-sm px-2 py-1.5 bg-transparent border-b border-red-200 dark:border-red-800 outline-none text-red-900 dark:text-red-200 placeholder:text-red-300"
                   value={newLink.title}
                   onChange={(e) =>
                     setNewLink({ ...newLink, title: e.target.value })
@@ -693,7 +707,7 @@ export default function ScriptEditPage() {
                 <input
                   type="url"
                   placeholder="YouTube URL..."
-                  className="w-full text-sm mb-3 px-2 py-1 bg-transparent border-b border-red-200 outline-none text-red-600"
+                  className="w-full text-sm mb-3 px-2 py-1 bg-transparent border-b border-red-200 dark:border-red-800 outline-none text-red-600 dark:text-red-400 placeholder:text-red-300"
                   value={newLink.url}
                   onChange={(e) =>
                     setNewLink({ ...newLink, url: e.target.value })
@@ -707,7 +721,10 @@ export default function ScriptEditPage() {
                   >
                     ยกเลิก
                   </button>
-                  <button type="submit" className="text-red-700 font-bold">
+                  <button
+                    type="submit"
+                    className="text-red-700 dark:text-red-300 font-bold"
+                  >
                     เพิ่มคลิป
                   </button>
                 </div>
@@ -715,7 +732,7 @@ export default function ScriptEditPage() {
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-gray-50/30">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-surface-subtle/30">
             <ReferenceList
               links={youtubeLinks}
               onDelete={handleDeleteLink}

@@ -24,7 +24,7 @@ export default function TaskModal({
   const [title, setTitle] = useState(task.title || "");
   const [description, setDescription] = useState(task.description || "");
 
-  // 🔥 แก้ไข 1: แปลงวันที่จาก UTC (DB) เป็น Local Time สำหรับ input
+  // แปลงวันที่จาก UTC (DB) เป็น Local Time สำหรับ input
   const formatToLocalDatetime = (isoString: string) => {
     if (!isoString) return "";
     const date = new Date(isoString);
@@ -59,7 +59,7 @@ export default function TaskModal({
     if (field === "title") setTitle(value);
     if (field === "description") setDescription(value);
 
-    // 🔥 แก้ไข 2: แปลงค่าจาก Input กลับเป็น UTC ISO String ก่อนส่ง DB
+    // แปลงค่าจาก Input กลับเป็น UTC ISO String ก่อนส่ง DB
     if (field === "due_date") {
       setDueDate(value);
       if (value) {
@@ -115,14 +115,15 @@ export default function TaskModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in zoom-in-95 duration-200">
-      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in zoom-in-95 duration-200">
+      {/* 🔥 แก้: bg-white -> bg-surface */}
+      <div className="bg-surface w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-border">
         {/* Header */}
         <div className="p-5 border-b border-border flex justify-between items-start bg-surface-subtle">
           <div className="flex-1 mr-4">
             <input
               type="text"
-              className="w-full bg-transparent font-bold text-xl text-primary outline-none border-none placeholder:text-gray-400"
+              className="w-full bg-transparent font-bold text-xl text-primary outline-none border-none placeholder:text-primary-light/50"
               value={title}
               onChange={(e) => handleUpdateTask("title", e.target.value)}
             />
@@ -130,8 +131,8 @@ export default function TaskModal({
               <span
                 className={`px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider border ${
                   task.status === "revision"
-                    ? "bg-red-100 text-red-700 border-red-200"
-                    : "bg-gray-100 text-primary-light border-border"
+                    ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800"
+                    : "bg-surface text-primary-light border-border"
                 }`}
               >
                 {task.status}
@@ -141,13 +142,13 @@ export default function TaskModal({
           <div className="flex items-center gap-1">
             <button
               onClick={onDelete}
-              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              className="p-2 text-primary-light hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
             >
               <Trash2 className="w-5 h-5" />
             </button>
             <button
               onClick={onClose}
-              className="p-2 text-gray-400 hover:text-primary-light hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 text-primary-light hover:text-primary hover:bg-surface rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -156,14 +157,14 @@ export default function TaskModal({
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Date Picker (แก้แล้ว) */}
+            {/* Date Picker */}
             <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1">
+              <label className="text-xs font-bold text-primary-light uppercase flex items-center gap-1">
                 <Calendar className="w-3 h-3" /> Deadline
               </label>
               <input
                 type="datetime-local"
-                className="w-full p-2.5 bg-white border border-border rounded-xl text-sm outline-none focus:border-accent"
+                className="w-full p-2.5 bg-surface border border-border rounded-xl text-sm text-primary outline-none focus:border-accent [color-scheme:light] dark:[color-scheme:dark]"
                 value={dueDate}
                 onChange={(e) => handleUpdateTask("due_date", e.target.value)}
               />
@@ -171,7 +172,7 @@ export default function TaskModal({
 
             {/* Assignees */}
             <div className="space-y-2 relative">
-              <label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1">
+              <label className="text-xs font-bold text-primary-light uppercase flex items-center gap-1">
                 <UserIcon className="w-3 h-3" /> ผู้รับผิดชอบ
               </label>
               <div className="flex flex-wrap gap-2">
@@ -181,9 +182,9 @@ export default function TaskModal({
                   return (
                     <div
                       key={id}
-                      className="flex items-center gap-1 pl-1 pr-2 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-full text-xs font-bold"
+                      className="flex items-center gap-1 pl-1 pr-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800 rounded-full text-xs font-bold"
                     >
-                      <div className="w-5 h-5 rounded-full bg-blue-200 flex items-center justify-center text-[9px]">
+                      <div className="w-5 h-5 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center text-[9px]">
                         {member.display_name?.substring(0, 2).toUpperCase()}
                       </div>
                       {member.display_name}
@@ -198,14 +199,14 @@ export default function TaskModal({
                 })}
                 <button
                   onClick={() => setShowMemberSelect(!showMemberSelect)}
-                  className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-500 border border-border rounded-full text-xs hover:bg-gray-200 transition-colors"
+                  className="flex items-center gap-1 px-2 py-1 bg-surface-subtle text-primary-light border border-border rounded-full text-xs hover:bg-surface transition-colors"
                 >
                   <Plus className="w-3 h-3" /> เพิ่มคน
                 </button>
               </div>
 
               {showMemberSelect && (
-                <div className="absolute top-full left-0 mt-2 w-full bg-white border border-border rounded-xl shadow-xl z-10 overflow-hidden p-1">
+                <div className="absolute top-full left-0 mt-2 w-full bg-surface border border-border rounded-xl shadow-xl z-10 overflow-hidden p-1">
                   {members.map((m: any) => {
                     const isSelected = assignedTo.includes(m.id);
                     return (
@@ -214,12 +215,12 @@ export default function TaskModal({
                         onClick={() => toggleAssignee(m.id)}
                         className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors ${
                           isSelected
-                            ? "bg-blue-50 text-blue-700 font-bold"
-                            : "hover:bg-surface-subtle text-gray-700"
+                            ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold"
+                            : "hover:bg-surface-subtle text-primary"
                         }`}
                       >
                         <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] text-primary-light font-bold">
+                          <div className="w-6 h-6 rounded-full bg-surface-subtle flex items-center justify-center text-[10px] text-primary-light font-bold border border-border">
                             {m.display_name?.substring(0, 2).toUpperCase()}
                           </div>
                           {m.display_name}
@@ -240,12 +241,12 @@ export default function TaskModal({
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-bold text-gray-500 uppercase">
+            <label className="text-xs font-bold text-primary-light uppercase">
               รายละเอียด
             </label>
             <textarea
               rows={4}
-              className="w-full p-4 bg-surface-subtle border border-border rounded-xl text-sm outline-none focus:border-accent resize-none leading-relaxed"
+              className="w-full p-4 bg-surface-subtle border border-border rounded-xl text-sm text-primary outline-none focus:border-accent resize-none leading-relaxed placeholder:text-primary-light/50"
               placeholder="ใส่รายละเอียดงาน..."
               value={description}
               onChange={(e) => handleUpdateTask("description", e.target.value)}
@@ -256,27 +257,27 @@ export default function TaskModal({
             <h4 className="text-sm font-bold text-primary mb-4">
               💬 ความคิดเห็น
             </h4>
-            <div className="space-y-4 mb-4 max-h-60 overflow-y-auto">
+            <div className="space-y-4 mb-4 max-h-60 overflow-y-auto custom-scrollbar">
               {comments.length === 0 && (
-                <p className="text-center text-gray-400 text-xs py-4">
+                <p className="text-center text-primary-light text-xs py-4">
                   ยังไม่มีคอมเมนต์
                 </p>
               )}
               {comments.map((c) => (
                 <div key={c.id} className="flex gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-primary-light font-bold text-xs flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-surface-subtle border border-border flex items-center justify-center text-primary-light font-bold text-xs flex-shrink-0">
                     {c.profiles?.display_name?.substring(0, 2).toUpperCase()}
                   </div>
-                  <div className="bg-surface-subtle p-3 rounded-2xl rounded-tl-none text-sm border border-border">
+                  <div className="bg-surface-subtle p-3 rounded-2xl rounded-tl-none text-sm border border-border flex-1">
                     <div className="flex justify-between items-center gap-4 mb-1">
                       <span className="font-bold text-primary text-xs">
                         {c.profiles?.display_name}
                       </span>
-                      <span className="text-[10px] text-gray-400">
+                      <span className="text-[10px] text-primary-light">
                         {new Date(c.created_at).toLocaleString("th-TH")}
                       </span>
                     </div>
-                    <p className="text-gray-700">{c.content}</p>
+                    <p className="text-primary-light">{c.content}</p>
                   </div>
                 </div>
               ))}
@@ -284,7 +285,7 @@ export default function TaskModal({
             <form onSubmit={handleSendComment} className="flex gap-2">
               <input
                 type="text"
-                className="flex-1 px-4 py-2 border border-border rounded-xl text-sm focus:border-accent outline-none"
+                className="flex-1 px-4 py-2 bg-surface border border-border rounded-xl text-sm text-primary focus:border-accent outline-none placeholder:text-primary-light/50"
                 placeholder="เขียนคอมเมนต์..."
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
@@ -292,7 +293,7 @@ export default function TaskModal({
               <button
                 type="submit"
                 disabled={!newComment.trim()}
-                className="bg-accent text-white p-2 rounded-xl hover:bg-accent-hover disabled:opacity-50"
+                className="bg-accent text-white p-2 rounded-xl hover:bg-accent-hover disabled:opacity-50 transition-colors"
               >
                 <Send className="w-5 h-5" />
               </button>

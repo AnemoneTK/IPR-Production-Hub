@@ -1,6 +1,7 @@
+// src/app/dashboard/projects/[slug]/page.tsx
 "use client";
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation"; // 🔥 เพิ่ม useSearchParams
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import {
@@ -25,8 +26,10 @@ import ArrangementTab from "@/components/ArrangementTab";
 export default function ProjectWorkspace() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams(); // 🔥 เรียกใช้ Hook ดึงค่าจาก URL
 
   const slug = params.slug ? decodeURIComponent(params.slug as string) : null;
+  const tabParam = searchParams.get("tab"); // 🔥 อ่านค่า tab (เช่น assets)
 
   const [loading, setLoading] = useState(true);
   const [project, setProject] = useState<any>(null);
@@ -36,6 +39,14 @@ export default function ProjectWorkspace() {
 
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // 🔥 useEffect 1: จัดการเปลี่ยน Tab ตาม URL
+  useEffect(() => {
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
+
+  // useEffect 2: โหลดข้อมูลโปรเจกต์
   useEffect(() => {
     if (!slug) return;
 
@@ -58,6 +69,14 @@ export default function ProjectWorkspace() {
 
     fetchProjectDetails();
   }, [slug, router]);
+
+  // ฟังก์ชันเปลี่ยน Tab (อัปเดต URL ด้วย เพื่อให้กด Back/Forward แล้วไม่งง)
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    // สร้าง URL ใหม่โดยเก็บ query params เดิมไว้ (ถ้าจำเป็น) หรือเปลี่ยนแค่ tab
+    // router.push ใช้ soft navigation ไม่ reload หน้า
+    router.push(`/dashboard/projects/${slug}?tab=${tab}`, { scroll: false });
+  };
 
   const handleCloseModal = () => {
     setShowMemberModal(false);
@@ -116,30 +135,29 @@ export default function ProjectWorkspace() {
       </div>
 
       {/* Tabs Navigation */}
-      {/* ปรับสีพื้นหลังแถบ Tab ให้ใช้ตัวแปร surface-subtle เพื่อรองรับ Dark Mode */}
       <div className="flex items-center gap-1 bg-surface-subtle border border-border p-1.5 rounded-xl w-fit mb-6 shadow-inner overflow-x-auto max-w-full">
         <TabButton
           active={activeTab === "board"}
-          onClick={() => setActiveTab("board")}
+          onClick={() => handleTabChange("board")} // 🔥 ใช้ฟังก์ชันใหม่
           icon={Layout}
           label="Board"
         />
         <TabButton
           active={activeTab === "assets"}
-          onClick={() => setActiveTab("assets")}
+          onClick={() => handleTabChange("assets")} // 🔥 ใช้ฟังก์ชันใหม่
           icon={FolderOpen}
           label="Files"
         />
         <TabButton
           active={activeTab === "lyrics"}
-          onClick={() => setActiveTab("lyrics")}
+          onClick={() => handleTabChange("lyrics")} // 🔥 ใช้ฟังก์ชันใหม่
           icon={Music2}
           label="Lyrics"
         />
 
         <TabButton
           active={activeTab === "arrange"}
-          onClick={() => setActiveTab("arrange")}
+          onClick={() => handleTabChange("arrange")} // 🔥 ใช้ฟังก์ชันใหม่
           icon={AudioWaveform}
           label="Arrange"
         />
@@ -148,14 +166,13 @@ export default function ProjectWorkspace() {
 
         <TabButton
           active={activeTab === "settings"}
-          onClick={() => setActiveTab("settings")}
+          onClick={() => handleTabChange("settings")} // 🔥 ใช้ฟังก์ชันใหม่
           icon={Settings}
           label="Settings"
         />
       </div>
 
       {/* Content Area */}
-      {/* ใช้ bg-surface เพื่อให้เป็นสีการ์ดในโหมดมืด */}
       <div className="flex-1 bg-surface rounded-2xl border border-border shadow-sm overflow-hidden relative flex flex-col">
         {activeTab === "board" && (
           <BoardTab key={refreshKey} projectId={project.id} />
@@ -164,6 +181,7 @@ export default function ProjectWorkspace() {
         {(activeTab === "assets" || activeTab === "settings") && (
           <div className="flex-1 overflow-y-auto">
             {activeTab === "assets" && (
+              // AssetsTab จะอ่าน folderId จาก URL เองโดยอัตโนมัติ (จากโค้ดที่เราแก้ไปก่อนหน้านี้)
               <AssetsTab key={refreshKey} projectId={project.id} />
             )}
             {activeTab === "settings" && (

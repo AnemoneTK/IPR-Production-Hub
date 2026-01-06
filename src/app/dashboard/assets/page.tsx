@@ -1,6 +1,9 @@
+// src/app/dashboard/assets/page.tsx
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 import {
   Search,
   Filter,
@@ -17,9 +20,11 @@ import {
   Check,
   X,
   AlertTriangle,
-  Eye,
   UploadCloud,
   Music,
+  CheckSquare,
+  Square,
+  Archive,
 } from "lucide-react";
 
 // Interface
@@ -32,6 +37,7 @@ interface FileData {
   created_at: string;
   projects: { title: string };
   profiles: { display_name: string };
+  project_id: number;
 }
 
 interface ProjectData {
@@ -45,6 +51,11 @@ export default function GlobalAssetsPage() {
   const [files, setFiles] = useState<FileData[]>([]);
   const [projects, setProjects] = useState<ProjectData[]>([]);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  // Selection & Zip States (🔥 เพิ่มใหม่)
+  const [selectedFileIds, setSelectedFileIds] = useState<number[]>([]);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [isZipping, setIsZipping] = useState(false);
 
   // Rename States
   const [editingItem, setEditingItem] = useState<{
@@ -130,6 +141,11 @@ export default function GlobalAssetsPage() {
     return () => clearTimeout(timeoutId);
   }, [searchTerm, selectedProject, activeTab]);
 
+  // Reset selection when changing filters
+  useEffect(() => {
+    setSelectedFileIds([]);
+  }, [selectedProject, activeTab, searchTerm]);
+
   // --- 3. Upload Logic ---
   const uploadFiles = async (fileList: FileList | File[]) => {
     if (!fileList || fileList.length === 0) return;
@@ -142,13 +158,11 @@ export default function GlobalAssetsPage() {
 
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
-
         const response = await fetch("/api/upload", {
           method: "POST",
           body: JSON.stringify({ name: file.name, type: file.type }),
         });
         const { url, fileName } = await response.json();
-
         await fetch(url, {
           method: "PUT",
           body: file,
@@ -191,9 +205,7 @@ export default function GlobalAssetsPage() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    if (e.dataTransfer.files) {
-      uploadFiles(e.dataTransfer.files);
-    }
+    if (e.dataTransfer.files) uploadFiles(e.dataTransfer.files);
   };
 
   // --- 4. Rename Logic ---
@@ -242,7 +254,22 @@ export default function GlobalAssetsPage() {
     }
   };
 
-  // --- 6. Download ---
+  // --- 6. Download Logic ---
+
+  // Helper: Fetch File Blob
+  const fetchFileBlob = async (fileKey: string, originalName: string) => {
+    const response = await fetch("/api/download", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fileKey, originalName }),
+    });
+    const { url } = await response.json();
+    if (!url) throw new Error("Cannot get signed url");
+    const fileRes = await fetch(url);
+    return await fileRes.blob();
+  };
+
+  // Download Single
   const handleDownload = async (fileKey: string, originalName: string) => {
     try {
       const response = await fetch("/api/download", {
@@ -264,13 +291,109 @@ export default function GlobalAssetsPage() {
     }
   };
 
-  // --- 7. Click/Preview Logic ---
+  // 🔥 Download Selected (Batch)
+  const handleDownloadSelected = async () => {
+    if (selectedFileIds.length === 0) return;
+    setIsZipping(true);
+    try {
+      const zip = new JSZip();
+      const filesToDownload = files.filter((f) =>
+        selectedFileIds.includes(f.id)
+      );
+
+      await Promise.all(
+        filesToDownload.map(async (file) => {
+          try {
+            const blob = await fetchFileBlob(file.file_url, file.name);
+            zip.file(file.name, blob);
+          } catch (e) {
+            console.error(`Failed to download ${file.name}`, e);
+          }
+        })
+      );
+
+      const content = await zip.generateAsync({ type: "blob" });
+      saveAs(content, `IPR_files_${new Date().getTime()}.zip`);
+      setSelectedFileIds([]);
+    } catch (error) {
+      alert("Error creating zip file");
+      console.error(error);
+    } finally {
+      setIsZipping(false);
+    }
+  };
+
+  // 🔥 Download Entire Project (All files in project)
+  const handleDownloadProject = async () => {
+    if (selectedProject === "all") return;
+    setIsZipping(true);
+    try {
+      // 1. Fetch all files for this project (ignore filters)
+      const { data: allProjectFiles } = await supabase
+        .from("files")
+        .select("*")
+        .eq("project_id", selectedProject);
+
+      if (!allProjectFiles || allProjectFiles.length === 0) {
+        alert("ไม่พบไฟล์ในโปรเจกต์นี้");
+        setIsZipping(false);
+        return;
+      }
+
+      const projectName =
+        projects.find((p) => p.id === parseInt(selectedProject))?.title ||
+        "Project";
+
+      const zip = new JSZip();
+
+      // 2. Download and Zip
+      await Promise.all(
+        allProjectFiles.map(async (file) => {
+          try {
+            const blob = await fetchFileBlob(file.file_url, file.name);
+            zip.file(file.name, blob);
+          } catch (e) {
+            console.error(`Failed to download ${file.name}`, e);
+          }
+        })
+      );
+
+      const content = await zip.generateAsync({ type: "blob" });
+      saveAs(content, `${projectName}_all_assets.zip`);
+    } catch (error) {
+      alert("Error downloading project");
+      console.error(error);
+    } finally {
+      setIsZipping(false);
+    }
+  };
+
+  // --- 7. Selection Helpers ---
+  const toggleSelectFile = (id: number) => {
+    setSelectedFileIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedFileIds.length === files.length) {
+      setSelectedFileIds([]);
+    } else {
+      setSelectedFileIds(files.map((f) => f.id));
+    }
+  };
+
+  // --- 8. Click/Preview Logic ---
   const handleFileClick = async (file: FileData) => {
+    if (isSelectionMode) {
+      toggleSelectFile(file.id);
+      return;
+    }
+
     // 🖼️ รูปภาพ
     if (file.file_type.includes("image")) {
       setIsPreviewLoading(true);
       setPreviewImage({ url: "", name: file.name });
-
       try {
         const response = await fetch("/api/download", {
           method: "POST",
@@ -282,9 +405,7 @@ export default function GlobalAssetsPage() {
         });
         const { url } = await response.json();
         if (url) setPreviewImage({ url, name: file.name });
-      } catch (error) {
-        console.error("Preview failed", error);
-        alert("เปิดรูปภาพไม่สำเร็จ");
+      } catch {
         setPreviewImage(null);
       } finally {
         setIsPreviewLoading(false);
@@ -294,7 +415,6 @@ export default function GlobalAssetsPage() {
     else if (file.file_type.includes("audio")) {
       setIsPreviewLoading(true);
       setPreviewAudio({ url: "", name: file.name });
-
       try {
         const response = await fetch("/api/get-signed-url", {
           method: "POST",
@@ -302,12 +422,8 @@ export default function GlobalAssetsPage() {
           body: JSON.stringify({ fileUrl: file.file_url }),
         });
         const { signedUrl } = await response.json();
-
         if (signedUrl) setPreviewAudio({ url: signedUrl, name: file.name });
-        else throw new Error("No signed URL");
-      } catch (error) {
-        console.error("Preview failed", error);
-        alert("เปิดไฟล์เสียงไม่สำเร็จ");
+      } catch {
         setPreviewAudio(null);
       } finally {
         setIsPreviewLoading(false);
@@ -358,28 +474,12 @@ export default function GlobalAssetsPage() {
           className="fixed inset-0 z-[100] h-screen w-screen bg-black/95 flex flex-col items-center justify-center p-4 animate-in fade-in duration-200"
           onClick={() => setPreviewImage(null)}
         >
-          <div
-            className="absolute top-4 right-4 flex items-center gap-2 z-50"
-            onClick={(e) => e.stopPropagation()}
+          <button
+            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors z-50"
+            onClick={() => setPreviewImage(null)}
           >
-            {previewImage.url && (
-              <a
-                href={previewImage.url}
-                download={previewImage.name}
-                className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
-                title="ดาวน์โหลดต้นฉบับ"
-              >
-                <Download className="w-6 h-6" />
-              </a>
-            )}
-            <button
-              className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
-              onClick={() => setPreviewImage(null)}
-            >
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-
+            <X className="w-6 h-6" />
+          </button>
           <div className="relative w-full h-full flex items-center justify-center pointer-events-none">
             {isPreviewLoading && !previewImage.url ? (
               <Loader2 className="w-12 h-12 text-white animate-spin" />
@@ -392,7 +492,6 @@ export default function GlobalAssetsPage() {
               />
             )}
           </div>
-
           <div className="absolute bottom-8 text-white font-medium text-lg drop-shadow-md bg-black/60 px-4 py-2 rounded-full max-w-[80%] truncate pointer-events-none">
             {previewImage.name}
           </div>
@@ -405,26 +504,12 @@ export default function GlobalAssetsPage() {
           className="fixed inset-0 z-[100] h-screen w-screen bg-black/95 flex flex-col items-center justify-center p-6 animate-in slide-in-from-bottom-10 duration-300"
           onClick={() => setPreviewAudio(null)}
         >
-          <div
-            className="absolute top-6 right-6 flex items-center gap-3 z-50"
-            onClick={(e) => e.stopPropagation()}
+          <button
+            onClick={() => setPreviewAudio(null)}
+            className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors z-50"
           >
-            {previewAudio.url && (
-              <a
-                href={previewAudio.url}
-                download={previewAudio.name}
-                className="p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
-              >
-                <Download className="w-6 h-6" />
-              </a>
-            )}
-            <button
-              onClick={() => setPreviewAudio(null)}
-              className="p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
-          </div>
+            <X className="w-6 h-6" />
+          </button>
 
           <div
             className="flex flex-col items-center w-full max-w-lg text-center space-y-8"
@@ -435,8 +520,6 @@ export default function GlobalAssetsPage() {
                 isPreviewLoading ? "" : "animate-spin-slow"
               }`}
             >
-              <div className="absolute inset-0 rounded-full border-2 border-white/10 m-4"></div>
-              <div className="absolute inset-0 rounded-full border border-white/5 m-8"></div>
               <div className="w-20 h-20 bg-accent rounded-full flex items-center justify-center shadow-inner">
                 <Music className="w-10 h-10 text-white" />
               </div>
@@ -444,9 +527,7 @@ export default function GlobalAssetsPage() {
 
             <div className="space-y-2 w-full px-4">
               {isPreviewLoading && !previewAudio.url ? (
-                <div className="flex justify-center">
-                  <Loader2 className="w-8 h-8 text-accent animate-spin" />
-                </div>
+                <Loader2 className="w-8 h-8 text-accent animate-spin mx-auto" />
               ) : (
                 <>
                   <h2 className="text-2xl md:text-3xl font-bold text-white truncate">
@@ -487,22 +568,86 @@ export default function GlobalAssetsPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isUploading}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-accent hover:bg-accent-hover text-white font-bold rounded-xl shadow-sm disabled:opacity-50 transition-all active:scale-95"
-        >
-          {isUploading ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : (
-            <UploadCloud className="w-5 h-5" />
+        <div className="flex items-center gap-2">
+          {/* 🔥 Selection Tools */}
+          {files.length > 0 && (
+            <button
+              onClick={() => {
+                setIsSelectionMode(!isSelectionMode);
+                setSelectedFileIds([]);
+              }}
+              className={`flex items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-xl transition-colors border ${
+                isSelectionMode
+                  ? "bg-accent/10 text-accent border-accent"
+                  : "bg-surface text-primary-light border-border hover:bg-surface-subtle hover:text-primary"
+              }`}
+            >
+              <CheckSquare className="w-4 h-4" />
+              <span className="hidden sm:inline">
+                {isSelectionMode ? "เสร็จสิ้น" : "เลือกไฟล์"}
+              </span>
+            </button>
           )}
-          <span>{isUploading ? "กำลังอัปโหลด..." : "อัปโหลดไฟล์"}</span>
-        </button>
+
+          {isSelectionMode && (
+            <>
+              <button
+                onClick={handleSelectAll}
+                className="px-3 py-2.5 text-sm font-medium text-primary-light hover:text-primary bg-surface border border-border rounded-xl"
+              >
+                All
+              </button>
+              {selectedFileIds.length > 0 && (
+                <button
+                  onClick={handleDownloadSelected}
+                  disabled={isZipping}
+                  className="flex items-center gap-2 px-3 py-2.5 text-sm font-bold text-white bg-accent rounded-xl hover:bg-accent-hover shadow-sm disabled:opacity-50"
+                >
+                  {isZipping ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
+                  โหลด ({selectedFileIds.length})
+                </button>
+              )}
+            </>
+          )}
+
+          {/* 🔥 Download Project Button */}
+          {!isSelectionMode && selectedProject !== "all" && (
+            <button
+              onClick={handleDownloadProject}
+              disabled={isZipping}
+              className="flex items-center gap-2 px-3 py-2.5 bg-surface border border-border text-primary hover:bg-surface-subtle font-medium rounded-xl shadow-sm disabled:opacity-50 transition-all"
+            >
+              {isZipping ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Archive className="w-4 h-4" />
+              )}
+              <span className="hidden sm:inline">โหลดทั้งโปรเจกต์</span>
+            </button>
+          )}
+
+          {!isSelectionMode && (
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-accent hover:bg-accent-hover text-white font-bold rounded-xl shadow-sm disabled:opacity-50 transition-all active:scale-95"
+            >
+              {isUploading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <UploadCloud className="w-5 h-5" />
+              )}
+              <span className="hidden sm:inline">อัปโหลด</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* --- Filter Bar --- */}
-      {/* 🔥 แก้: bg-white -> bg-surface, border-gray... -> border-border */}
       <div className="bg-surface p-4 rounded-2xl shadow-sm border border-border flex flex-col xl:flex-row gap-4 items-center justify-between sticky top-2 z-20">
         <div className="flex bg-surface-subtle border border-border p-1 rounded-xl w-full xl:w-auto overflow-x-auto pb-1 xl:pb-1 no-scrollbar">
           {[
@@ -589,217 +734,50 @@ export default function GlobalAssetsPage() {
           {/* 🔥 GRID MODE */}
           {viewMode === "grid" && (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {files.map((file) => (
-                <div
-                  key={file.id}
-                  className="group bg-surface p-3 md:p-4 rounded-xl border border-border hover:border-accent/50 hover:shadow-md dark:hover:shadow-none transition-all flex flex-col relative"
-                >
-                  {/* Thumbnail */}
+              {files.map((file) => {
+                const isSelected = selectedFileIds.includes(file.id);
+                return (
                   <div
-                    className="h-32 md:h-40 bg-surface-subtle rounded-lg mb-3 flex items-center justify-center overflow-hidden relative border border-border cursor-pointer"
-                    onClick={() => handleFileClick(file)}
+                    key={file.id}
+                    className={`group bg-surface p-3 md:p-4 rounded-xl border hover:shadow-md transition-all flex flex-col relative ${
+                      isSelected
+                        ? "border-accent ring-1 ring-accent"
+                        : "border-border hover:border-accent/50"
+                    }`}
                   >
-                    <FileThumbnail file={file} />
-
-                    {/* Desktop Overlay */}
+                    {/* Thumbnail */}
                     <div
-                      className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex items-center justify-center gap-2 backdrop-blur-sm"
-                      onClick={(e) => e.stopPropagation()}
+                      className="h-32 md:h-40 bg-surface-subtle rounded-lg mb-3 flex items-center justify-center overflow-hidden relative border border-border cursor-pointer"
+                      onClick={() => handleFileClick(file)}
                     >
-                      <button
-                        onClick={() => handleDownload(file.file_url, file.name)}
-                        className="p-2 bg-surface rounded-full text-primary hover:bg-surface-subtle"
-                        title="ดาวน์โหลด"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
+                      <FileThumbnail file={file} />
 
-                      <button
-                        onClick={() =>
-                          setEditingItem({ id: file.id, name: file.name })
-                        }
-                        className="p-2 bg-surface rounded-full text-accent hover:bg-surface-subtle"
-                        title="เปลี่ยนชื่อ"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() =>
-                          setDeleteTarget({
-                            id: file.id,
-                            name: file.name,
-                            key: file.file_url,
-                          })
-                        }
-                        className="p-2 bg-surface rounded-full text-red-500 hover:bg-surface-subtle"
-                        title="ลบ"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
+                      {/* 🔥 Selection Checkbox (Overlay) */}
+                      {isSelectionMode && (
+                        <div className="absolute top-2 left-2 z-20">
+                          <div
+                            className={`w-5 h-5 rounded border bg-surface flex items-center justify-center ${
+                              isSelected
+                                ? "bg-accent border-accent text-white"
+                                : "border-border"
+                            }`}
+                          >
+                            {isSelected && <Check className="w-3 h-3" />}
+                          </div>
+                        </div>
+                      )}
 
-                  {/* File Info */}
-                  <div className="flex-1 min-w-0">
-                    {editingItem?.id === file.id ? (
-                      <form
-                        onSubmit={handleRename}
-                        className="flex items-center gap-1 mb-1"
-                      >
-                        <input
-                          autoFocus
-                          type="text"
-                          className="w-full text-xs p-1 border border-accent bg-surface text-primary rounded outline-none"
-                          value={editingItem.name}
-                          onChange={(e) =>
-                            setEditingItem({
-                              ...editingItem,
-                              name: e.target.value,
-                            })
-                          }
-                          onBlur={() => handleRename()}
-                        />
-                      </form>
-                    ) : (
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <h3
-                          className="font-semibold text-primary text-sm truncate cursor-pointer hover:text-accent"
-                          title={file.name}
-                          onClick={() => handleFileClick(file)}
-                        >
-                          {file.name}
-                        </h3>
-                        <span className="text-[10px] bg-surface-subtle text-primary-light border border-border px-1.5 py-0.5 rounded uppercase flex-shrink-0 hidden sm:inline">
-                          {file.file_type.split("/")[1] || "FILE"}
-                        </span>
-                      </div>
-                    )}
-                    <p className="text-xs text-primary-light truncate mb-1 flex items-center gap-1">
-                      📁 {file.projects?.title}
-                    </p>
-                    <div className="hidden md:flex items-center justify-between text-[10px] text-primary-light border-t border-border pt-2 mt-auto">
-                      <span>{file.profiles?.display_name}</span>
-                      <span>{formatSize(file.size)}</span>
-                    </div>
-                    {/* Mobile Actions */}
-                    <div className="md:hidden flex justify-between items-center mt-2 pt-2 border-t border-border">
-                      <button
-                        onClick={() => handleDownload(file.file_url, file.name)}
-                        className="text-primary-light p-2 hover:bg-surface-subtle rounded"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() =>
-                          setEditingItem({ id: file.id, name: file.name })
-                        }
-                        className="text-accent p-2 hover:bg-surface-subtle rounded"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() =>
-                          setDeleteTarget({
-                            id: file.id,
-                            name: file.name,
-                            key: file.file_url,
-                          })
-                        }
-                        className="text-red-500 p-2 hover:bg-surface-subtle rounded"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {viewMode === "list" && (
-            <div className="bg-surface rounded-xl border border-border overflow-hidden shadow-sm dark:shadow-none">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left min-w-[700px]">
-                  <thead className="bg-surface-subtle text-primary-light font-medium border-b border-border">
-                    <tr>
-                      <th className="px-4 py-3 w-12"></th>
-                      <th className="px-4 py-3">ชื่อไฟล์</th>
-                      <th className="px-4 py-3 w-40">โปรเจกต์</th>
-                      <th className="px-4 py-3 w-28">ขนาด</th>
-                      <th className="px-4 py-3 w-32">ผู้โหลด</th>
-                      <th className="px-4 py-3 w-28">วันที่</th>
-                      <th className="px-4 py-3 w-32 text-right"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {files.map((file) => (
-                      <tr
-                        key={file.id}
-                        className="hover:bg-surface-subtle group transition-colors cursor-pointer"
-                        onClick={() => handleFileClick(file)}
-                      >
-                        <td className="px-4 py-3 text-primary-light">
-                          {getFileIcon(file)}
-                        </td>
-                        <td className="px-4 py-3 font-medium text-primary max-w-[200px]">
-                          {editingItem?.id === file.id ? (
-                            <form
-                              onSubmit={handleRename}
-                              className="flex items-center gap-2"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <input
-                                autoFocus
-                                type="text"
-                                className="w-full px-2 py-1 bg-surface border border-accent rounded text-sm outline-none text-primary"
-                                value={editingItem.name}
-                                onChange={(e) =>
-                                  setEditingItem({
-                                    ...editingItem,
-                                    name: e.target.value,
-                                  })
-                                }
-                              />
-                              <button type="submit" className="text-green-500">
-                                <Check className="w-4 h-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setEditingItem(null)}
-                                className="text-primary-light"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </form>
-                          ) : (
-                            <span className="truncate block" title={file.name}>
-                              {file.name}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-primary-light truncate">
-                          {file.projects?.title}
-                        </td>
-                        <td className="px-4 py-3 text-primary-light font-mono text-xs">
-                          {formatSize(file.size)}
-                        </td>
-                        <td className="px-4 py-3 text-primary-light">
-                          {file.profiles?.display_name}
-                        </td>
-                        <td className="px-4 py-3 text-primary-light text-xs">
-                          {new Date(file.created_at).toLocaleDateString(
-                            "th-TH"
-                          )}
-                        </td>
-                        <td
-                          className="px-4 py-3 text-right flex justify-end gap-1"
+                      {/* Desktop Overlay (Hide in selection mode) */}
+                      {!isSelectionMode && (
+                        <div
+                          className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex items-center justify-center gap-2 backdrop-blur-sm"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <button
                             onClick={() =>
                               handleDownload(file.file_url, file.name)
                             }
-                            className="p-1.5 text-primary-light hover:text-accent rounded-lg hover:bg-surface-subtle"
+                            className="p-2 bg-surface rounded-full text-primary hover:bg-surface-subtle"
                             title="ดาวน์โหลด"
                           >
                             <Download className="w-4 h-4" />
@@ -808,7 +786,7 @@ export default function GlobalAssetsPage() {
                             onClick={() =>
                               setEditingItem({ id: file.id, name: file.name })
                             }
-                            className="p-1.5 text-primary-light hover:text-accent rounded-lg hover:bg-surface-subtle"
+                            className="p-2 bg-surface rounded-full text-accent hover:bg-surface-subtle"
                             title="เปลี่ยนชื่อ"
                           >
                             <Pencil className="w-4 h-4" />
@@ -821,14 +799,223 @@ export default function GlobalAssetsPage() {
                                 key: file.file_url,
                               })
                             }
-                            className="p-1.5 text-primary-light hover:text-red-500 rounded-lg hover:bg-surface-subtle"
-                            title="ลบไฟล์"
+                            className="p-2 bg-surface rounded-full text-red-500 hover:bg-surface-subtle"
+                            title="ลบ"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
-                        </td>
-                      </tr>
-                    ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* File Info */}
+                    <div className="flex-1 min-w-0">
+                      {editingItem?.id === file.id ? (
+                        <form
+                          onSubmit={handleRename}
+                          className="flex items-center gap-1 mb-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            autoFocus
+                            type="text"
+                            className="w-full text-xs p-1 border border-accent bg-surface text-primary rounded outline-none"
+                            value={editingItem.name}
+                            onChange={(e) =>
+                              setEditingItem({
+                                ...editingItem,
+                                name: e.target.value,
+                              })
+                            }
+                            onBlur={() => handleRename()}
+                          />
+                        </form>
+                      ) : (
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <h3
+                            className="font-semibold text-primary text-sm truncate cursor-pointer hover:text-accent"
+                            title={file.name}
+                            onClick={() => handleFileClick(file)}
+                          >
+                            {file.name}
+                          </h3>
+                          <span className="text-[10px] bg-surface-subtle text-primary-light border border-border px-1.5 py-0.5 rounded uppercase flex-shrink-0 hidden sm:inline">
+                            {file.file_type.split("/")[1] || "FILE"}
+                          </span>
+                        </div>
+                      )}
+                      <p className="text-xs text-primary-light truncate mb-1 flex items-center gap-1">
+                        📁 {file.projects?.title}
+                      </p>
+                      <div className="hidden md:flex items-center justify-between text-[10px] text-primary-light border-t border-border pt-2 mt-auto">
+                        <span>{file.profiles?.display_name}</span>
+                        <span>{formatSize(file.size)}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 🔥 LIST MODE */}
+          {viewMode === "list" && (
+            <div className="bg-surface rounded-xl border border-border overflow-hidden shadow-sm dark:shadow-none">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left min-w-[700px]">
+                  <thead className="bg-surface-subtle text-primary-light font-medium border-b border-border">
+                    <tr>
+                      <th className="px-4 py-3 w-12">
+                        {isSelectionMode && (
+                          <button
+                            onClick={handleSelectAll}
+                            className="opacity-50 hover:opacity-100"
+                          >
+                            {selectedFileIds.length === files.length &&
+                            files.length > 0 ? (
+                              <CheckSquare className="w-4 h-4 text-accent" />
+                            ) : (
+                              <Square className="w-4 h-4" />
+                            )}
+                          </button>
+                        )}
+                      </th>
+                      <th className="px-4 py-3">ชื่อไฟล์</th>
+                      <th className="px-4 py-3 w-40">โปรเจกต์</th>
+                      <th className="px-4 py-3 w-28">ขนาด</th>
+                      <th className="px-4 py-3 w-32">ผู้โหลด</th>
+                      <th className="px-4 py-3 w-28">วันที่</th>
+                      <th className="px-4 py-3 w-32 text-right"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {files.map((file) => {
+                      const isSelected = selectedFileIds.includes(file.id);
+                      return (
+                        <tr
+                          key={file.id}
+                          className={`hover:bg-surface-subtle group transition-colors cursor-pointer ${
+                            isSelected ? "bg-accent/5" : ""
+                          }`}
+                          onClick={() => handleFileClick(file)}
+                        >
+                          <td className="px-4 py-3 text-primary-light">
+                            {isSelectionMode ? (
+                              <div
+                                className={`w-4 h-4 border rounded flex items-center justify-center ${
+                                  isSelected
+                                    ? "bg-accent border-accent text-white"
+                                    : "border-primary-light"
+                                }`}
+                              >
+                                {isSelected && <Check className="w-3 h-3" />}
+                              </div>
+                            ) : (
+                              getFileIcon(file)
+                            )}
+                          </td>
+                          <td className="px-4 py-3 font-medium text-primary max-w-[200px]">
+                            {editingItem?.id === file.id ? (
+                              <form
+                                onSubmit={handleRename}
+                                className="flex items-center gap-2"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <input
+                                  autoFocus
+                                  type="text"
+                                  className="w-full px-2 py-1 bg-surface border border-accent rounded text-sm outline-none text-primary"
+                                  value={editingItem.name}
+                                  onChange={(e) =>
+                                    setEditingItem({
+                                      ...editingItem,
+                                      name: e.target.value,
+                                    })
+                                  }
+                                />
+                                <button
+                                  type="submit"
+                                  className="text-green-500"
+                                >
+                                  <Check className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingItem(null)}
+                                  className="text-primary-light"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </form>
+                            ) : (
+                              <span
+                                className="truncate block"
+                                title={file.name}
+                              >
+                                {file.name}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-primary-light truncate">
+                            {file.projects?.title}
+                          </td>
+                          <td className="px-4 py-3 text-primary-light font-mono text-xs">
+                            {formatSize(file.size)}
+                          </td>
+                          <td className="px-4 py-3 text-primary-light">
+                            {file.profiles?.display_name}
+                          </td>
+                          <td className="px-4 py-3 text-primary-light text-xs">
+                            {new Date(file.created_at).toLocaleDateString(
+                              "th-TH"
+                            )}
+                          </td>
+                          <td
+                            className="px-4 py-3 text-right flex justify-end gap-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {!isSelectionMode && (
+                              <>
+                                <button
+                                  onClick={() =>
+                                    handleDownload(file.file_url, file.name)
+                                  }
+                                  className="p-1.5 text-primary-light hover:text-accent rounded-lg hover:bg-surface-subtle"
+                                  title="ดาวน์โหลด"
+                                >
+                                  <Download className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    setEditingItem({
+                                      id: file.id,
+                                      name: file.name,
+                                    })
+                                  }
+                                  className="p-1.5 text-primary-light hover:text-accent rounded-lg hover:bg-surface-subtle"
+                                  title="เปลี่ยนชื่อ"
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    setDeleteTarget({
+                                      id: file.id,
+                                      name: file.name,
+                                      key: file.file_url,
+                                    })
+                                  }
+                                  className="p-1.5 text-primary-light hover:text-red-500 rounded-lg hover:bg-surface-subtle"
+                                  title="ลบไฟล์"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -837,6 +1024,7 @@ export default function GlobalAssetsPage() {
         </>
       )}
 
+      {/* Delete Modal (เหมือนเดิม) */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-surface rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-red-100 dark:border-red-900/50 scale-100 animate-in zoom-in-95 duration-200">

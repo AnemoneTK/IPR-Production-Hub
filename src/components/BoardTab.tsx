@@ -1,3 +1,4 @@
+// src/components/BoardTab.tsx
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabaseClient";
@@ -12,6 +13,13 @@ import {
   X,
   Check,
   AlignLeft,
+  Paperclip, // เพิ่มไอคอน
+  Search,
+  File,
+  FolderOpen,
+  FileAudio,
+  FileImage,
+  FileVideo,
 } from "lucide-react";
 import {
   DragDropContext,
@@ -32,7 +40,15 @@ interface Task {
   due_date?: string;
 }
 
-// 🔥 ปรับสี Columns ให้รองรับ Dark Mode (ลดความสดลงในโหมดมืด)
+// Interface สำหรับไฟล์
+interface AttachedFile {
+  id: number;
+  name: string;
+  folder_id: number;
+  file_type: string;
+  task_id?: number | null;
+}
+
 const COLUMNS: any = {
   revision: {
     id: "revision",
@@ -43,7 +59,7 @@ const COLUMNS: any = {
   todo: {
     id: "todo",
     title: "To Do",
-    color: "bg-surface-subtle border-border", // ใช้ธีมกลาง
+    color: "bg-surface-subtle border-border",
     titleColor: "text-primary bg-surface border border-border",
   },
   doing: {
@@ -79,6 +95,13 @@ export default function BoardTab({ projectId }: { projectId: number }) {
   });
   const [showMemberSelect, setShowMemberSelect] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 🔥 Create Modal - File Picker States
+  const [showFilePicker, setShowFilePicker] = useState(false);
+  const [availableFiles, setAvailableFiles] = useState<AttachedFile[]>([]);
+  const [selectedFileIds, setSelectedFileIds] = useState<number[]>([]); // เก็บ ID ไฟล์ที่เลือกตอนสร้าง
+  const [fileSearchQuery, setFileSearchQuery] = useState("");
+  const [isLoadingPicker, setIsLoadingPicker] = useState(false);
 
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -135,28 +158,58 @@ export default function BoardTab({ projectId }: { projectId: number }) {
     }
   }, [projectId, fetchData]);
 
-  // --- Create Task ---
+  // --- Create Task Logic ---
+  const openFilePicker = async () => {
+    setShowFilePicker(true);
+    setIsLoadingPicker(true);
+    // ดึงไฟล์ที่ยังไม่มี task_id (ไฟล์ว่าง) ในโปรเจกต์นี้
+    const { data } = await supabase
+      .from("files")
+      .select("id, name, folder_id, file_type, task_id")
+      .eq("project_id", projectId)
+      .is("task_id", null)
+      .order("created_at", { ascending: false });
+
+    setAvailableFiles(data || []);
+    setIsLoadingPicker(false);
+  };
+
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newForm.title.trim()) return;
     setIsSubmitting(true);
 
-    const { error } = await supabase.from("tasks").insert({
-      project_id: projectId,
-      title: newForm.title,
-      description: newForm.description,
-      status: "todo",
-      assigned_to: newForm.assigned_to,
-      due_date: newForm.due_date
-        ? new Date(newForm.due_date).toISOString()
-        : null,
-    });
+    // 1. สร้าง Task ก่อน
+    const { data: newTask, error } = await supabase
+      .from("tasks")
+      .insert({
+        project_id: projectId,
+        title: newForm.title,
+        description: newForm.description,
+        status: "todo",
+        assigned_to: newForm.assigned_to,
+        due_date: newForm.due_date
+          ? new Date(newForm.due_date).toISOString()
+          : null,
+      })
+      .select()
+      .single();
 
     if (error) {
       alert("สร้างงานไม่สำเร็จ: " + error.message);
-    } else {
+    } else if (newTask) {
+      // 2. ถ้ามีไฟล์ที่เลือกไว้ ให้ update task_id ของไฟล์เหล่านั้น
+      if (selectedFileIds.length > 0) {
+        await supabase
+          .from("files")
+          .update({ task_id: newTask.id })
+          .in("id", selectedFileIds);
+      }
+
+      // Reset State
       setIsCreating(false);
       setNewForm({ title: "", description: "", assigned_to: [], due_date: "" });
+      setSelectedFileIds([]); // Reset files
       fetchData();
     }
     setIsSubmitting(false);
@@ -171,6 +224,17 @@ export default function BoardTab({ projectId }: { projectId: number }) {
         return { ...prev, assigned_to: [...current, userId] };
       }
     });
+  };
+
+  // --- Helper Icons ---
+  const getFileIcon = (type: string) => {
+    if (type.includes("image"))
+      return <FileImage className="w-4 h-4 text-purple-500" />;
+    if (type.includes("audio"))
+      return <FileAudio className="w-4 h-4 text-orange-500" />;
+    if (type.includes("video"))
+      return <FileVideo className="w-4 h-4 text-blue-500" />;
+    return <File className="w-4 h-4 text-primary-light" />;
   };
 
   // --- Delete Task ---
@@ -271,7 +335,6 @@ export default function BoardTab({ projectId }: { projectId: number }) {
                               {...provided.dragHandleProps}
                               onClick={() => setSelectedTask(task)}
                               style={{ ...provided.draggableProps.style }}
-                              // 🔥 Task Card Style: ใช้ bg-surface และ border-border
                               className={`p-4 rounded-xl shadow-sm border cursor-pointer group relative overflow-hidden bg-surface transition-all ${
                                 task.status === "revision"
                                   ? "border-red-200 dark:border-red-900/50 shadow-red-100 dark:shadow-none hover:border-red-300 dark:hover:border-red-700"
@@ -363,8 +426,7 @@ export default function BoardTab({ projectId }: { projectId: number }) {
       {/* --- Create Task Modal --- */}
       {isCreating && (
         <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in zoom-in-95">
-          {/* 🔥 Modal: bg-surface, text-primary */}
-          <div className="bg-surface w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-border">
+          <div className="bg-surface w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-border relative">
             {/* Header */}
             <div className="p-5 border-b border-border flex justify-between items-center bg-surface-subtle">
               <h3 className="font-bold text-lg text-primary">
@@ -378,7 +440,7 @@ export default function BoardTab({ projectId }: { projectId: number }) {
               </button>
             </div>
 
-            <div className="p-6 space-y-6 flex-1 overflow-y-auto">
+            <div className="p-6 space-y-6 flex-1 overflow-y-auto custom-scrollbar">
               {/* Title */}
               <div>
                 <label className="text-xs font-bold text-primary-light uppercase mb-2 block">
@@ -495,6 +557,68 @@ export default function BoardTab({ projectId }: { projectId: number }) {
                   }
                 />
               </div>
+
+              {/* 🔥 Attachments Section (Create Mode) */}
+              <div className="border-t border-border pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-bold text-primary-light uppercase flex items-center gap-2">
+                    <Paperclip className="w-3 h-3" /> ไฟล์ที่เกี่ยวข้อง (
+                    {selectedFileIds.length})
+                  </h4>
+                  <button
+                    onClick={openFilePicker}
+                    className="text-[10px] bg-accent/10 text-accent hover:bg-accent hover:text-white px-2 py-1 rounded-lg font-bold transition-all flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" /> เลือกไฟล์
+                  </button>
+                </div>
+
+                {selectedFileIds.length === 0 ? (
+                  <div
+                    className="p-4 rounded-xl bg-surface-subtle border border-dashed border-border text-center cursor-pointer hover:bg-surface transition-colors"
+                    onClick={openFilePicker}
+                  >
+                    <p className="text-xs text-primary-light">
+                      ยังไม่มีไฟล์แนบ
+                    </p>
+                    <p className="text-[10px] text-primary-light/60 mt-1">
+                      คลิกเพื่อเลือกไฟล์จาก Assets
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-2">
+                    {/* แสดงรายการไฟล์ที่ถูกเลือกจาก availableFiles (หรือถ้าไม่มีใน list แล้วอาจต้อง fetch ใหม่ แต่ใน flow นี้เราเลือกจาก availableFiles อยู่แล้ว) */}
+                    {availableFiles
+                      .filter((f) => selectedFileIds.includes(f.id))
+                      .map((file) => (
+                        <div
+                          key={file.id}
+                          className="flex items-center justify-between p-2.5 bg-surface-subtle border border-border rounded-xl"
+                        >
+                          <div className="flex items-center gap-3 overflow-hidden flex-1">
+                            <div className="w-8 h-8 rounded-lg bg-surface flex items-center justify-center border border-border shrink-0 text-primary-light">
+                              {getFileIcon(file.file_type)}
+                            </div>
+                            <span className="text-sm font-medium text-primary truncate">
+                              {file.name}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() =>
+                              setSelectedFileIds((prev) =>
+                                prev.filter((id) => id !== file.id)
+                              )
+                            }
+                            className="p-2 text-primary-light hover:text-red-500 hover:bg-surface rounded-lg transition-all"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    {/* กรณีไฟล์ที่เลือกอาจจะไม่อยู่ใน availableFiles (เช่นเพิ่งโหลดหน้า) อาจต้องมีการจัดการเพิ่มเติม แต่เบื้องต้นใช้ availableFiles ไปก่อน */}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Footer */}
@@ -514,6 +638,127 @@ export default function BoardTab({ projectId }: { projectId: number }) {
                 สร้างงาน
               </button>
             </div>
+
+            {/* 🔥 File Picker Overlay (Create Mode) */}
+            {showFilePicker && (
+              <div className="absolute inset-0 z-[80] bg-surface flex flex-col animate-in slide-in-from-bottom-5">
+                <div className="p-4 border-b border-border flex items-center justify-between bg-surface-subtle">
+                  <h3 className="font-bold text-primary flex items-center gap-2">
+                    <Paperclip className="w-5 h-5" /> เลือกไฟล์เพื่อแนบ
+                  </h3>
+                  <button
+                    onClick={() => setShowFilePicker(false)}
+                    className="p-1.5 hover:bg-surface rounded-lg text-primary-light"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Search Bar */}
+                <div className="p-3 border-b border-border bg-surface">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary-light" />
+                    <input
+                      type="text"
+                      placeholder="ค้นหาชื่อไฟล์..."
+                      className="w-full pl-9 pr-4 py-2 bg-surface-subtle border border-border rounded-xl text-sm focus:outline-none focus:border-accent text-primary"
+                      value={fileSearchQuery}
+                      onChange={(e) => setFileSearchQuery(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Files List */}
+                <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+                  {isLoadingPicker ? (
+                    <div className="flex justify-center py-10">
+                      <Loader2 className="w-8 h-8 animate-spin text-accent" />
+                    </div>
+                  ) : availableFiles.filter((f) =>
+                      f.name
+                        .toLowerCase()
+                        .includes(fileSearchQuery.toLowerCase())
+                    ).length === 0 ? (
+                    <div className="text-center py-10 text-primary-light opacity-50">
+                      <File className="w-10 h-10 mx-auto mb-2" />
+                      <p>ไม่พบไฟล์ที่ว่างอยู่</p>
+                    </div>
+                  ) : (
+                    availableFiles
+                      .filter((f) =>
+                        f.name
+                          .toLowerCase()
+                          .includes(fileSearchQuery.toLowerCase())
+                      )
+                      .map((file) => {
+                        const isSelected = selectedFileIds.includes(file.id);
+                        return (
+                          <div
+                            key={file.id}
+                            onClick={() => {
+                              if (isSelected)
+                                setSelectedFileIds((prev) =>
+                                  prev.filter((id) => id !== file.id)
+                                );
+                              else
+                                setSelectedFileIds((prev) => [
+                                  ...prev,
+                                  file.id,
+                                ]);
+                            }}
+                            className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                              isSelected
+                                ? "bg-accent/10 border-accent"
+                                : "bg-surface border-border hover:border-accent/50"
+                            }`}
+                          >
+                            <div
+                              className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${
+                                isSelected
+                                  ? "bg-accent border-accent text-white"
+                                  : "border-primary-light/50 bg-surface"
+                              }`}
+                            >
+                              {isSelected && <Check className="w-3 h-3" />}
+                            </div>
+                            <div className="w-8 h-8 rounded-lg bg-surface-subtle flex items-center justify-center border border-border text-primary-light">
+                              {getFileIcon(file.file_type)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p
+                                className={`text-sm font-medium truncate ${
+                                  isSelected ? "text-accent" : "text-primary"
+                                }`}
+                              >
+                                {file.name}
+                              </p>
+                              <p className="text-[10px] text-primary-light flex items-center gap-1">
+                                <FolderOpen className="w-2.5 h-2.5" />{" "}
+                                จากโฟลเดอร์ ID: {file.folder_id}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })
+                  )}
+                </div>
+
+                {/* Footer Action */}
+                <div className="p-4 border-t border-border bg-surface-subtle flex justify-between items-center">
+                  <span className="text-xs text-primary-light">
+                    เลือก {selectedFileIds.length} ไฟล์
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowFilePicker(false)}
+                      className="px-4 py-2 rounded-xl text-sm font-medium text-primary hover:bg-surface"
+                    >
+                      ตกลง
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

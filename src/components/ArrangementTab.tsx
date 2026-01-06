@@ -1,3 +1,4 @@
+// src/components/ArrangementTab.tsx
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -20,6 +21,10 @@ import {
   AlertTriangle,
   CheckCircle2,
   Underline as UnderlineIcon,
+  Settings2,
+  Eye,
+  EyeOff,
+  Languages,
 } from "lucide-react";
 import {
   DragDropContext,
@@ -48,6 +53,7 @@ interface ArrangeRow {
   id: string;
   type: "line" | "section";
   text: string;
+  subText?: string;
   note?: string;
   roles: {
     main: string[];
@@ -72,10 +78,11 @@ const DoubleArrowDown = ({ className }: { className?: string }) => (
 );
 
 // Config สี Roles
-const ROLES = [
+const ROLES_CONFIG = [
   {
     key: "main",
-    label: "Main Vocal",
+    label: "Main",
+    fullLabel: "Main Vocal",
     icon: Mic,
     bg: "bg-blue-100 dark:bg-blue-900/30",
     text: "text-blue-800 dark:text-blue-300",
@@ -84,6 +91,7 @@ const ROLES = [
   {
     key: "support",
     label: "Support",
+    fullLabel: "Support",
     icon: Users,
     bg: "bg-teal-100 dark:bg-teal-900/30",
     text: "text-teal-800 dark:text-teal-300",
@@ -91,7 +99,8 @@ const ROLES = [
   },
   {
     key: "harmo",
-    label: "Harmony",
+    label: "Harmo",
+    fullLabel: "Harmony",
     icon: ArrowUp,
     bg: "bg-purple-100 dark:bg-purple-900/30",
     text: "text-purple-800 dark:text-purple-300",
@@ -99,7 +108,8 @@ const ROLES = [
   },
   {
     key: "adlib",
-    label: "Ad-libs",
+    label: "Ad-lib",
+    fullLabel: "Ad-libs",
     icon: Sparkles,
     bg: "bg-orange-100 dark:bg-orange-900/30",
     text: "text-orange-800 dark:text-orange-300",
@@ -116,6 +126,17 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
   const [rawContent, setRawContent] = useState<string>("");
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
+  // View States
+  const [showSubLyrics, setShowSubLyrics] = useState(false);
+  const [filterMemberId, setFilterMemberId] = useState<string>("all");
+  const [visibleRoles, setVisibleRoles] = useState<string[]>([
+    "main",
+    "support",
+    "harmo",
+    "adlib",
+  ]);
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+
   const [alertConfig, setAlertConfig] = useState<{
     show: boolean;
     type: "success" | "error";
@@ -126,6 +147,18 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
   const [showImportConfirm, setShowImportConfirm] = useState(false);
 
   const singerMembers = members.filter((m) => m.roles.includes("singer"));
+  const filteredSingers =
+    filterMemberId === "all"
+      ? singerMembers
+      : singerMembers.filter((m) => m.id === filterMemberId);
+
+  const filteredRoles = ROLES_CONFIG.filter((r) =>
+    visibleRoles.includes(r.key)
+  );
+
+  // 🔥 ปรับขนาดเซลล์ให้ใหญ่ขึ้น (5rem = w-20) เพื่อให้อ่านง่าย
+  const CELL_WIDTH_REM = 5;
+  const roleContainerWidth = `${filteredSingers.length * CELL_WIDTH_REM}rem`;
 
   const showAlert = (
     title: string,
@@ -171,6 +204,8 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
         scriptData.arrangement.length > 0
       ) {
         setRows(scriptData.arrangement);
+        const hasSubText = scriptData.arrangement.some((r: any) => !!r.subText);
+        if (hasSubText) setShowSubLyrics(true);
       }
       setLastSaved(new Date(scriptData.updated_at));
     }
@@ -192,7 +227,6 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
 
       setIsSaving(false);
       if (error) {
-        console.error("Save error:", error);
         if (manual) showAlert("บันทึกไม่สำเร็จ", error.message, "error");
       } else {
         setLastSaved(new Date());
@@ -203,7 +237,6 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
     [scriptId, rows]
   );
 
-  // Auto save trigger (Debounce)
   useEffect(() => {
     if (rows.length === 0) return;
     const timeout = setTimeout(() => {
@@ -270,6 +303,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
           remainingOldRows.splice(matchIndex, 1);
           return {
             ...newRow,
+            subText: matchedOldRow.subText,
             roles: matchedOldRow.roles,
             note: matchedOldRow.note,
           };
@@ -300,7 +334,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
 
   const handleRowUpdate = (
     id: string,
-    field: "text" | "note",
+    field: "text" | "note" | "subText",
     value: string
   ) => {
     setRows((prev) =>
@@ -355,6 +389,14 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
     );
   };
 
+  const toggleRoleVisibility = (roleKey: string) => {
+    setVisibleRoles((prev) =>
+      prev.includes(roleKey)
+        ? prev.filter((r) => r !== roleKey)
+        : [...prev, roleKey]
+    );
+  };
+
   if (loading)
     return (
       <div className="flex h-64 items-center justify-center">
@@ -363,7 +405,8 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
     );
 
   return (
-    <div className="h-full flex flex-col bg-surface relative">
+    // 🔥 แก้ไข 1: เปลี่ยนจาก h-full เป็น min-h-screen เพื่อให้ Scroll หน้าจอได้ปกติ
+    <div className="min-h-screen flex flex-col bg-surface relative">
       {/* Alert Modal */}
       {alertConfig.show && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
@@ -445,18 +488,32 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
       )}
 
       {/* Toolbar */}
-      <div className="sticky top-0 z-40 bg-surface border-b border-border px-6 py-3 flex justify-between items-center shadow-sm">
-        <div className="flex items-center gap-3">
-          <h2 className="text-lg font-bold text-primary hidden md:block">
+      <div className="sticky top-0 z-50 bg-surface border-b border-border px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-lg font-bold text-primary hidden lg:block mr-2">
             Arrangement
           </h2>
-          <div className="h-6 w-px bg-border hidden md:block"></div>
+          <div className="h-6 w-px bg-border hidden lg:block mr-2"></div>
+
+          {/* Filter Toggle Button */}
+          <button
+            onClick={() => setShowFilterPanel(!showFilterPanel)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
+              showFilterPanel
+                ? "bg-accent/10 text-accent border-accent"
+                : "bg-surface-subtle text-primary-light border-transparent hover:bg-border"
+            }`}
+          >
+            <Settings2 className="w-4 h-4" />
+            <span className="hidden sm:inline">มุมมอง</span>
+          </button>
+
           <button
             onClick={handleImportClick}
             className="flex items-center gap-2 px-3 py-1.5 bg-surface-subtle text-primary-light rounded-lg hover:bg-border text-sm font-medium transition-colors"
           >
             <RefreshCcw className="w-4 h-4" />{" "}
-            <span className="hidden sm:inline">ดึงเนื้อเพลงใหม่</span>
+            <span className="hidden sm:inline">รีเซ็ตเนื้อ</span>
           </button>
           <button
             onClick={handleAddSection}
@@ -466,7 +523,8 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
             <span className="hidden sm:inline">เพิ่ม Section</span>
           </button>
         </div>
-        <div className="flex items-center gap-3">
+
+        <div className="flex items-center gap-3 self-end md:self-auto">
           {lastSaved && (
             <span className="text-xs text-primary-light hidden sm:inline">
               บันทึกล่าสุด: {lastSaved.toLocaleTimeString("th-TH")}
@@ -487,36 +545,125 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
         </div>
       </div>
 
-      {/* Main Content (Horizontal Scrollable) */}
-      <div className="flex-1 overflow-auto custom-scrollbar bg-surface relative">
-        <div className="min-w-max pb-20">
-          {/* Table Header */}
-          <div className="flex sticky top-0 z-30 bg-surface border-b-2 border-border shadow-sm text-xs font-bold uppercase tracking-wider">
-            <div className="w-10 p-3 text-center border-r border-border sticky left-0 bg-surface z-40 text-primary-light">
-              #
-            </div>
-            <div className="w-[500px] p-3 border-r border-border sticky left-10 bg-surface z-40 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)] text-primary-light">
-              เนื้อร้อง / ท่อน
+      {/* Filter Panel */}
+      {showFilterPanel && (
+        <div className="bg-surface-subtle border-b border-border px-6 py-4 animate-in slide-in-from-top-2">
+          <div className="flex flex-col md:flex-row gap-6">
+            {/* Toggle Columns */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-primary-light uppercase">
+                แสดงคอลัมน์
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setShowSubLyrics(!showSubLyrics)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                    showSubLyrics
+                      ? "bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 border-pink-300"
+                      : "bg-surface text-primary-light border-border"
+                  }`}
+                >
+                  <Languages className="w-3.5 h-3.5" /> เนื้อรอง (JP/MV)
+                </button>
+              </div>
             </div>
 
-            {ROLES.map((role) => (
+            {/* Filter Roles */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-primary-light uppercase">
+                แสดงไลน์ร้อง
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {ROLES_CONFIG.map((role) => (
+                  <button
+                    key={role.key}
+                    onClick={() => toggleRoleVisibility(role.key)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                      visibleRoles.includes(role.key)
+                        ? `${role.bg} ${role.text} ${role.border}`
+                        : "bg-surface text-primary-light border-border opacity-60 grayscale"
+                    }`}
+                  >
+                    {visibleRoles.includes(role.key) ? (
+                      <Eye className="w-3 h-3" />
+                    ) : (
+                      <EyeOff className="w-3 h-3" />
+                    )}
+                    {role.fullLabel}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Filter Members */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-primary-light uppercase">
+                โฟกัสสมาชิก
+              </h4>
+              <select
+                className="bg-surface border border-border text-primary text-xs rounded-lg px-3 py-1.5 outline-none focus:border-accent"
+                value={filterMemberId}
+                onChange={(e) => setFilterMemberId(e.target.value)}
+              >
+                <option value="all">แสดงทุกคน</option>
+                {singerMembers.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.display_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content */}
+      {/* 🔥 แก้ไข 2: ใช้ overflow-x-auto ที่นี่แทน overflow-auto ของ parent เพื่อให้ scroll แยกกัน */}
+      <div className="flex-1 overflow-x-auto custom-scrollbar bg-surface relative">
+        <div className="min-w-max pb-20">
+          {/* Table Header */}
+          {/* 🔥 แก้ไข 3: ปรับ top เป็นค่าที่เหมาะสม (เช่น 60px) เพื่อให้ Sticky ต่อจาก Toolbar */}
+          <div className="flex sticky top-0 z-40 bg-surface border-b-2 border-border shadow-sm text-sm font-bold uppercase tracking-wider">
+            {/* Fixed Width Columns */}
+            <div className="w-10 min-w-[2.5rem] shrink-0 p-3 text-center border-r border-border sticky left-0 bg-surface z-40 text-primary-light">
+              #
+            </div>
+            {/* Lyrics Header - ขยายขนาด */}
+            <div className="w-[200px] min-w-[200px] md:w-[300px] md:min-w-[300px] lg:w-[400px] lg:min-w-[400px] shrink-0 p-3 border-r border-border sticky left-10 bg-surface z-40 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)] text-primary-light">
+              เนื้อร้องหลัก (Romanized)
+            </div>
+
+            {/* Sub Lyrics Header */}
+            {showSubLyrics && (
+              <div className="w-[150px] min-w-[150px] md:w-[200px] md:min-w-[200px] lg:w-[300px] lg:min-w-[300px] shrink-0 p-3 border-r border-border bg-surface-subtle text-pink-600 dark:text-pink-400">
+                เนื้อรอง (Original / MV)
+              </div>
+            )}
+
+            {filteredRoles.map((role) => (
               <div
                 key={role.key}
-                className={`flex flex-col border-r ${role.border}`}
+                style={{
+                  width: roleContainerWidth,
+                  minWidth: roleContainerWidth,
+                }}
+                className={`flex flex-col border-r shrink-0 ${role.border}`}
               >
                 <div
-                  className={`p-2 text-center border-b ${role.border} flex items-center justify-center gap-2 h-10 ${role.bg} ${role.text}`}
+                  className={`p-2 text-center border-b ${role.border} flex items-center justify-center gap-2 h-10 ${role.bg} ${role.text} truncate overflow-hidden whitespace-nowrap px-1`}
+                  title={role.fullLabel}
                 >
-                  <role.icon className="w-4 h-4" /> {role.label}
+                  <role.icon className="w-4 h-4 shrink-0" />{" "}
+                  <span className="truncate">{role.label}</span>
                 </div>
-                <div className="flex bg-surface-subtle/50">
-                  {singerMembers.map((m) => (
+                <div className="flex bg-surface-subtle/50 h-full">
+                  {filteredSingers.map((m) => (
                     <div
                       key={m.id}
-                      className={`w-20 p-2 text-center border-r ${role.border} border-opacity-30 last:border-0 flex flex-col items-center gap-1`}
+                      className={`w-20 min-w-[5rem] shrink-0 p-2 text-center border-r ${role.border} border-opacity-30 last:border-0 flex flex-col items-center gap-1`}
                     >
                       <div
-                        className="w-6 h-6 mx-auto rounded-full text-[9px] flex items-center justify-center text-white font-bold shadow-sm ring-1 ring-white dark:ring-0"
+                        className="w-6 h-6 mx-auto rounded-full text-[10px] flex items-center justify-center text-white font-bold shadow-sm ring-1 ring-white dark:ring-0"
                         style={{ backgroundColor: m.assigned_color }}
                       >
                         {m.display_name.substring(0, 2).toUpperCase()}
@@ -533,10 +680,12 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
               </div>
             ))}
 
-            <div className="w-[200px] p-3 text-center bg-surface-subtle text-primary-light border-b border-border">
+            {/* Note Header */}
+            <div className="w-[150px] min-w-[150px] lg:w-[200px] lg:min-w-[200px] shrink-0 p-3 text-center bg-surface-subtle text-primary-light border-r border-border">
               หมายเหตุ
             </div>
-            <div className="w-10 bg-surface-subtle border-b border-border"></div>
+            {/* Delete Placeholder */}
+            <div className="w-8 min-w-[2rem] shrink-0 bg-surface-subtle border-b border-border"></div>
           </div>
 
           {/* Table Body */}
@@ -564,7 +713,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
                           {/* Drag Handle */}
                           <div
                             {...provided.dragHandleProps}
-                            className={`w-10 flex items-center justify-center text-primary-light cursor-grab hover:text-primary border-r border-border sticky left-0 z-10 ${
+                            className={`w-10 min-w-[2.5rem] shrink-0 flex items-center justify-center text-primary-light cursor-grab hover:text-primary border-r border-border sticky left-0 z-10 ${
                               row.type === "section"
                                 ? "bg-surface-subtle"
                                 : "bg-surface"
@@ -573,9 +722,9 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
                             <GripVertical className="w-4 h-4" />
                           </div>
 
-                          {/* Text / Lyric / RichTextCell */}
+                          {/* Main Text */}
                           <div
-                            className={`w-[500px] p-2 border-r border-border sticky left-10 z-10 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)] ${
+                            className={`w-[200px] min-w-[200px] md:w-[300px] md:min-w-[300px] lg:w-[400px] lg:min-w-[400px] shrink-0 p-2 border-r border-border sticky left-10 z-10 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)] ${
                               row.type === "section"
                                 ? "bg-surface-subtle"
                                 : "bg-surface"
@@ -593,12 +742,11 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
                                       e.target.value
                                     )
                                   }
-                                  className="font-black text-primary bg-transparent outline-none uppercase tracking-widest text-xs flex-1 text-center"
+                                  className="font-black text-primary bg-transparent outline-none uppercase tracking-widest text-sm flex-1 text-center"
                                 />
                                 <div className="h-px bg-border w-4"></div>
                               </div>
                             ) : (
-                              // 🔥 RichTextCell ที่แก้ไขแล้ว (Fix Selection + Cursor)
                               <RichTextCell
                                 text={row.text}
                                 onChange={(val) =>
@@ -608,19 +756,43 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
                             )}
                           </div>
 
+                          {/* Sub Text (Original/MV) */}
+                          {showSubLyrics && (
+                            <div className="w-[150px] min-w-[150px] md:w-[200px] md:min-w-[200px] lg:w-[300px] lg:min-w-[300px] shrink-0 p-2 border-r border-border bg-surface-subtle/30">
+                              {row.type === "section" ? (
+                                <div className="h-full bg-border/20"></div>
+                              ) : (
+                                <RichTextCell
+                                  text={row.subText || ""}
+                                  onChange={(val) =>
+                                    handleRowUpdate(row.id, "subText", val)
+                                  }
+                                />
+                              )}
+                            </div>
+                          )}
+
                           {/* Matrix Cells */}
-                          {row.type === "line" ? (
-                            ROLES.map((role) => (
-                              <div
-                                key={role.key}
-                                className="flex border-r border-border"
-                              >
-                                {singerMembers.map((m) => (
-                                  <div
-                                    key={m.id}
-                                    className="w-20 flex items-center justify-center border-r border-border last:border-0 relative group/cell p-1"
-                                  >
-                                    {role.key === "harmo" ? (
+                          {filteredRoles.map((role) => (
+                            <div
+                              key={role.key}
+                              style={{
+                                width: roleContainerWidth,
+                                minWidth: roleContainerWidth,
+                              }}
+                              className="flex border-r border-border shrink-0"
+                            >
+                              {filteredSingers.map((m) => (
+                                <div
+                                  key={m.id}
+                                  className={`w-20 min-w-[5rem] shrink-0 border-r border-border last:border-0 relative group/cell ${
+                                    row.type === "line"
+                                      ? "p-0.5 flex items-center justify-center"
+                                      : "bg-surface-subtle/20"
+                                  }`}
+                                >
+                                  {row.type === "line" &&
+                                    (role.key === "harmo" ? (
                                       <HarmoCell
                                         row={row}
                                         userId={m.id}
@@ -643,18 +815,21 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
                                           )
                                         }
                                       />
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            ))
-                          ) : (
-                            <div className="flex-1 bg-gray-100/50 border-r border-border"></div>
-                          )}
+                                    ))}
+                                </div>
+                              ))}
+                            </div>
+                          ))}
 
                           {/* Note Column */}
-                          {row.type === "line" && (
-                            <div className="w-[200px] p-2 border-l border-border bg-surface">
+                          <div
+                            className={`w-[150px] min-w-[150px] lg:w-[200px] lg:min-w-[200px] shrink-0 p-2 border-r border-border ${
+                              row.type === "section"
+                                ? "bg-surface-subtle"
+                                : "bg-surface"
+                            }`}
+                          >
+                            {row.type === "line" && (
                               <div className="flex items-center gap-2 h-full bg-surface-subtle rounded-lg px-2 border border-transparent hover:border-border hover:bg-surface transition-all">
                                 <input
                                   value={row.note || ""}
@@ -669,12 +844,12 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
                                   placeholder="..."
                                 />
                               </div>
-                            </div>
-                          )}
+                            )}
+                          </div>
 
                           {/* Delete */}
                           <div
-                            className={`w-10 flex items-center justify-center border-l border-border ${
+                            className={`w-8 min-w-[2rem] shrink-0 flex items-center justify-center ${
                               row.type === "section"
                                 ? "bg-surface-subtle"
                                 : "bg-surface"
@@ -682,9 +857,9 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
                           >
                             <button
                               onClick={() => handleDeleteRow(row.id)}
-                              className="text-primary-light hover:text-red-500 p-1.5 transition-all hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
+                              className="text-primary-light hover:text-red-500 p-1 transition-all hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>
@@ -715,9 +890,7 @@ export default function ArrangementTab({ projectId }: { projectId: number }) {
   );
 }
 
-// --- Sub Components ---
-
-// 🔥🔥 RichTextCell (ฉบับแก้ไขสมบูรณ์: Portal + Save on Blur + Fix Re-render)
+// ... (Sub Components)
 const RichTextCell = ({
   text,
   onChange,
@@ -736,11 +909,8 @@ const RichTextCell = ({
     setPortalContainer(document.body);
   }, []);
 
-  // 1. Initial Load: Put props into DOM
   useEffect(() => {
     if (ref.current) {
-      // 🔥 Trick: Only update DOM if it is completely different to prevent cursor jumps
-      // Actually, for contentEditable, we should almost NEVER update it from props while focused.
       if (
         document.activeElement !== ref.current &&
         ref.current.innerHTML !== text
@@ -752,7 +922,7 @@ const RichTextCell = ({
 
   const handleBlur = () => {
     if (ref.current) {
-      onChange(ref.current.innerHTML); // Save to parent on blur
+      onChange(ref.current.innerHTML);
     }
     setTimeout(() => setShowToolbar(false), 200);
   };
@@ -766,16 +936,11 @@ const RichTextCell = ({
     ) {
       const range = selection.getRangeAt(0);
       const rect = range.getBoundingClientRect();
-
-      // Smart Position: Flip if too high
       const HEADER_HEIGHT_OFFSET = 180;
-      let topPos = rect.top - 40 + window.scrollY; // Account for scroll
-
-      // If toolbar is too high up (under header), put it below selection
+      let topPos = rect.top - 40 + window.scrollY;
       if (rect.top < HEADER_HEIGHT_OFFSET) {
         topPos = rect.bottom + 10 + window.scrollY;
       }
-
       setToolbarPos({
         top: topPos,
         left: rect.left + rect.width / 2 - 15 + window.scrollX,
@@ -790,23 +955,17 @@ const RichTextCell = ({
     e.preventDefault();
     e.stopPropagation();
     document.execCommand("underline");
-    // Important: Update internal HTML state immediately so if we blur later it's correct
-    if (ref.current) {
-      // Don't call onChange here to avoid parent re-render killing selection
-      // Just let it stay in DOM until blur
-    }
   };
 
   return (
     <div className="relative w-full h-full">
-      {/* 🔥 Portal: Render toolbar outside of table to avoid overflow/z-index issues */}
       {showToolbar &&
         portalContainer &&
         createPortal(
           <div
             className="fixed z-[9999] bg-gray-900 text-white rounded-lg shadow-xl px-2 py-1 flex items-center animate-in fade-in zoom-in-95 pointer-events-auto"
             style={{ top: toolbarPos.top, left: toolbarPos.left }}
-            onMouseDown={(e) => e.preventDefault()} // Prevent blur when clicking toolbar
+            onMouseDown={(e) => e.preventDefault()}
           >
             <button
               onMouseDown={handleUnderline}
@@ -822,9 +981,7 @@ const RichTextCell = ({
         ref={ref}
         contentEditable
         suppressContentEditableWarning
-        // 🔥 Remove dangerouslySetInnerHTML to create uncontrolled component
-        // This prevents React from re-rendering the innerHTML and resetting cursor
-        onMouseDown={(e) => e.stopPropagation()} // Fix Drag Conflict
+        onMouseDown={(e) => e.stopPropagation()}
         onMouseUp={checkSelection}
         onKeyUp={checkSelection}
         onBlur={handleBlur}
@@ -888,7 +1045,7 @@ const HarmoCell = ({ row, userId, memberColor, onToggle }: any) => {
             {getIcon(assignment.type)}
           </div>
         ) : (
-          <Plus className="w-3 h-3 text-primary-light opacity-0 group-hover/cell:opacity-100" />
+          <Plus className="w-4 h-4 text-primary-light opacity-0 group-hover/cell:opacity-100" />
         )}
       </button>
 

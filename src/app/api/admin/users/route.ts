@@ -1,3 +1,4 @@
+// src/app/api/admin/users/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import nodemailer from "nodemailer";
@@ -80,16 +81,14 @@ const getEmailTemplate = (
   };
 };
 
-// 1. CREATE USER (แก้ไขใหม่ตามโจทย์)
+// 1. CREATE USER (POST)
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    // รับแค่ email กับ role ไม่ต้องรับ password/name
     const { email, role } = body;
 
-    // ตั้งค่า Default
     const defaultPassword = "12341234";
-    const defaultDisplayName = email.split("@")[0]; // ใช้ชื่อหน้าอีเมลเป็นชื่อเล่นไปก่อน
+    const defaultDisplayName = email.split("@")[0];
 
     const { data: authData, error: authError } =
       await supabaseAdmin.auth.admin.createUser({
@@ -106,7 +105,7 @@ export async function POST(request: Request) {
       await supabaseAdmin
         .from("profiles")
         .update({
-          display_name: defaultDisplayName, // บันทึกชื่อ default
+          display_name: defaultDisplayName,
           main_role: role,
           is_producer: isProducer,
           must_change_password: true,
@@ -114,7 +113,6 @@ export async function POST(request: Request) {
         })
         .eq("id", authData.user.id);
 
-      // ส่งเมลด้วย Nodemailer
       const emailContent = getEmailTemplate("welcome", {
         name: defaultDisplayName,
         email,
@@ -134,7 +132,7 @@ export async function POST(request: Request) {
   }
 }
 
-// 2. UPDATE USER (เหมือนเดิม)
+// 2. UPDATE USER (PUT) - ใช้สำหรับเปิด/ปิดบัญชี หรือแก้ไขข้อมูลทั่วไป
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
@@ -159,7 +157,6 @@ export async function PUT(request: Request) {
 
     if (error) throw error;
 
-    // ส่งเมลแจ้งเตือนเมื่อสถานะเปลี่ยน
     if (oldProfile && oldProfile.is_active !== is_active) {
       const type = is_active ? "activate" : "suspend";
       const emailContent = getEmailTemplate(type, { name: display_name });
@@ -178,6 +175,7 @@ export async function PUT(request: Request) {
   }
 }
 
+// 3. DELETE USER
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -185,8 +183,6 @@ export async function DELETE(request: Request) {
 
     if (!id) throw new Error("Missing User ID");
 
-    // ลบออกจากระบบ Auth (ข้อมูลใน Profile จะหายไปเองถ้าตั้ง Cascade ไว้ หรือมันจะค้างอยู่แต่เข้าไม่ได้)
-    // การลบที่ auth.admin.deleteUser ถือเป็นการลบระดับสูงสุด
     const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
 
     if (error) throw error;

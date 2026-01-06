@@ -2,8 +2,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-// 🔥 ใช้ Service Role Key เพื่อให้ Admin ทำงานได้โดยไม่ต้อง Login (bypass RLS)
-// ต้องเพิ่ม SUPABASE_SERVICE_ROLE_KEY ใน .env ก่อนนะครับ (หาได้ใน Supabase > Settings > API)
+// 🔥 1. ประกาศตัวแปร supabase ตรงนี้ (ที่ error เพราะส่วนนี้หายไป)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
@@ -12,10 +11,11 @@ const supabase = createClient(
 
 export async function GET() {
   try {
-    // 1. หา Task ที่ใกล้ถึงกำหนด (ภายใน 24 ชม.) และยังไม่ได้แจ้งเตือน
+    // 2. คำนวณเวลา (24 ชม. ข้างหน้า)
     const now = new Date();
     const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
+    // 3. ดึงข้อมูลงานจาก Supabase
     const { data: tasks, error } = await supabase
       .from("tasks")
       .select(
@@ -32,19 +32,20 @@ export async function GET() {
       .neq("status", "done") // ไม่เอางานที่เสร็จแล้ว
       .eq("is_notified", false) // ที่ยังไม่เคยแจ้ง
       .lte("due_date", tomorrow.toISOString()) // น้อยกว่าหรือเท่ากับพรุ่งนี้
-      .gt("due_date", now.toISOString()); // แต่ยังไม่เลยกำหนด (ถ้าเลยแล้วอาจจะเป็นอีก logic)
+      .gt("due_date", now.toISOString()); // แต่ยังไม่เลยกำหนด
 
     if (error) throw error;
+
     if (!tasks || tasks.length === 0) {
       return NextResponse.json({ message: "No tasks to notify" });
     }
 
-    // 2. วนลูปส่งแจ้งเตือนทีละงาน
+    // 4. วนลูปส่งแจ้งเตือน
     for (const task of tasks) {
-      // ดึงข้อมูลคนรับผิดชอบ
       const assigneeIds = task.assigned_to || [];
       let mentionText = "";
 
+      // ดึงข้อมูลคนรับผิดชอบเพื่อสร้าง Tag
       if (assigneeIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")
@@ -58,16 +59,16 @@ export async function GET() {
             .join(", ") || "";
       }
 
-      // 3. ส่งเข้า Discord
+      // ส่งเข้า Discord
       await sendDiscordNotification({
         title: `⚠️ แจ้งเตือนงานใกล้กำหนดส่ง: ${task.title}`,
         project: task.projects?.title || "Unknown Project",
         deadline: new Date(task.due_date).toLocaleString("th-TH"),
         mentions: mentionText,
-        url: `${process.env.NEXT_PUBLIC_BASE_URL}/dashboard/projects/${task.project_id}`, // ลิงก์กลับมาที่เว็บ
+        url: `${process.env.NEXT_PUBLIC_BASE_URL}/dashboard/projects/${task.project_id}`,
       });
 
-      // 4. อัปเดตว่าแจ้งเตือนแล้ว
+      // อัปเดตว่าแจ้งเตือนแล้ว
       await supabase
         .from("tasks")
         .update({ is_notified: true })
@@ -81,7 +82,7 @@ export async function GET() {
   }
 }
 
-// ฟังก์ชันยิง Webhook
+// ฟังก์ชันยิง Webhook (แยกไว้ด้านล่าง)
 async function sendDiscordNotification({
   title,
   project,
@@ -94,7 +95,9 @@ async function sendDiscordNotification({
 
   const payload = {
     username: "IPR Production Bot",
-    avatar_url: "https://cdn-icons-png.flaticon.com/512/4712/4712109.png", // เปลี่ยนรูปได้
+    avatar_url: "https://cdn-icons-png.flaticon.com/512/4712/4712109.png",
+    // 🔥 ใส่ mentions ใน content เพื่อให้เด้งแจ้งเตือน (Ping)
+    content: mentions ? `เฮ้! ${mentions} มีงานใกล้ถึงกำหนดส่งครับ` : undefined,
     embeds: [
       {
         title: title,

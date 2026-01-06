@@ -106,7 +106,6 @@ export default function AdminUsersPage() {
         prev.map((p) => (p.id === editingUser.id ? { ...p, ...updates } : p))
       );
       setEditingUser(null);
-      alert("บันทึกข้อมูลเรียบร้อยแล้ว!");
     } catch (error: any) {
       console.error("Save error:", error);
       alert("เกิดข้อผิดพลาด: " + error.message);

@@ -98,9 +98,15 @@ async function sendDiscordNotification({
   url,
 }: any) {
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
-  if (!webhookUrl) return;
+
+  // 🔥 เพิ่ม Log ตรงนี้ จะได้รู้ว่า Vercel มองเห็น URL ไหม
+  if (!webhookUrl) {
+    console.error("❌ MISSING DISCORD_WEBHOOK_URL in Environment Variables");
+    return;
+  }
 
   const payload = {
+    // ... (ส่วน payload เหมือนเดิม) ...
     username: "IPR Production Bot",
     avatar_url: "https://cdn-icons-png.flaticon.com/512/4712/4712109.png",
     content: mentions ? `เฮ้! ${mentions} มีงานใกล้ถึงกำหนดส่งครับ` : undefined,
@@ -123,12 +129,20 @@ async function sendDiscordNotification({
   };
 
   try {
-    await fetch(webhookUrl, {
+    const res = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+
+    // 🔥 เพิ่มการเช็คผลตอบรับจาก Discord
+    if (!res.ok) {
+      const responseText = await res.text();
+      console.error(`❌ Discord Webhook Error (${res.status}):`, responseText);
+    } else {
+      console.log("✅ Discord Notification Sent Successfully");
+    }
   } catch (err) {
-    console.error("Discord Webhook Error:", err);
+    console.error("❌ Network Error sending to Discord:", err);
   }
 }

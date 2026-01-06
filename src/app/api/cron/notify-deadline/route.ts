@@ -2,7 +2,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-// 1. สร้าง Supabase Client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
@@ -14,7 +13,6 @@ export async function GET() {
     const now = new Date();
     const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-    // 2. ดึงข้อมูล (tasks)
     const { data: tasksData, error } = await supabase
       .from("tasks")
       .select(
@@ -30,7 +28,9 @@ export async function GET() {
       )
       .neq("status", "done")
       .eq("is_notified", false)
+      // เงื่อนไข: น้อยกว่าหรือเท่ากับพรุ่งนี้ (ใกล้ถึง)
       .lte("due_date", tomorrow.toISOString())
+      // เงื่อนไข: ต้องยังไม่เลยกำหนด (ถ้าอยากให้แจ้งงานที่ Late ด้วย ให้ลบบรรทัดนี้ทิ้งครับ)
       .gt("due_date", now.toISOString());
 
     if (error) {
@@ -38,14 +38,12 @@ export async function GET() {
       throw error;
     }
 
-    // แปลงเป็น any[] เพื่อแก้ปัญหา Type Error ตอน Build
     const tasks = (tasksData as any[]) || [];
 
     if (tasks.length === 0) {
       return NextResponse.json({ message: "No tasks to notify" });
     }
 
-    // 3. วนลูปส่งแจ้งเตือน
     for (const task of tasks) {
       const assigneeIds = task.assigned_to || [];
       let mentionText = "";
@@ -62,21 +60,25 @@ export async function GET() {
             .join(", ") || "";
       }
 
-      // 🔥 แก้ไขจุดที่ Error: รองรับทั้งแบบ Object และ Array
-      // ถ้า projects เป็น Array ให้เอาตัวแรก, ถ้าเป็น Object ให้เอา title เลย
       const projectName = Array.isArray(task.projects)
         ? task.projects[0]?.title
         : task.projects?.title;
 
+      // 🔥 แก้ไข Timezone ให้เวลาตรงกับประเทศไทย
+      const thaiTime = new Date(task.due_date).toLocaleString("th-TH", {
+        timeZone: "Asia/Bangkok",
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+
       await sendDiscordNotification({
         title: `⚠️ แจ้งเตือนงานใกล้กำหนดส่ง: ${task.title}`,
         project: projectName || "Unknown Project",
-        deadline: new Date(task.due_date).toLocaleString("th-TH"),
+        deadline: thaiTime, // ใช้เวลาไทยที่แก้แล้ว
         mentions: mentionText,
         url: `${process.env.NEXT_PUBLIC_BASE_URL}/dashboard/projects/${task.project_id}`,
       });
 
-      // อัปเดตสถานะ
       await supabase
         .from("tasks")
         .update({ is_notified: true })
@@ -99,17 +101,19 @@ async function sendDiscordNotification({
 }: any) {
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
 
-  // 🔥 เพิ่ม Log ตรงนี้ จะได้รู้ว่า Vercel มองเห็น URL ไหม
   if (!webhookUrl) {
-    console.error("❌ MISSING DISCORD_WEBHOOK_URL in Environment Variables");
+    console.error("❌ MISSING DISCORD_WEBHOOK_URL");
     return;
   }
 
   const payload = {
-    // ... (ส่วน payload เหมือนเดิม) ...
     username: "IPR Production Bot",
+    // 🔥 เปลี่ยนรูป Avatar ตรงนี้ได้เลยครับ ใส่ URL ของรูปภาพ
     avatar_url: "https://cdn-icons-png.flaticon.com/512/4712/4712109.png",
-    content: mentions ? `เฮ้! ${mentions} มีงานใกล้ถึงกำหนดส่งครับ` : undefined,
+
+    // ข้อความแท็ก (Ping)
+    content: mentions ? `เฮ้! ${mentions} ส่งงานยัง?` : undefined,
+
     embeds: [
       {
         title: title,
@@ -124,6 +128,9 @@ async function sendDiscordNotification({
           },
         ],
         url: url,
+        footer: {
+          text: "IPR Production Hub System",
+        },
       },
     ],
   };
@@ -135,7 +142,6 @@ async function sendDiscordNotification({
       body: JSON.stringify(payload),
     });
 
-    // 🔥 เพิ่มการเช็คผลตอบรับจาก Discord
     if (!res.ok) {
       const responseText = await res.text();
       console.error(`❌ Discord Webhook Error (${res.status}):`, responseText);

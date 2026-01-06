@@ -21,6 +21,7 @@ import {
   UserPlus,
   PanelLeftClose,
   PanelLeftOpen,
+  HardDrive, // 🔥 เพิ่มไอคอน HardDrive
 } from "lucide-react";
 
 export default function DashboardLayout({
@@ -41,7 +42,7 @@ export default function DashboardLayout({
   const [isChecking, setIsChecking] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // 🔥 เพิ่ม state สำหรับรูปโปรไฟล์
+  // State สำหรับรูปโปรไฟล์
   const [userInitials, setUserInitials] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
@@ -59,7 +60,6 @@ export default function DashboardLayout({
           return;
         }
 
-        // 🔥 ดึง avatar_url เพิ่มด้วย
         const { data: profile } = await supabase
           .from("profiles")
           .select("must_change_password, display_name, avatar_url")
@@ -78,7 +78,7 @@ export default function DashboardLayout({
           setUserInitials(user.email.substring(0, 2).toUpperCase());
         }
 
-        // 🔥 Set Avatar URL
+        // Set Avatar URL
         if (profile?.avatar_url) {
           setAvatarUrl(profile.avatar_url);
         }
@@ -236,6 +236,26 @@ export default function DashboardLayout({
                   จัดการ Feedback
                 </span>
               </Link>
+
+              {/* 🔥 เพิ่มเมนู Storage Monitor ตรงนี้ */}
+              <Link
+                href="/dashboard/admin/storage"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-orange-300 hover:bg-sidebar-light hover:text-white transition-colors"
+                title={!isSidebarExpanded ? "Storage Monitor" : ""}
+              >
+                <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
+                  <HardDrive className="w-4 h-4" />
+                </div>
+                <span
+                  className={`whitespace-nowrap transition-all duration-300 ${
+                    isSidebarExpanded
+                      ? "opacity-100 translate-x-0"
+                      : "opacity-0 -translate-x-4 w-0 overflow-hidden"
+                  }`}
+                >
+                  Storage Monitor
+                </span>
+              </Link>
             </div>
           )}
         </nav>
@@ -306,14 +326,8 @@ export default function DashboardLayout({
               <Bell className="w-5 h-5" />
             </button>
 
-            {/* 🔥 แก้ไข Profile Icon ตรงนี้ */}
             <Link href="/dashboard/profile" title="ตั้งค่าบัญชี">
               <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold hover:shadow-md transition-all cursor-pointer ring-2 ring-transparent hover:ring-accent overflow-hidden relative">
-                {/* 🔥 แก้ไข: เปลี่ยน bg-gradient-to-br... 
-                   จาก: from-primary to-primary-light (ซึ่งจะกลายเป็นขาวใน dark mode)
-                   เป็น: from-blue-500 to-indigo-600 (สีฟ้าเข้ม สด ชัดเจนตลอดเวลา)
-                */}
-
                 {avatarUrl ? (
                   <img
                     src={avatarUrl}
@@ -333,7 +347,7 @@ export default function DashboardLayout({
         <main className="flex-1 overflow-y-auto p-4 md:p-8">{children}</main>
       </div>
 
-      {/* Overlay สำหรับ Mobile (เมื่อ Sidebar เปิด) */}
+      {/* Overlay สำหรับ Mobile */}
       {isSidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 md:hidden"
